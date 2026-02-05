@@ -1,0 +1,39 @@
+{
+  "version": "0.0.0",
+  "tasks": {
+    "dev": "vite --host",
+    "build": "vite build --mode production",
+    "build:dev": "vite build --mode development",
+    "preview": "vite preview",
+    "lint": "deno lint src/",
+    "test": "deno test --no-check -A",
+    "typecheck": "deno check src/",
+    "release:prepare": "deno run --allow-read --allow-write --allow-run --allow-env scripts/prepare-release.ts"
+  },
+  "imports": {
+    "@reown/appkit": "npm:@reown/appkit@1.8.12",
+    "@reown/appkit-adapter-wagmi": "npm:@reown/appkit-adapter-wagmi@1.8.12",
+    "@wagmi/core": "npm:@wagmi/core@2.16.7",
+    "autoprefixer": "npm:autoprefixer@10.4.21",
+    "lit": "npm:lit@3.3.1",
+    "lit-element": "npm:lit-element@4.2.1",
+    "lit-html": "npm:lit-html@3.3.1",
+    "postcss": "npm:postcss@8.5.6",
+    "terser": "npm:terser@5.37.0",
+    "viem": "npm:viem@2.38.5",
+    "vite": "npm:vite@7.1.12"
+  },
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "lib": ["deno.window", "dom", "dom.iterable", "ES2020"],
+    "types": ["vite/client"],
+    "strict": true
+  },
+  "unstable": [
+    "bare-node-builtins",
+    "detect-cjs",
+    "node-globals",
+    "unsafe-proto",
+    "sloppy-imports"
+  ]
+}
