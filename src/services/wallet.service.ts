@@ -1,6 +1,15 @@
 import { createAppKit } from "@reown/appkit";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { mainnet, polygon, arbitrum, base } from "@reown/appkit/networks";
+import {
+  mainnet,
+  polygon,
+  bsc,
+  arbitrum,
+  optimism,
+  base,
+  linea,
+  unichain,
+} from "@reown/appkit/networks";
 import type { AppKit } from "@reown/appkit";
 import type { Config } from "@wagmi/core";
 import { disconnect as wagmiDisconnect } from "@wagmi/core";
@@ -15,7 +24,7 @@ type AccountChangeCallback = (account: WalletAccount | null) => void;
 export class WalletService {
   private appKit: AppKit | null = null;
   private wagmiAdapter: WagmiAdapter | null = null;
-  private wagmiConfig: Config | null = null;
+  private _wagmiConfig: Config | null = null;
   private currentAccount: WalletAccount | null = null;
   private accountChangeCallbacks: Set<AccountChangeCallback> = new Set();
   private disconnectCallbacks: Set<() => void> = new Set();
@@ -42,13 +51,13 @@ export class WalletService {
     }
 
     try {
-      const networks = [mainnet, polygon, arbitrum, base];
+      const networks = [mainnet, polygon, bsc, arbitrum, optimism, base, linea, unichain];
 
       this.wagmiAdapter = new WagmiAdapter({
         projectId,
         networks,
       });
-      this.wagmiConfig = this.wagmiAdapter.wagmiConfig;
+      this._wagmiConfig = this.wagmiAdapter.wagmiConfig;
 
       this.appKit = createAppKit({
         adapters: [this.wagmiAdapter],
@@ -136,8 +145,8 @@ export class WalletService {
   }
 
   async disconnect(): Promise<void> {
-    if (this.wagmiConfig) {
-      await wagmiDisconnect(this.wagmiConfig);
+    if (this._wagmiConfig) {
+      await wagmiDisconnect(this._wagmiConfig);
     }
     this.currentAccount = null;
     this.notifyDisconnect();
@@ -153,6 +162,10 @@ export class WalletService {
 
   getAccount(): WalletAccount | null {
     return this.currentAccount;
+  }
+
+  get wagmiConfig(): Config | null {
+    return this._wagmiConfig;
   }
 
   onAccountChange(callback: AccountChangeCallback): () => void {

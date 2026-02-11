@@ -88,6 +88,16 @@ export default defineConfig(({ mode }) => {
       port: 3001,
       open: true,
       cors: true,
+      proxy: {
+        "/invoice": {
+          target: "http://localhost:8080",
+          rewrite: (path) => `/public${path}`,
+        },
+        "/swap": {
+          target: "http://localhost:8080",
+          rewrite: (path) => `/public${path}`,
+        },
+      },
     },
     preview: {
       port: 4174,

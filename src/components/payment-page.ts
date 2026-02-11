@@ -6,6 +6,20 @@ import "./kp-order-item.ts";
 import "./kp-bottom-sheet.ts";
 import "./kp-balance-item.ts";
 import { WalletService } from "../services/wallet.service.ts";
+import { InvoiceService } from "../services/invoice.service.ts";
+import { BalanceService } from "../services/balance.service.ts";
+import { PaymentService } from "../services/payment.service.ts";
+import { TokenService } from "../services/token.service.ts";
+import { AcrossService } from "../services/across.service.ts";
+import { UniswapService } from "../services/uniswap.service.ts";
+import { QuoteService, type PaymentPath, type QuoteResult } from "../services/quote.service.ts";
+import type { Invoice } from "../types/invoice.types.ts";
+import { isActiveStatus, isFinalStatus, isExpiredStatus } from "../types/invoice.types.ts";
+import { getTokenKey } from "../config/tokens.ts";
+import { CHAINS_BY_ID } from "../config/chains.ts";
+import { UNISWAP_SWAP_ROUTER_02 } from "../config/uniswap.ts";
+import { formatUnits, parseUnits } from "viem";
+import { switchChain } from "@wagmi/core";
 
 export interface OrderItem {
   name: string;
@@ -15,15 +29,63 @@ export interface OrderItem {
   image?: string;
 }
 
-export interface TokenBalance {
-  name: string;
-  amount: string;
-  fiatValue: string;
-  cryptoValue?: string;
-  icon?: string;
+export type PaymentStep =
+  | "loading"
+  | "invoice-error"
+  | "idle"
+  | "token-select"
+  | "ready-to-pay"
+  | "quoting"
+  | "approving"
+  | "executing"
+  | "polling"
+  | "paid"
+  | "error";
+
+const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
+  "loading": ["idle", "invoice-error"],
+  "invoice-error": [],
+  "idle": ["token-select"],
+  "token-select": ["quoting", "ready-to-pay", "idle"],
+  "ready-to-pay": ["executing", "approving", "token-select", "quoting", "ready-to-pay", "error"],
+  "quoting": ["ready-to-pay", "token-select", "error"],
+  "approving": ["executing", "error", "ready-to-pay"],
+  "executing": ["polling", "error", "ready-to-pay"],
+  "polling": ["paid", "error"],
+  "paid": [],
+  "error": ["ready-to-pay", "token-select"],
+};
+
+interface StepContext {
+  invoice: Invoice | null;
+  selectedChainId: number | null;
+  selectedTokenAddress: `0x${string}` | null;
+  selectedTokenSymbol: string;
+  selectedTokenLogoUrl: string;
+  selectedTokenDecimals: number;
+  requiredAmount: bigint;
+  requiredAmountHuman: string;
+  paymentPath: PaymentPath | null;
+  quote: QuoteResult | null;
+  errorMessage: string;
+  errorRetryStep: PaymentStep | null;
+  redirectCountdown: number;
 }
 
-type Step = "idle" | "token-select" | "processing" | "success";
+interface TokenOption {
+  chainId: number;
+  chainName: string;
+  chainLogoUrl: string;
+  tokenAddress: `0x${string}`;
+  symbol: string;
+  decimals: number;
+  logoUrl: string;
+  usdPrice: number;
+  requiredAmount: string;
+  balance: bigint;
+  balanceHuman: string;
+  sufficient: boolean;
+}
 
 @customElement("payment-page")
 export class PaymentPage extends LitElement {
@@ -719,6 +781,64 @@ export class PaymentPage extends LitElement {
         flex-shrink: 0;
       }
 
+      /* === Token icon fallback === */
+      .token-icon-fallback {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: var(--border-tetriary);
+        color: var(--content-secondary);
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      /* === Skeleton loading === */
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+
+      .skeleton-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 64px;
+        padding: 5px 10px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-sizing: border-box;
+      }
+
+      .skeleton-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: linear-gradient(90deg, var(--border) 25%, var(--border-tetriary) 50%, var(--border) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+
+      .skeleton-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+      }
+
+      .skeleton-line {
+        height: 12px;
+        border-radius: 6px;
+        background: linear-gradient(90deg, var(--border) 25%, var(--border-tetriary) 50%, var(--border) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+
+      .skeleton-line--short { width: 40%; }
+      .skeleton-line--medium { width: 65%; }
+      .skeleton-line--long { width: 85%; }
+
       /* === Processing fee row (dark text) === */
       .fee-row--processing .fee-amount,
       .fee-row--processing .fee-label,
@@ -751,11 +871,8 @@ export class PaymentPage extends LitElement {
   @property({ type: String, attribute: "button-label" })
   accessor buttonLabel = "Connect Wallet & Pay";
 
-  @property({ type: Array })
-  accessor balances: TokenBalance[] = [];
-
-  @property({ type: String, attribute: "wallet-address" })
-  accessor walletAddress = "";
+  @property({ type: String, attribute: "invoice-id" })
+  accessor invoiceId = "";
 
   @property({ type: String, attribute: "project-id" })
   accessor projectId = "";
@@ -767,10 +884,36 @@ export class PaymentPage extends LitElement {
   accessor gasFee = "$0.30";
 
   @state()
-  private accessor _step: Step = "idle";
+  private accessor _step: PaymentStep = "loading";
 
   @state()
-  private accessor _selectedToken = "";
+  private accessor _context: StepContext = {
+    invoice: null,
+    selectedChainId: null,
+    selectedTokenAddress: null,
+    selectedTokenSymbol: "",
+    selectedTokenLogoUrl: "",
+    selectedTokenDecimals: 6,
+    requiredAmount: 0n,
+    requiredAmountHuman: "",
+    paymentPath: null,
+    quote: null,
+    errorMessage: "",
+    errorRetryStep: null,
+    redirectCountdown: 5,
+  };
+
+  @state()
+  private accessor _prices: Map<string, number> = new Map();
+
+  @state()
+  private accessor _balances: Map<string, bigint> = new Map();
+
+  @state()
+  private accessor _walletAddress = "";
+
+  @state()
+  private accessor _connectedAccount: { address: string; chainId: number } | null = null;
 
   @state()
   private accessor _searchQuery = "";
@@ -778,17 +921,66 @@ export class PaymentPage extends LitElement {
   @state()
   private accessor _searching = false;
 
+  @state()
+  private accessor _loadingTokens = false;
+  @state()
+  private accessor _quoteError = "";
+
   private _walletService: WalletService | null = null;
+  private _invoiceService: InvoiceService | null = null;
+  private _balanceService: BalanceService | null = null;
+  private _paymentService: PaymentService | null = null;
+  private _tokenService: TokenService | null = null;
+  private _acrossService: AcrossService | null = null;
+  private _uniswapService: UniswapService | null = null;
+  private _quoteService: QuoteService | null = null;
+  private _quoteRequestId = 0;
   private _unsubscribeAccount: (() => void) | null = null;
+  private _redirectTimer: ReturnType<typeof setInterval> | null = null;
+
+  private _transition(next: PaymentStep, ctx?: Partial<StepContext>): void {
+    const allowed = VALID_TRANSITIONS[this._step];
+    if (!allowed?.includes(next)) {
+      console.warn(`[payment-page] Invalid transition: ${this._step} → ${next}`);
+      return;
+    }
+    this._step = next;
+    if (ctx) {
+      this._context = { ...this._context, ...ctx };
+    }
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this._invoiceService = new InvoiceService();
+    this._balanceService = new BalanceService();
+    this._tokenService = new TokenService();
+    this._tokenService.init().catch(() => {
+      // Falls back to SUPPORTED_TOKENS internally
+    });
     this._initializeWallet();
+    const effectiveInvoiceId = this.invoiceId
+      || new URLSearchParams(globalThis.location.search).get("invoice_id")
+      || "";
+    if (effectiveInvoiceId) {
+      this.invoiceId = effectiveInvoiceId;
+      this._loadInvoice();
+    }
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this._cleanupWallet();
+    this._invoiceService?.destroy();
+    this._balanceService?.destroy();
+    this._paymentService?.destroy();
+    this._tokenService?.destroy();
+    this._acrossService?.destroy();
+    this._uniswapService?.destroy();
+    this._quoteService?.destroy();
+    if (this._redirectTimer) {
+      clearInterval(this._redirectTimer);
+    }
   }
 
   private _initializeWallet(): void {
@@ -802,18 +994,15 @@ export class PaymentPage extends LitElement {
 
     this._unsubscribeAccount = this._walletService.onAccountChange((account) => {
       if (account) {
-        this.walletAddress = this._formatAddress(account.address);
-        if (this._step === "idle") {
-          this._step = "token-select";
-          if (this.balances.length > 0 && !this._selectedToken) {
-            this._selectedToken = this.balances[0].name;
-          }
-        }
+        this._walletAddress = this._formatAddress(account.address);
+        this._connectedAccount = account;
       } else {
-        this.walletAddress = "";
-        if (this._step !== "processing" && this._step !== "success") {
+        this._walletAddress = "";
+        this._connectedAccount = null;
+        if (this._step !== "polling" && this._step !== "paid") {
+          // Force-reset: wallet disconnect can happen from any state
           this._step = "idle";
-          this._selectedToken = "";
+          this._context = { ...this._context, paymentPath: null, quote: null };
         }
       }
     });
@@ -835,17 +1024,28 @@ export class PaymentPage extends LitElement {
   }
 
   private _onButtonClick() {
-    if (this._walletService) {
-      this._walletService.openModal();
-    } else {
+    if (!this._walletService) {
       console.warn("[payment-page] Wallet service not initialized. Provide project-id attribute.");
+      return;
+    }
+
+    if (this._connectedAccount) {
+      this._onWalletConnected(this._connectedAccount);
+    } else {
+      this._walletService.openModal();
     }
   }
 
   private _onSheetClose() {
-    this._step = "idle";
-    this._searchQuery = "";
-    this._searching = false;
+    if (this._step === "token-select") {
+      this._transition("idle");
+      this._searchQuery = "";
+      this._searching = false;
+    } else if (this._step === "ready-to-pay") {
+      this._transition("token-select");
+      this._searchQuery = "";
+      this._searching = false;
+    }
   }
 
   private async _onDisconnect() {
@@ -853,22 +1053,8 @@ export class PaymentPage extends LitElement {
       await this._walletService.disconnect();
     }
     this._step = "idle";
-    this._selectedToken = "";
     this._searchQuery = "";
     this._searching = false;
-  }
-
-  private _onTokenSelect(e: CustomEvent) {
-    this._selectedToken = e.detail.name;
-  }
-
-  private _onPay() {
-    this._step = "processing";
-    setTimeout(() => {
-      if (this._step === "processing") {
-        this._step = "success";
-      }
-    }, 3000);
   }
 
   private _onSearchClick() {
@@ -887,9 +1073,346 @@ export class PaymentPage extends LitElement {
     this._searching = false;
   }
 
-  private get _selectedBalance(): TokenBalance | undefined {
-    return this.balances.find((b) => b.name === this._selectedToken);
+  // === Orchestration methods ===
+
+  private async _loadInvoice(): Promise<void> {
+    try {
+      const invoice = await this._invoiceService!.fetchInvoice(this.invoiceId);
+      if (!isActiveStatus(invoice.status)) {
+        this._transition("invoice-error", { invoice, errorMessage: `Invoice is ${invoice.status}` });
+        return;
+      }
+      // Update total from invoice
+      this.total = `$${invoice.amount}`;
+      // Update items from invoice cart
+      this.items = invoice.cart.items.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: `$${item.price}`,
+        image: item.image_url,
+      }));
+      this._transition("idle", { invoice });
+    } catch {
+      this._transition("invoice-error", { errorMessage: "Failed to load invoice" });
+    }
   }
+
+  private async _onWalletConnected(account: { address: string; chainId: number }): Promise<void> {
+    const config = this._walletService!.wagmiConfig;
+    if (config) {
+      this._paymentService?.destroy();
+      this._acrossService?.destroy();
+      this._uniswapService?.destroy();
+      this._quoteService?.destroy();
+      this._paymentService = new PaymentService(config);
+      this._acrossService = new AcrossService(config);
+      this._uniswapService = new UniswapService(config);
+      this._quoteService = new QuoteService(this._acrossService, this._uniswapService);
+    }
+    this._transition("token-select");
+    this._loadingTokens = true;
+    await this._loadBalancesAndPrices(account.address as `0x${string}`);
+    this._loadingTokens = false;
+  }
+
+  private async _loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
+    const allTokens = this._tokenService!.getAllTokens();
+
+    // Build prices map from Across API data (already in TokenService)
+    this._prices = new Map();
+    for (const token of allTokens) {
+      if (token.priceUsd && token.priceUsd > 0) {
+        this._prices.set(getTokenKey(token.chainId, token.address), token.priceUsd);
+      }
+    }
+
+    try {
+      this._balances = await this._balanceService!.getBalances(address, allTokens);
+    } catch (e) {
+      console.error("[PaymentPage] Balance fetch failed:", e);
+    }
+  }
+
+  private _computeTokenOptions(): TokenOption[] {
+    const invoice = this._context.invoice;
+    if (!invoice) return [];
+    const usdAmount = parseFloat(invoice.amount);
+
+    const options: TokenOption[] = [];
+    for (const token of this._tokenService!.getAllTokens()) {
+      const key = getTokenKey(token.chainId, token.address);
+      const price = this._prices.get(key);
+      if (!price || price <= 0) continue;
+
+      const chain = CHAINS_BY_ID[token.chainId];
+      if (!chain) continue;
+
+      const balance = this._balances.get(key) ?? 0n;
+      if (balance <= 0n) continue;
+
+      const precision = Math.min(token.decimals, 6);
+      const requiredHuman = (usdAmount / price * 1.03).toFixed(precision);
+      const requiredAmount = parseUnits(requiredHuman, token.decimals);
+      const balanceHuman = formatUnits(balance, token.decimals);
+
+      options.push({
+        chainId: token.chainId,
+        chainName: chain.name,
+        chainLogoUrl: chain.logoUrl,
+        tokenAddress: token.address,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        logoUrl: token.logoUrl,
+        usdPrice: price,
+        requiredAmount: requiredHuman,
+        balance,
+        balanceHuman: parseFloat(balanceHuman).toFixed(precision),
+        sufficient: balance >= requiredAmount,
+      });
+    }
+
+    // Sort: sufficient first, then by USD value of balance descending
+    options.sort((a, b) => {
+      if (a.sufficient !== b.sufficient) return a.sufficient ? -1 : 1;
+      const aUsd = parseFloat(formatUnits(a.balance, a.decimals)) * a.usdPrice;
+      const bUsd = parseFloat(formatUnits(b.balance, b.decimals)) * b.usdPrice;
+      return bUsd - aUsd;
+    });
+
+    return options;
+  }
+
+  private async _onTokenSelected(option: TokenOption): Promise<void> {
+    if (!option.sufficient) return;
+    this._quoteError = "";
+
+    const path = this._quoteService!.detectPath(
+      option.chainId,
+      option.tokenAddress,
+    );
+
+    if (path === "direct") {
+      // No quote needed — go straight to ready-to-pay
+      const amount = parseUnits(this._context.invoice!.amount, 6);
+      this._transition("ready-to-pay", {
+        selectedChainId: option.chainId,
+        selectedTokenAddress: option.tokenAddress,
+        selectedTokenSymbol: option.symbol,
+        selectedTokenLogoUrl: option.logoUrl,
+        selectedTokenDecimals: option.decimals,
+        paymentPath: path,
+        requiredAmount: amount,
+        requiredAmountHuman: this._context.invoice!.amount,
+        quote: {
+          path: "direct",
+          userPayAmount: amount,
+          userPayAmountHuman: this._context.invoice!.amount,
+          acrossQuote: null,
+          uniswapQuote: null,
+        },
+      });
+      return;
+    }
+
+    // Fetch quote for swap/bridge paths
+    const requestId = ++this._quoteRequestId;
+    this._transition("quoting", {
+      selectedChainId: option.chainId,
+      selectedTokenAddress: option.tokenAddress,
+      selectedTokenSymbol: option.symbol,
+      selectedTokenLogoUrl: option.logoUrl,
+      selectedTokenDecimals: option.decimals,
+      paymentPath: path,
+    });
+
+    try {
+      const quote = await this._quoteService!.calculateQuote({
+        sourceToken: option.tokenAddress,
+        sourceChainId: option.chainId,
+        sourceDecimals: option.decimals,
+        recipientAmount: parseUnits(this._context.invoice!.amount, 6),
+        depositorAddress: this._walletService!.getAccount()!.address as `0x${string}`,
+        recipientAddress: this._context.invoice!.payment_address as `0x${string}`,
+      });
+
+      if (requestId !== this._quoteRequestId) return; // stale response
+      this._transition("ready-to-pay", {
+        requiredAmount: quote.userPayAmount,
+        requiredAmountHuman: quote.userPayAmountHuman,
+        quote,
+      });
+    } catch (err) {
+      if (requestId !== this._quoteRequestId) return; // stale error
+      this._quoteError = err instanceof Error ? err.message : "Failed to get quote";
+      this._transition("token-select");
+    }
+  }
+
+  private async _executePayment(): Promise<void> {
+    const { paymentPath, selectedChainId } = this._context;
+    const account = this._walletService!.getAccount()!;
+
+    // Chain switch if needed
+    if (selectedChainId && account.chainId !== selectedChainId) {
+      try {
+        await switchChain(this._walletService!.wagmiConfig!, {
+          chainId: selectedChainId,
+        });
+      } catch {
+        this._transition("error", {
+          errorMessage: "Failed to switch network",
+          errorRetryStep: "ready-to-pay",
+        });
+        return;
+      }
+    }
+
+    try {
+      switch (paymentPath) {
+        case "direct":
+          await this._executeDirect();
+          break;
+        case "same-chain-swap":
+          await this._executeUniswapSwap();
+          break;
+        case "cross-chain":
+          await this._executeAcrossSwap();
+          break;
+      }
+    } catch (err: unknown) {
+      if (this._isUserRejection(err)) {
+        this._transition("ready-to-pay");
+        return;
+      }
+      this._transition("error", {
+        errorMessage: err instanceof Error ? err.message : "Payment failed",
+        errorRetryStep: "ready-to-pay",
+      });
+    }
+  }
+
+  private async _executeDirect(): Promise<void> {
+    this._transition("executing");
+    const { selectedTokenAddress, invoice, requiredAmount } = this._context;
+    await this._paymentService!.transfer(
+      selectedTokenAddress!,
+      invoice!.payment_address as `0x${string}`,
+      requiredAmount,
+    );
+    this._transition("polling");
+    this._startPolling();
+  }
+
+  private async _executeUniswapSwap(): Promise<void> {
+    const { quote, selectedTokenAddress } = this._context;
+    const uniQuote = quote!.uniswapQuote!;
+    const account = this._walletService!.getAccount()!;
+
+    // Approval for ERC20 (not native) — approve for maxAmountIn to cover slippage
+    if (!uniQuote.isNativeToken) {
+      const maxAmountIn = (uniQuote.amountIn * 105n) / 100n;
+      const allowance = await this._paymentService!.checkAllowance(
+        selectedTokenAddress!,
+        UNISWAP_SWAP_ROUTER_02,
+        account.address as `0x${string}`,
+      );
+      if (allowance < maxAmountIn) {
+        this._transition("approving");
+        await this._paymentService!.approve(
+          selectedTokenAddress!,
+          UNISWAP_SWAP_ROUTER_02,
+          maxAmountIn,
+        );
+      }
+    }
+
+    this._transition("executing");
+    await this._uniswapService!.executeSwap(uniQuote);
+    this._transition("polling");
+    this._startPolling();
+  }
+
+  private async _executeAcrossSwap(): Promise<void> {
+    const { quote } = this._context;
+    const acrossQuote = quote!.acrossQuote!;
+
+    if (acrossQuote.approvalTxns.length > 0) {
+      this._transition("approving");
+      await this._acrossService!.executeApprovals(acrossQuote.approvalTxns);
+    }
+
+    this._transition("executing");
+    await this._acrossService!.executeSwap(acrossQuote.swapTx);
+    this._transition("polling");
+    this._startPolling();
+  }
+
+  private _isUserRejection(err: unknown): boolean {
+    if (err && typeof err === "object") {
+      if ("code" in err && (err as { code: number }).code === 4001) return true;
+      if ("message" in err && typeof (err as { message: string }).message === "string") {
+        const msg = (err as { message: string }).message.toLowerCase();
+        return msg.includes("user rejected") || msg.includes("user denied");
+      }
+    }
+    return false;
+  }
+
+  private _startPolling(): void {
+    this._invoiceService!.startPolling(
+      this._context.invoice!.id,
+      3000,
+      (invoice) => this._onInvoiceUpdate(invoice),
+    );
+  }
+
+  private _onInvoiceUpdate(invoice: Invoice): void {
+    if (isFinalStatus(invoice.status)) {
+      this._transition("paid", { invoice });
+      this._startRedirectCountdown();
+    } else if (isExpiredStatus(invoice.status)) {
+      this._transition("error", { errorMessage: "Invoice has expired", errorRetryStep: null });
+    } else if (invoice.status === "PartiallyPaid") {
+      this._transition("error", {
+        errorMessage: "Partial payment received. Please contact support.",
+        errorRetryStep: null,
+      });
+    }
+  }
+
+  private _startRedirectCountdown(): void {
+    this._redirectTimer = setInterval(() => {
+      const remaining = this._context.redirectCountdown - 1;
+      this._context = { ...this._context, redirectCountdown: remaining };
+      if (remaining <= 0) {
+        clearInterval(this._redirectTimer!);
+        globalThis.location.href = this._context.invoice!.redirect_url;
+      }
+    }, 1000);
+  }
+
+  private _onRetry(): void {
+    const retryStep = this._context.errorRetryStep;
+    if (retryStep) {
+      this._transition(retryStep, { errorMessage: "" });
+    }
+  }
+
+  private _getNativeSymbol(chainId: number): string {
+    const map: Record<number, string> = {
+      1: "ETH", 137: "POL", 56: "BNB", 42161: "ETH",
+      10: "ETH", 8453: "ETH", 59144: "ETH", 130: "ETH",
+    };
+    return map[chainId] ?? "native token";
+  }
+
+  private _onBackToTokens(): void {
+    if (this._step === "ready-to-pay") {
+      this._transition("token-select");
+    }
+  }
+
+  // === SVG render helpers ===
 
   private _renderOrderIcon() {
     return svg`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -974,6 +1497,37 @@ export class PaymentPage extends LitElement {
     </svg>`;
   }
 
+  private _renderSkeletonItems(count = 5) {
+    return html`${Array.from({ length: count }, (_, i) => html`
+      <div class="skeleton-item" style="animation-delay: ${i * 0.1}s">
+        <div class="skeleton-circle" style="animation-delay: ${i * 0.1}s"></div>
+        <div class="skeleton-lines">
+          <div class="skeleton-line skeleton-line--medium" style="animation-delay: ${i * 0.1}s"></div>
+          <div class="skeleton-line skeleton-line--short" style="animation-delay: ${i * 0.1}s"></div>
+        </div>
+      </div>
+    `)}`;
+  }
+
+  private _renderTokenIcon(logoUrl: string, symbol: string, size = 36) {
+    if (!logoUrl) {
+      return html`<span class="token-icon-fallback" style="width:${size}px;height:${size}px">${symbol.slice(0, 2)}</span>`;
+    }
+    return html`<img
+      src=${logoUrl}
+      alt=${symbol}
+      style="width:${size}px;height:${size}px;border-radius:50%"
+      @error=${(e: Event) => {
+        const img = e.target as HTMLImageElement;
+        const fallback = document.createElement("span");
+        fallback.className = "token-icon-fallback";
+        fallback.style.cssText = `width:${size}px;height:${size}px;display:inline-flex`;
+        fallback.textContent = symbol.slice(0, 2);
+        img.replaceWith(fallback);
+      }}
+    />`;
+  }
+
   private _renderWalletIcon() {
     return svg`<svg width="19" height="15" viewBox="0 0 19 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M16.5 3.5H3C2.17 3.5 1.5 2.83 1.5 2V12.5C1.5 13.33 2.17 14 3 14H16.5C17.33 14 18 13.33 18 12.5V5C18 4.17 17.33 3.5 16.5 3.5Z" stroke="currentColor" stroke-width="1.2"/>
@@ -998,26 +1552,31 @@ export class PaymentPage extends LitElement {
     `;
   }
 
-  private get _filteredBalances(): TokenBalance[] {
-    if (!this._searchQuery) return this.balances;
-    const q = this._searchQuery.toLowerCase();
-    return this.balances.filter((b) => {
-      const ticker = this._getTickerFromName(b.name).toLowerCase();
-      return ticker.includes(q) || b.name.toLowerCase().includes(q);
-    });
-  }
-
   private _renderTokenSheet() {
-    const selected = this._selectedBalance;
-    const address = this.walletAddress || "0x66B...d79C";
-    const isProcessing = this._step === "processing";
-    const isSuccess = this._step === "success";
-    const isOpen =
-      this._step === "token-select" || isProcessing || isSuccess;
-    const displayBalances = this._searching
-      ? this._filteredBalances
-      : this.balances;
-    const showDarkFees = isProcessing || isSuccess;
+    const ctx = this._context;
+    const isOpen = this._step !== "loading" && this._step !== "invoice-error" && this._step !== "idle";
+    const isQuoting = this._step === "quoting";
+    const isProcessing = ["approving", "executing", "polling"].includes(this._step);
+    const isPaid = this._step === "paid";
+    const isError = this._step === "error";
+    const isTokenSelect = this._step === "token-select";
+    const isReadyToPay = this._step === "ready-to-pay";
+
+    const processingMessages: Record<string, string> = {
+      "quoting": "Getting best price...",
+      "approving": "Approving token...",
+      "executing": "Sending payment...",
+      "polling": "Waiting for payment confirmation...",
+    };
+
+    const showTokenList = isTokenSelect || isReadyToPay || isQuoting;
+    const tokenOptions = showTokenList ? this._computeTokenOptions() : [];
+    const filteredOptions = this._searchQuery
+      ? tokenOptions.filter(o => {
+          const q = this._searchQuery.toLowerCase();
+          return o.symbol.toLowerCase().includes(q) || o.chainName.toLowerCase().includes(q);
+        })
+      : tokenOptions;
 
     return html`
       <kp-bottom-sheet
@@ -1031,25 +1590,21 @@ export class PaymentPage extends LitElement {
               <div class="wallet-address-icon">
                 ${this._renderWalletIcon()}
               </div>
-              <span class="wallet-address-text">${address}</span>
+              <span class="wallet-address-text">${this._walletAddress || "0x..."}</span>
               <button class="disconnect-btn" aria-label="Disconnect wallet" @click=${this._onDisconnect}>
                 ${this._renderDisconnectIcon()}
                 <span class="disconnect-text">Disconnect</span>
               </button>
             </div>
           </div>
-          ${isSuccess
+          ${isPaid
             ? html`
                 <div class="tx-link">
                   <a class="tx-link-inner" href="#" target="_blank" rel="noopener noreferrer">
                     <span class="tx-link-text">View transaction on</span>
-                    <span class="tx-link-icon"
-                      >${this._renderEtherscanIcon()}</span
-                    >
+                    <span class="tx-link-icon">${this._renderEtherscanIcon()}</span>
                     <span class="tx-link-text">Etherscan</span>
-                    <span class="tx-link-external"
-                      >${this._renderExternalLinkIcon()}</span
-                    >
+                    <span class="tx-link-external">${this._renderExternalLinkIcon()}</span>
                   </a>
                 </div>
               `
@@ -1069,20 +1624,13 @@ export class PaymentPage extends LitElement {
                             @input=${this._onSearchInput}
                             placeholder="Search\u2026"
                           />
-                          <button
-                            class="clear-search"
-                            aria-label="Clear search"
-                            @click=${this._onClearSearch}
-                          >
+                          <button class="clear-search" aria-label="Clear search" @click=${this._onClearSearch}>
                             ${this._renderCloseIcon()}
                           </button>
                         </div>
                       `
                     : html`
-                        <button
-                          class="find-token"
-                          @click=${this._onSearchClick}
-                        >
+                        <button class="find-token" @click=${this._onSearchClick}>
                           ${this._renderSearchIcon()}
                           <span>Find token</span>
                         </button>
@@ -1091,125 +1639,140 @@ export class PaymentPage extends LitElement {
               `}
         </div>
 
-        ${isSuccess
+        ${isPaid
           ? html`
               <div class="success-body">
                 <div class="success-amount">
-                  <span class="success-amount-text"
-                    >${selected?.fiatValue
-                      ? `–${selected.fiatValue.replace("$", "")}`
-                      : ""}</span
-                  >
-                  ${selected?.icon
-                    ? html`<span class="success-amount-icon"
-                        ><img src=${selected.icon} alt=""
-                      /></span>`
-                    : nothing}
-                  <span class="success-amount-text"
-                    >${selected
-                      ? this._getTickerFromName(selected.name)
-                      : ""}</span
-                  >
+                  <span class="success-amount-text">–${ctx.requiredAmountHuman}</span>
+                  <span class="success-amount-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 36)}</span>
+                  <span class="success-amount-text">${ctx.selectedTokenSymbol}</span>
                 </div>
                 <div class="success-redirect">
-                  Redirecting you to the
-                  <a href="#">receipt page</a>\u2026
+                  Redirecting in ${ctx.redirectCountdown}s...
                 </div>
               </div>
             `
-          : html`
-              <div class="balance-header">
-                <span class="balance-header-label">Available balance</span>
-                <div class="exchange-rate">
-                  ${this._renderChevronIcon()}
-                  <span class="balance-header-label">Exchange rate</span>
+          : isError
+            ? html`
+                <div class="success-body">
+                  <div class="success-redirect" style="color: var(--content-primary)">
+                    ${ctx.errorMessage}
+                  </div>
                 </div>
-              </div>
-              <div class="balance-list">
-                <slot name="balances">
-                  ${displayBalances.map(
-                    (b) => html`
-                      <kp-balance-item
-                        name=${b.name}
-                        amount=${b.amount}
-                        fiat-value=${b.fiatValue}
-                        crypto-value=${b.cryptoValue || ""}
-                        ?selected=${b.name === this._selectedToken}
-                        @select=${this._onTokenSelect}
-                      >
-                        ${b.icon
-                          ? html`<img
-                              slot="icon"
-                              src=${b.icon}
-                              alt=${b.name}
-                              style="width:36px;height:36px;border-radius:50%"
-                            />`
-                          : nothing}
-                      </kp-balance-item>
-                    `,
-                  )}
-                </slot>
-              </div>
-            `}
+              `
+            : showTokenList
+              ? html`
+                  <div class="balance-header">
+                    <span class="balance-header-label">Available balance</span>
+                    <div class="exchange-rate">
+                      ${this._renderChevronIcon()}
+                      <span class="balance-header-label">Exchange rate</span>
+                    </div>
+                  </div>
+                  <div class="balance-list">
+                    ${this._loadingTokens
+                      ? this._renderSkeletonItems(5)
+                      : filteredOptions.map(
+                          (o) => {
+                            const isSelected = ctx.selectedTokenSymbol === o.symbol && ctx.selectedChainId === o.chainId;
+                            const requiredFiat = `$${(parseFloat(o.requiredAmount) * o.usdPrice).toFixed(2)}`;
+                            const isStablecoin = o.usdPrice >= 0.95 && o.usdPrice <= 1.05;
+                            return html`
+                              <kp-balance-item
+                                name=${o.symbol}
+                                amount=${o.balanceHuman}
+                                fiat-value=${requiredFiat}
+                                crypto-value=${isStablecoin ? "" : o.requiredAmount}
+                                ?selected=${isSelected}
+                                style="${!o.sufficient ? 'opacity: 0.4; pointer-events: none;' : ''}"
+                                @select=${() => this._onTokenSelected(o)}
+                              >
+                                <span slot="icon">${this._renderTokenIcon(o.logoUrl, o.symbol)}</span>
+                                <span slot="chain-icon">${this._renderTokenIcon(o.chainLogoUrl, o.chainName, 14)}</span>
+                              </kp-balance-item>
+                            `;
+                          },
+                        )}
+                  </div>
+                `
+              : isProcessing
+                ? html`
+                    <div class="success-body">
+                      <div class="spinner">${this._renderSpinnerIcon()}</div>
+                      <div class="success-redirect" style="color: var(--content-primary)">
+                        ${processingMessages[this._step] || "Processing..."}
+                      </div>
+                    </div>
+                  `
+                : nothing}
 
         <div slot="footer" class="pay-cta">
-          ${isSuccess
+          ${isPaid
             ? html`
                 <div class="pay-btn--success" role="status" aria-label="Successful payment">
                   <span class="checkmark">${this._renderCheckmarkIcon()}</span>
                   <span class="pay-btn-text">Successful payment</span>
                 </div>
               `
-            : isProcessing
+            : isError
               ? html`
-                  <div class="pay-btn--processing" role="status" aria-label="Processing payment">
-                    <span class="spinner"
-                      >${this._renderSpinnerIcon()}</span
-                    >
-                    <span class="pay-btn-text">Processing</span>
-                    ${selected?.fiatValue
-                      ? html`<span class="pay-btn-amount"
-                          >${selected.fiatValue.replace("$", "")}</span
-                        >`
-                      : nothing}
-                    ${selected?.icon
-                      ? html`<span class="pay-btn-icon"
-                          ><img src=${selected.icon} alt=""
-                        /></span>`
-                      : nothing}
-                    ${selected
-                      ? html`<span class="pay-btn-ticker"
-                          >${this._getTickerFromName(selected.name)}</span
-                        >`
-                      : nothing}
-                  </div>
+                  ${ctx.errorRetryStep
+                    ? html`<button class="pay-btn" @click=${this._onRetry}>
+                        <span class="pay-btn-text">Try again</span>
+                      </button>`
+                    : html`<div class="pay-btn--processing" role="status">
+                        <span class="pay-btn-text">${ctx.errorMessage}</span>
+                      </div>`}
                 `
-              : html`
-                  <button class="pay-btn" @click=${this._onPay}>
-                    <span class="pay-btn-text">Pay</span>
-                    ${selected?.cryptoValue
-                      ? html`<span class="pay-btn-amount"
-                          >${selected.cryptoValue}</span
-                        >`
-                      : nothing}
-                    ${selected?.icon
-                      ? html`<span class="pay-btn-icon"
-                          ><img src=${selected.icon} alt=""
-                        /></span>`
-                      : nothing}
-                    ${selected
-                      ? html`<span class="pay-btn-ticker"
-                          >${this._getTickerFromName(selected.name)}</span
-                        >`
-                      : nothing}
-                    ${selected?.fiatValue
-                      ? html`<span class="pay-btn-fiat"
-                          >${selected.fiatValue}</span
-                        >`
-                      : nothing}
-                  </button>
-                `}
-          <div class="fee-row ${showDarkFees ? "fee-row--processing" : ""}">
+              : isProcessing
+                ? html`
+                    <div class="pay-btn--processing" role="status" aria-label="Processing payment">
+                      <span class="spinner">${this._renderSpinnerIcon()}</span>
+                      <span class="pay-btn-text">Processing</span>
+                      ${ctx.requiredAmountHuman
+                        ? html`<span class="pay-btn-amount">${ctx.requiredAmountHuman}</span>`
+                        : nothing}
+                      <span class="pay-btn-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 16)}</span>
+                      ${ctx.selectedTokenSymbol
+                        ? html`<span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>`
+                        : nothing}
+                    </div>
+                  `
+                : isQuoting
+                  ? html`
+                      <div class="pay-btn--processing" role="status" aria-label="Getting quote">
+                        <span class="spinner">${this._renderSpinnerIcon()}</span>
+                        <span class="pay-btn-text">Getting best price...</span>
+                        <span class="pay-btn-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 16)}</span>
+                        ${ctx.selectedTokenSymbol
+                          ? html`<span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>`
+                          : nothing}
+                      </div>
+                    `
+                : isReadyToPay
+                  ? html`
+                      <button class="pay-btn" @click=${this._executePayment}>
+                        <span class="pay-btn-text">Pay</span>
+                        <span class="pay-btn-amount">${ctx.requiredAmountHuman}</span>
+                        <span class="pay-btn-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 16)}</span>
+                        <span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>
+                      </button>
+                      ${ctx.paymentPath !== "direct" && ctx.selectedChainId
+                        ? html`<span class="pay-btn-fiat">Requires ${this._getNativeSymbol(ctx.selectedChainId)} for gas fees</span>`
+                        : nothing}
+                    `
+                  : this._quoteError
+                    ? html`
+                        <div class="pay-btn--processing" role="status">
+                          <span class="pay-btn-text">${this._quoteError}</span>
+                        </div>
+                      `
+                    : html`
+                        <button class="pay-btn" @click=${() => {}}>
+                          <span class="pay-btn-text">Select a token to pay</span>
+                        </button>
+                      `}
+          <div class="fee-row ${(isProcessing || isPaid) ? "fee-row--processing" : ""}">
             <div class="fee-item">
               <span class="fee-amount">${this.exchangeFee}</span>
               ${this._renderExchangeIcon()}
@@ -1227,18 +1790,26 @@ export class PaymentPage extends LitElement {
     `;
   }
 
-  private _getTickerFromName(name: string): string {
-    const tickers: Record<string, string> = {
-      Solana: "SOL",
-      Bitcoin: "BTC",
-      Ethereum: "ETH",
-      USDT: "USDT",
-      USDC: "USDC",
-    };
-    return tickers[name] || name;
-  }
-
   override render() {
+    if (this._step === "loading") {
+      return html`
+        <div class="page" style="align-items: center; justify-content: center;">
+          <div class="spinner">${this._renderSpinnerIcon()}</div>
+          <div style="margin-top: 10px; font-size: 14px; color: var(--content-secondary);">Loading invoice...</div>
+        </div>
+      `;
+    }
+
+    if (this._step === "invoice-error") {
+      return html`
+        <div class="page" style="align-items: center; justify-content: center;">
+          <div style="font-size: 14px; color: var(--content-secondary); text-align: center;">
+            ${this._context.errorMessage || "Invoice error"}
+          </div>
+        </div>
+      `;
+    }
+
     return html`
       <div class="page">
         <div class="header">
@@ -1323,7 +1894,7 @@ export class PaymentPage extends LitElement {
                 fill="var(--brand-quinary)"
               />
             </svg>
-            ${this.buttonLabel}
+            ${this._connectedAccount ? "Pay" : this.buttonLabel}
           </kp-button>
         </div>
 

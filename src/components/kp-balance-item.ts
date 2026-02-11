@@ -55,10 +55,16 @@ export class KpBalanceItem extends LitElement {
         gap: 7.5px;
       }
 
-      .icon {
+      .icon-wrapper {
+        position: relative;
         width: 36px;
         height: 36px;
         flex-shrink: 0;
+      }
+
+      .icon {
+        width: 36px;
+        height: 36px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -67,6 +73,27 @@ export class KpBalanceItem extends LitElement {
       .icon ::slotted(*) {
         width: 36px;
         height: 36px;
+        border-radius: 50%;
+      }
+
+      .chain-badge {
+        position: absolute;
+        bottom: -2px;
+        left: -2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1.5px solid var(--fill-primary);
+        background: var(--fill-primary);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .chain-badge ::slotted(*) {
+        width: 14px;
+        height: 14px;
         border-radius: 50%;
       }
 
@@ -208,8 +235,13 @@ export class KpBalanceItem extends LitElement {
       >
         <div class="inner">
           <div class="left">
-            <div class="icon">
-              <slot name="icon"></slot>
+            <div class="icon-wrapper">
+              <div class="icon">
+                <slot name="icon"></slot>
+              </div>
+              <div class="chain-badge">
+                <slot name="chain-icon"></slot>
+              </div>
             </div>
             <div class="info">
               <span class="name">${this.name}</span>

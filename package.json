@@ -1,0 +1,7 @@
+{
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}
