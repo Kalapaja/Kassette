@@ -5,6 +5,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === "production";
 
   return {
+    base: isProduction ? "/public/assets/" : "/",
     plugins: [],
     build: {
       rollupOptions: {
@@ -61,7 +62,7 @@ export default defineConfig(({ mode }) => {
           keep_fnames: false,
         }
         : undefined,
-      sourcemap: isProduction ? true : "inline",
+      sourcemap: isProduction ? false : "inline",
       target: "es2020",
       chunkSizeWarningLimit: 500,
       reportCompressedSize: true,
