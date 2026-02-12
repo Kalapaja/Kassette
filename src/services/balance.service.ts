@@ -23,7 +23,7 @@ const VIEM_CHAINS: Record<number, Chain> = {
   130: unichain,
 };
 
-const MAX_CONCURRENCY = 3;
+const MAX_CONCURRENCY = 2;
 
 export class BalanceService {
   private _clients: Map<number, PublicClient> = new Map();
@@ -40,7 +40,7 @@ export class BalanceService {
     return createPublicClient({
       chain: viemChain,
       transport: http(chainConfig.rpcUrl),
-      batch: { multicall: true },
+      batch: { multicall: { wait: 50 } },
     }) as PublicClient;
   }
 

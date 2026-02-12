@@ -26,6 +26,7 @@ export interface AcrossFees {
   totalFeeUsd: string;
   bridgeFeeUsd: string;
   swapFeeUsd: string;
+  originGasFeeUsd: string;
 }
 
 export interface AcrossQuote {
@@ -106,8 +107,11 @@ export class AcrossService {
       expectedFillTime: data.expectedFillTime ?? 0,
       fees: {
         totalFeeUsd: data.fees?.total?.amountUsd?.toString() ?? "0",
-        bridgeFeeUsd: data.fees?.relayerCapital?.amountUsd?.toString() ?? "0",
-        swapFeeUsd: data.fees?.lpFee?.amountUsd?.toString() ?? "0",
+        bridgeFeeUsd: data.fees?.total?.details?.bridge?.amountUsd?.toString() ??
+          "0",
+        swapFeeUsd: data.fees?.total?.details?.swapImpact?.amountUsd
+            ?.toString() ?? "0",
+        originGasFeeUsd: data.fees?.originGas?.amountUsd?.toString() ?? "0",
       },
       swapTx,
       approvalTxns,

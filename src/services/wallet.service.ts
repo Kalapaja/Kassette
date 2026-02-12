@@ -30,6 +30,7 @@ export class WalletService {
   private disconnectCallbacks: Set<() => void> = new Set();
   private initializedProjectId: string | null = null;
   private unsubscribeState: (() => void) | null = null;
+  private previousAddress: string | null = null;
 
   /**
    * Initialize Reown AppKit
@@ -102,8 +103,6 @@ export class WalletService {
       this.unsubscribeState = null;
     }
 
-    let previousAddress: string | null = null;
-
     this.unsubscribeState = this.appKit.subscribeState((state) => {
       const address = state.selectedNetworkId
         ? this.appKit?.getAddress()
@@ -120,18 +119,16 @@ export class WalletService {
       }
 
       if (address && chainId) {
-        const addressChanged = previousAddress !== address;
-
-        if (addressChanged) {
+        if (this.previousAddress !== address) {
           const walletAccount: WalletAccount = { address, chainId };
           this.currentAccount = walletAccount;
           this.notifyAccountChange(walletAccount);
-          previousAddress = address;
+          this.previousAddress = address;
         }
-      } else if (this.currentAccount) {
+      } else if (this.previousAddress) {
         this.currentAccount = null;
-        previousAddress = null;
-        this.notifyDisconnect();
+        this.previousAddress = null;
+        this.notifyAccountChange(null);
       }
     });
   }
@@ -145,11 +142,15 @@ export class WalletService {
   }
 
   async disconnect(): Promise<void> {
+    if (this.appKit) {
+      await this.appKit.disconnect();
+    }
     if (this._wagmiConfig) {
       await wagmiDisconnect(this._wagmiConfig);
     }
     this.currentAccount = null;
-    this.notifyDisconnect();
+    this.previousAddress = null;
+    this.notifyAccountChange(null);
   }
 
   get isConnected(): boolean {
@@ -196,6 +197,7 @@ export class WalletService {
       this.appKit = null;
     }
     this.currentAccount = null;
+    this.previousAddress = null;
   }
 
   destroy(): void {

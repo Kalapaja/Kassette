@@ -77,7 +77,7 @@ export class KpButton extends LitElement {
 
       /* ===== Primary ===== */
       :host([weight="primary"]) button {
-        background: var(--brand-primary);
+        background: var(--content-primary);
         color: var(--brand-quinary);
         border-radius: 32px;
       }

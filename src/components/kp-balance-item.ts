@@ -1,4 +1,4 @@
-import { css, html, LitElement, nothing } from "lit";
+import { css, html, LitElement, nothing, svg } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { theme } from "../styles/theme.css.ts";
 
@@ -18,7 +18,7 @@ export class KpBalanceItem extends LitElement {
         justify-content: space-between;
         height: 64px;
         padding: 5px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-secondary);
         border-radius: 12px;
         box-sizing: border-box;
         cursor: pointer;
@@ -30,7 +30,7 @@ export class KpBalanceItem extends LitElement {
 
       :host([selected]) .row {
         border-color: var(--content-primary);
-        background: var(--secondary);
+        background: var(--fill-secondary);
         box-shadow: 0 4px 20px oklch(0 0 0 / 0.1);
       }
 
@@ -115,7 +115,22 @@ export class KpBalanceItem extends LitElement {
         font-size: 12px;
         font-weight: 421;
         line-height: 14px;
-        color: var(--muted-foreground);
+        color: var(--content-tetriary);
+      }
+
+      .amount-with-rate {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .amount-separator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 9px;
+        height: 9px;
+        flex-shrink: 0;
       }
 
       .right {
@@ -126,11 +141,11 @@ export class KpBalanceItem extends LitElement {
 
       .fiat {
         display: flex;
-        align-items: baseline;
+        align-items: flex-start;
         font-size: 12px;
         font-weight: 421;
         line-height: 14px;
-        color: var(--muted-foreground);
+        color: var(--content-tetriary);
         font-variant-numeric: tabular-nums;
       }
 
@@ -179,6 +194,9 @@ export class KpBalanceItem extends LitElement {
   @property({ type: String, attribute: "crypto-value" })
   accessor cryptoValue = "";
 
+  @property({ type: String, attribute: "unit-price" })
+  accessor unitPrice = "";
+
   @property({ type: Boolean, reflect: true })
   accessor selected = false;
 
@@ -197,6 +215,22 @@ export class KpBalanceItem extends LitElement {
       e.preventDefault();
       this._onClick();
     }
+  }
+
+  private _renderFiat() {
+    const fiat = this.fiatValue;
+    if (!fiat) return nothing;
+    const match = fiat.match(/^\$?([\d,]+)(\.(\d+))?$/);
+    if (!match) return html`<span class="fiat">${fiat}</span>`;
+    const integer = match[1];
+    const decimal = match[3] || "00";
+    return html`
+      <span class="fiat">
+        <span>$</span>
+        <span>${integer}</span>
+        <span>.${decimal}</span>
+      </span>
+    `;
   }
 
   private _renderValue() {
@@ -245,13 +279,21 @@ export class KpBalanceItem extends LitElement {
             </div>
             <div class="info">
               <span class="name">${this.name}</span>
-              <span class="amount">${this.amount}</span>
+              ${this.selected && this.unitPrice
+                ? html`
+                  <span class="amount-with-rate">
+                    <span class="amount">${this.amount}</span>
+                    <span class="amount-separator">${svg`<svg width="9" height="9" viewBox="0 0 9 9" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.5 7.79297L7.79289 0.500076" stroke="#D9D9D9" stroke-linecap="round"/></svg>`}</span>
+                    <span class="amount">${this.unitPrice}</span>
+                  </span>
+                `
+                : html`<span class="amount">${this.amount}</span>`}
             </div>
           </div>
           <div class="right">
             ${hasCryptoValue
               ? html`
-                <span class="fiat">${this.fiatValue}</span>
+                ${this._renderFiat()}
                 <span class="value">
                   <span class="value-integer">${this.cryptoValue}</span>
                 </span>

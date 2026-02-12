@@ -57,7 +57,7 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
     name: "Base",
     logoUrl: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/base/info/logo.png",
     explorerUrl: "https://basescan.org",
-    rpcUrl: "https://mainnet.base.org",
+    rpcUrl: "https://base.drpc.org",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   },
   {

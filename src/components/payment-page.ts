@@ -1,6 +1,7 @@
-import { LitElement, html, css, svg, nothing } from "lit";
+import { css, html, LitElement, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { theme } from "../styles/theme.css.ts";
+import { fontFace } from "../styles/font.css.ts";
 import "./kp-button.ts";
 import "./kp-order-item.ts";
 import "./kp-bottom-sheet.ts";
@@ -12,9 +13,17 @@ import { PaymentService } from "../services/payment.service.ts";
 import { TokenService } from "../services/token.service.ts";
 import { AcrossService } from "../services/across.service.ts";
 import { UniswapService } from "../services/uniswap.service.ts";
-import { QuoteService, type PaymentPath, type QuoteResult } from "../services/quote.service.ts";
+import {
+  type PaymentPath,
+  type QuoteResult,
+  QuoteService,
+} from "../services/quote.service.ts";
 import type { Invoice } from "../types/invoice.types.ts";
-import { isActiveStatus, isFinalStatus, isExpiredStatus } from "../types/invoice.types.ts";
+import {
+  isActiveStatus,
+  isExpiredStatus,
+  isFinalStatus,
+} from "../types/invoice.types.ts";
 import { getTokenKey } from "../config/tokens.ts";
 import { CHAINS_BY_ID } from "../config/chains.ts";
 import { UNISWAP_SWAP_ROUTER_02 } from "../config/uniswap.ts";
@@ -47,8 +56,15 @@ const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
   "invoice-error": [],
   "idle": ["token-select"],
   "token-select": ["quoting", "ready-to-pay", "idle"],
-  "ready-to-pay": ["executing", "approving", "token-select", "quoting", "ready-to-pay", "error"],
-  "quoting": ["ready-to-pay", "token-select", "error"],
+  "ready-to-pay": [
+    "executing",
+    "approving",
+    "token-select",
+    "quoting",
+    "ready-to-pay",
+    "error",
+  ],
+  "quoting": ["ready-to-pay", "token-select", "quoting", "error"],
   "approving": ["executing", "error", "ready-to-pay"],
   "executing": ["polling", "error", "ready-to-pay"],
   "polling": ["paid", "error"],
@@ -62,11 +78,16 @@ interface StepContext {
   selectedTokenAddress: `0x${string}` | null;
   selectedTokenSymbol: string;
   selectedTokenLogoUrl: string;
+  selectedChainLogoUrl: string;
   selectedTokenDecimals: number;
   requiredAmount: bigint;
   requiredAmountHuman: string;
+  requiredFiatHuman: string;
   paymentPath: PaymentPath | null;
   quote: QuoteResult | null;
+  exchangeFee: string;
+  gasFee: string;
+  txHash: string;
   errorMessage: string;
   errorRetryStep: PaymentStep | null;
   redirectCountdown: number;
@@ -95,17 +116,20 @@ export class PaymentPage extends LitElement {
       :host {
         display: block;
         font-family: var(--font-family);
-        width: 393px;
-        min-height: 700px;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
         background: var(--fill-primary);
       }
 
       .page {
         display: flex;
         flex-direction: column;
-        padding: 0 20px;
-        height: 100%;
-        min-height: inherit;
+        max-width: 393px;
+        margin: 0 auto;
+        padding: 60px 20px 0;
+        min-height: 100vh;
+        min-height: 100dvh;
         box-sizing: border-box;
       }
 
@@ -135,17 +159,19 @@ export class PaymentPage extends LitElement {
         line-height: 20px;
         text-transform: uppercase;
         color: var(--content-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 200px;
       }
 
       .merchant {
         display: flex;
-        align-items: flex-end;
+        align-items: center;
         justify-content: center;
         gap: 4px;
-        height: 40px;
         padding-top: 15px;
         border-top: 1px solid var(--border-tetriary);
-        box-sizing: border-box;
       }
 
       .merchant-logo {
@@ -154,6 +180,7 @@ export class PaymentPage extends LitElement {
         border-radius: 50%;
         overflow: hidden;
         flex-shrink: 0;
+        margin: 4px;
       }
 
       .merchant-logo ::slotted(*),
@@ -224,7 +251,7 @@ export class PaymentPage extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 15px 0 5px;
+        padding: 5px 0;
         border-top: 1px solid var(--content-primary);
         margin-top: auto;
       }
@@ -252,12 +279,11 @@ export class PaymentPage extends LitElement {
         font-size: 40px;
         font-weight: 421;
         line-height: 40px;
-        letter-spacing: -1.2px;
       }
 
       .total-cents {
         font-size: 16px;
-        font-weight: 421;
+        font-weight: 400;
         line-height: 20px;
       }
 
@@ -301,7 +327,9 @@ export class PaymentPage extends LitElement {
         gap: 20px;
         align-items: center;
         width: 100%;
-        padding-bottom: 0;
+        padding-top: 20px;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
       }
 
       .wallet-address {
@@ -309,11 +337,15 @@ export class PaymentPage extends LitElement {
         align-items: center;
         justify-content: center;
         gap: 5px;
+        padding: 0 20px;
       }
 
       .wallet-address-icon {
+        display: flex;
+        align-items: center;
         width: 19px;
         height: 15px;
+        transform: translateY(1px);
       }
 
       .wallet-address-text {
@@ -327,7 +359,6 @@ export class PaymentPage extends LitElement {
         all: unset;
         display: flex;
         align-items: center;
-        gap: 2px;
         cursor: pointer;
       }
 
@@ -400,6 +431,7 @@ export class PaymentPage extends LitElement {
         align-items: center;
         justify-content: space-between;
         padding-bottom: 5px;
+        margin-top: 20px
       }
 
       .balance-header-label {
@@ -418,7 +450,7 @@ export class PaymentPage extends LitElement {
       .exchange-rate svg {
         width: 16px;
         height: 16px;
-        color: var(--content-tetriary);
+        color: var(--content-secondary);
       }
 
       .balance-list {
@@ -435,13 +467,21 @@ export class PaymentPage extends LitElement {
         gap: 5px;
         align-items: center;
         padding: 20px;
-        background: linear-gradient(
-          to bottom,
-          oklch(1 0 0 / 0) 0%,
-          oklch(1 0 0) 10%
-        );
+        background: var(--fill-primary);
         width: 100%;
         box-sizing: border-box;
+        position: relative;
+      }
+
+      .pay-cta::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 100%;
+        height: 30px;
+        background: linear-gradient(to bottom, oklch(1 0 0 / 0), oklch(1 0 0));
+        pointer-events: none;
       }
 
       .pay-btn {
@@ -480,6 +520,10 @@ export class PaymentPage extends LitElement {
         font-size: 14px;
         font-weight: 421;
         line-height: 18px;
+      }
+
+      .pay-btn-amount-dec {
+        font-weight: 340;
       }
 
       .pay-btn-icon {
@@ -620,6 +664,21 @@ export class PaymentPage extends LitElement {
         cursor: default;
       }
 
+      .pay-btn-processing-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        animation: spin 1.5s linear infinite;
+      }
+
+      .pay-btn-processing-icon svg {
+        width: 24px;
+        height: 24px;
+        color: var(--content-primary);
+      }
+
       .pay-btn--processing .pay-btn-text,
       .pay-btn--processing .pay-btn-amount,
       .pay-btn--processing .pay-btn-ticker {
@@ -714,6 +773,8 @@ export class PaymentPage extends LitElement {
         display: flex;
         align-items: center;
         gap: 3px;
+        white-space: nowrap;
+        transform-origin: center;
       }
 
       .success-amount-text {
@@ -723,6 +784,13 @@ export class PaymentPage extends LitElement {
         letter-spacing: -2px;
         color: var(--content-primary);
         text-align: center;
+      }
+
+      .success-amount-icon-wrapper {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
       }
 
       .success-amount-icon {
@@ -737,6 +805,34 @@ export class PaymentPage extends LitElement {
         border-radius: 50%;
       }
 
+      .success-chain-badge {
+        position: absolute;
+        bottom: -2px;
+        left: -2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1.5px solid var(--fill-primary);
+        background: var(--fill-primary);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .success-chain-badge img {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+      }
+
+      .success-redirect-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+
       .success-redirect {
         font-size: 16px;
         font-weight: 421;
@@ -749,6 +845,13 @@ export class PaymentPage extends LitElement {
         color: var(--content-tetriary);
         text-decoration: underline;
         text-underline-offset: 4px;
+      }
+
+      .success-divider {
+        width: 103px;
+        height: 0;
+        border: none;
+        border-top: 1px solid var(--border-secondary);
       }
 
       .pay-btn--success {
@@ -776,8 +879,11 @@ export class PaymentPage extends LitElement {
       }
 
       .checkmark {
-        width: 17px;
-        height: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 12px;
         flex-shrink: 0;
       }
 
@@ -795,8 +901,12 @@ export class PaymentPage extends LitElement {
 
       /* === Skeleton loading === */
       @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
+        0% {
+          background-position: -200% 0;
+        }
+        100% {
+          background-position: 200% 0;
+        }
       }
 
       .skeleton-item {
@@ -815,7 +925,12 @@ export class PaymentPage extends LitElement {
         height: 36px;
         border-radius: 50%;
         flex-shrink: 0;
-        background: linear-gradient(90deg, var(--border) 25%, var(--border-tetriary) 50%, var(--border) 75%);
+        background: linear-gradient(
+          90deg,
+          var(--border) 25%,
+          var(--border-tetriary) 50%,
+          var(--border) 75%
+        );
         background-size: 200% 100%;
         animation: shimmer 1.5s ease-in-out infinite;
       }
@@ -830,14 +945,83 @@ export class PaymentPage extends LitElement {
       .skeleton-line {
         height: 12px;
         border-radius: 6px;
-        background: linear-gradient(90deg, var(--border) 25%, var(--border-tetriary) 50%, var(--border) 75%);
+        background: linear-gradient(
+          90deg,
+          var(--border) 25%,
+          var(--border-tetriary) 50%,
+          var(--border) 75%
+        );
         background-size: 200% 100%;
         animation: shimmer 1.5s ease-in-out infinite;
       }
 
-      .skeleton-line--short { width: 40%; }
-      .skeleton-line--medium { width: 65%; }
-      .skeleton-line--long { width: 85%; }
+      .skeleton-line--short {
+        width: 40%;
+      }
+      .skeleton-line--medium {
+        width: 65%;
+      }
+      .skeleton-line--long {
+        width: 85%;
+      }
+
+      .pay-btn--quoting {
+        all: unset;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+        height: 60px;
+        padding: 20px;
+        background: transparent;
+        border: 1px solid var(--content-tetriary);
+        border-radius: 45px;
+        cursor: default;
+      }
+
+      .pay-btn--quoting .pay-btn-text {
+        color: var(--content-tetriary);
+        font-size: 14px;
+        font-weight: 421;
+        line-height: 18px;
+      }
+
+      .pay-btn-quoting-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        animation: spin 1.5s linear infinite;
+      }
+
+      .pay-btn-quoting-icon svg {
+        width: 24px;
+        height: 24px;
+        color: var(--content-tetriary);
+      }
+
+      .pay-btn--disabled {
+        all: unset;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+        height: 58px;
+        padding: 20px;
+        background: var(--fill-tetriary);
+        color: var(--content-tetriary);
+        border-radius: 45px;
+        cursor: default;
+      }
+
+      .pay-btn--disabled .pay-btn-text {
+        color: var(--content-tetriary);
+      }
 
       /* === Processing fee row (dark text) === */
       .fee-row--processing .fee-amount,
@@ -846,17 +1030,13 @@ export class PaymentPage extends LitElement {
       .fee-row--processing .fee-item svg {
         color: var(--content-primary);
       }
-
     `,
   ];
-
-  @property({ type: String, attribute: "order-id" })
-  accessor orderId = "";
 
   @property({ type: String, attribute: "merchant-name" })
   accessor merchantName = "";
 
-  @property({ type: String, attribute: "merchant-logo" })
+  @property({ type: String, attribute: "merchant-logo-url" })
   accessor merchantLogo = "";
 
   @property({ type: Array })
@@ -877,11 +1057,6 @@ export class PaymentPage extends LitElement {
   @property({ type: String, attribute: "project-id" })
   accessor projectId = "";
 
-  @property({ type: String, attribute: "exchange-fee" })
-  accessor exchangeFee = "$1.50";
-
-  @property({ type: String, attribute: "gas-fee" })
-  accessor gasFee = "$0.30";
 
   @state()
   private accessor _step: PaymentStep = "loading";
@@ -893,11 +1068,16 @@ export class PaymentPage extends LitElement {
     selectedTokenAddress: null,
     selectedTokenSymbol: "",
     selectedTokenLogoUrl: "",
+    selectedChainLogoUrl: "",
     selectedTokenDecimals: 6,
     requiredAmount: 0n,
     requiredAmountHuman: "",
+    requiredFiatHuman: "",
     paymentPath: null,
     quote: null,
+    exchangeFee: "",
+    gasFee: "",
+    txHash: "",
     errorMessage: "",
     errorRetryStep: null,
     redirectCountdown: 5,
@@ -913,7 +1093,9 @@ export class PaymentPage extends LitElement {
   private accessor _walletAddress = "";
 
   @state()
-  private accessor _connectedAccount: { address: string; chainId: number } | null = null;
+  private accessor _connectedAccount:
+    | { address: string; chainId: number }
+    | null = null;
 
   @state()
   private accessor _searchQuery = "";
@@ -941,7 +1123,9 @@ export class PaymentPage extends LitElement {
   private _transition(next: PaymentStep, ctx?: Partial<StepContext>): void {
     const allowed = VALID_TRANSITIONS[this._step];
     if (!allowed?.includes(next)) {
-      console.warn(`[payment-page] Invalid transition: ${this._step} → ${next}`);
+      console.warn(
+        `[payment-page] Invalid transition: ${this._step} → ${next}`,
+      );
       return;
     }
     this._step = next;
@@ -952,6 +1136,7 @@ export class PaymentPage extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this._injectFontFace();
     this._invoiceService = new InvoiceService();
     this._balanceService = new BalanceService();
     this._tokenService = new TokenService();
@@ -959,9 +1144,10 @@ export class PaymentPage extends LitElement {
       // Falls back to SUPPORTED_TOKENS internally
     });
     this._initializeWallet();
-    const effectiveInvoiceId = this.invoiceId
-      || new URLSearchParams(globalThis.location.search).get("invoice_id")
-      || "";
+    const params = new URLSearchParams(globalThis.location.search);
+    const effectiveInvoiceId = this.invoiceId ||
+      params.get("invoice_id") ||
+      "";
     if (effectiveInvoiceId) {
       this.invoiceId = effectiveInvoiceId;
       this._loadInvoice();
@@ -983,29 +1169,69 @@ export class PaymentPage extends LitElement {
     }
   }
 
+  override updated(): void {
+    this._scaleSuccessAmount();
+  }
+
+  private _scaleSuccessAmount(): void {
+    const el = this.renderRoot.querySelector(
+      ".success-amount",
+    ) as HTMLElement | null;
+    if (!el) return;
+    const parent = el.parentElement as HTMLElement | null;
+    if (!parent) return;
+
+    el.style.transform = "none";
+    const available = parent.clientWidth;
+    const natural = el.scrollWidth;
+
+    if (natural > available) {
+      el.style.transform = `scale(${available / natural})`;
+    }
+  }
+
+  private _injectFontFace(): void {
+    if (document.querySelector("style[data-kp-font]")) return;
+    const style = document.createElement("style");
+    style.setAttribute("data-kp-font", "");
+    style.textContent = fontFace.cssText;
+    document.head.appendChild(style);
+  }
+
   private _initializeWallet(): void {
     if (!this.projectId) {
-      console.warn("[payment-page] project-id attribute is required for wallet connection");
+      console.warn(
+        "[payment-page] project-id attribute is required for wallet connection",
+      );
       return;
     }
 
     this._walletService = new WalletService();
     this._walletService.init(this.projectId);
 
-    this._unsubscribeAccount = this._walletService.onAccountChange((account) => {
-      if (account) {
-        this._walletAddress = this._formatAddress(account.address);
-        this._connectedAccount = account;
-      } else {
-        this._walletAddress = "";
-        this._connectedAccount = null;
-        if (this._step !== "polling" && this._step !== "paid") {
-          // Force-reset: wallet disconnect can happen from any state
-          this._step = "idle";
-          this._context = { ...this._context, paymentPath: null, quote: null };
+    this._unsubscribeAccount = this._walletService.onAccountChange(
+      (account) => {
+        if (account) {
+          this._walletAddress = this._formatAddress(account.address);
+          this._connectedAccount = account;
+          if (this._step === "idle") {
+            this._onWalletConnected(account);
+          }
+        } else {
+          this._walletAddress = "";
+          this._connectedAccount = null;
+          if (this._step !== "polling" && this._step !== "paid") {
+            // Force-reset: wallet disconnect can happen from any state
+            this._step = "idle";
+            this._context = {
+              ...this._context,
+              paymentPath: null,
+              quote: null,
+            };
+          }
         }
-      }
-    });
+      },
+    );
   }
 
   private _cleanupWallet(): void {
@@ -1025,7 +1251,9 @@ export class PaymentPage extends LitElement {
 
   private _onButtonClick() {
     if (!this._walletService) {
-      console.warn("[payment-page] Wallet service not initialized. Provide project-id attribute.");
+      console.warn(
+        "[payment-page] Wallet service not initialized. Provide project-id attribute.",
+      );
       return;
     }
 
@@ -1037,30 +1265,30 @@ export class PaymentPage extends LitElement {
   }
 
   private _onSheetClose() {
-    if (this._step === "token-select") {
-      this._transition("idle");
-      this._searchQuery = "";
-      this._searching = false;
-    } else if (this._step === "ready-to-pay") {
-      this._transition("token-select");
+    if (
+      this._step === "token-select" ||
+      this._step === "ready-to-pay" ||
+      this._step === "quoting"
+    ) {
+      this._step = "idle";
       this._searchQuery = "";
       this._searching = false;
     }
   }
 
   private async _onDisconnect() {
+    this._searchQuery = "";
+    this._searching = false;
     if (this._walletService) {
       await this._walletService.disconnect();
     }
-    this._step = "idle";
-    this._searchQuery = "";
-    this._searching = false;
   }
 
   private _onSearchClick() {
     this._searching = true;
     this.updateComplete.then(() => {
-      this.shadowRoot?.querySelector<HTMLInputElement>(".search-input")?.focus();
+      this.shadowRoot?.querySelector<HTMLInputElement>(".search-input")
+        ?.focus();
     });
   }
 
@@ -1079,13 +1307,16 @@ export class PaymentPage extends LitElement {
     try {
       const invoice = await this._invoiceService!.fetchInvoice(this.invoiceId);
       if (!isActiveStatus(invoice.status)) {
-        this._transition("invoice-error", { invoice, errorMessage: `Invoice is ${invoice.status}` });
+        this._transition("invoice-error", {
+          invoice,
+          errorMessage: `Invoice is ${invoice.status}`,
+        });
         return;
       }
       // Update total from invoice
       this.total = `$${invoice.amount}`;
       // Update items from invoice cart
-      this.items = invoice.cart.items.map(item => ({
+      this.items = invoice.cart.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
         price: `$${item.price}`,
@@ -1093,11 +1324,15 @@ export class PaymentPage extends LitElement {
       }));
       this._transition("idle", { invoice });
     } catch {
-      this._transition("invoice-error", { errorMessage: "Failed to load invoice" });
+      this._transition("invoice-error", {
+        errorMessage: "Failed to load invoice",
+      });
     }
   }
 
-  private async _onWalletConnected(account: { address: string; chainId: number }): Promise<void> {
+  private async _onWalletConnected(
+    account: { address: string; chainId: number },
+  ): Promise<void> {
     const config = this._walletService!.wagmiConfig;
     if (config) {
       this._paymentService?.destroy();
@@ -1107,7 +1342,10 @@ export class PaymentPage extends LitElement {
       this._paymentService = new PaymentService(config);
       this._acrossService = new AcrossService(config);
       this._uniswapService = new UniswapService(config);
-      this._quoteService = new QuoteService(this._acrossService, this._uniswapService);
+      this._quoteService = new QuoteService(
+        this._acrossService,
+        this._uniswapService,
+      );
     }
     this._transition("token-select");
     this._loadingTokens = true;
@@ -1122,12 +1360,18 @@ export class PaymentPage extends LitElement {
     this._prices = new Map();
     for (const token of allTokens) {
       if (token.priceUsd && token.priceUsd > 0) {
-        this._prices.set(getTokenKey(token.chainId, token.address), token.priceUsd);
+        this._prices.set(
+          getTokenKey(token.chainId, token.address),
+          token.priceUsd,
+        );
       }
     }
 
     try {
-      this._balances = await this._balanceService!.getBalances(address, allTokens);
+      this._balances = await this._balanceService!.getBalances(
+        address,
+        allTokens,
+      );
     } catch (e) {
       console.error("[PaymentPage] Balance fetch failed:", e);
     }
@@ -1199,10 +1443,14 @@ export class PaymentPage extends LitElement {
         selectedTokenAddress: option.tokenAddress,
         selectedTokenSymbol: option.symbol,
         selectedTokenLogoUrl: option.logoUrl,
+        selectedChainLogoUrl: option.chainLogoUrl,
         selectedTokenDecimals: option.decimals,
         paymentPath: path,
         requiredAmount: amount,
         requiredAmountHuman: this._context.invoice!.amount,
+        requiredFiatHuman: `$${this._context.invoice!.amount}`,
+        exchangeFee: "$0.00",
+        gasFee: "",
         quote: {
           path: "direct",
           userPayAmount: amount,
@@ -1216,13 +1464,21 @@ export class PaymentPage extends LitElement {
 
     // Fetch quote for swap/bridge paths
     const requestId = ++this._quoteRequestId;
+    const usdPrice = option.usdPrice;
     this._transition("quoting", {
       selectedChainId: option.chainId,
       selectedTokenAddress: option.tokenAddress,
       selectedTokenSymbol: option.symbol,
       selectedTokenLogoUrl: option.logoUrl,
+      selectedChainLogoUrl: option.chainLogoUrl,
       selectedTokenDecimals: option.decimals,
       paymentPath: path,
+      quote: null,
+      requiredAmount: 0n,
+      requiredAmountHuman: "",
+      requiredFiatHuman: "",
+      exchangeFee: "",
+      gasFee: "",
     });
 
     try {
@@ -1231,19 +1487,42 @@ export class PaymentPage extends LitElement {
         sourceChainId: option.chainId,
         sourceDecimals: option.decimals,
         recipientAmount: parseUnits(this._context.invoice!.amount, 6),
-        depositorAddress: this._walletService!.getAccount()!.address as `0x${string}`,
-        recipientAddress: this._context.invoice!.payment_address as `0x${string}`,
+        depositorAddress: this._walletService!.getAccount()!
+          .address as `0x${string}`,
+        recipientAddress: this._context.invoice!
+          .payment_address as `0x${string}`,
       });
 
       if (requestId !== this._quoteRequestId) return; // stale response
+      const fiatValue = (parseFloat(quote.userPayAmountHuman) * usdPrice)
+        .toFixed(2);
+
+      // Extract fees from quote
+      let exchangeFee = "";
+      let gasFee = "";
+      if (quote.acrossQuote) {
+        const f = quote.acrossQuote.fees;
+        exchangeFee = `$${parseFloat(f.totalFeeUsd).toFixed(2)}`;
+        gasFee = `$${parseFloat(f.originGasFeeUsd).toFixed(2)}`;
+      } else if (quote.uniswapQuote) {
+        const feePct = quote.uniswapQuote.feeTier / 1_000_000;
+        const feeUsd = parseFloat(fiatValue) * feePct;
+        exchangeFee = `$${feeUsd.toFixed(2)}`;
+      }
+
       this._transition("ready-to-pay", {
         requiredAmount: quote.userPayAmount,
         requiredAmountHuman: quote.userPayAmountHuman,
+        requiredFiatHuman: `$${fiatValue}`,
+        exchangeFee,
+        gasFee,
         quote,
       });
     } catch (err) {
       if (requestId !== this._quoteRequestId) return; // stale error
-      this._quoteError = err instanceof Error ? err.message : "Failed to get quote";
+      this._quoteError = err instanceof Error
+        ? err.message
+        : "Failed to get quote";
       this._transition("token-select");
     }
   }
@@ -1294,12 +1573,13 @@ export class PaymentPage extends LitElement {
   private async _executeDirect(): Promise<void> {
     this._transition("executing");
     const { selectedTokenAddress, invoice, requiredAmount } = this._context;
-    await this._paymentService!.transfer(
+    const receipt = await this._paymentService!.transfer(
       selectedTokenAddress!,
       invoice!.payment_address as `0x${string}`,
       requiredAmount,
     );
     this._transition("polling");
+    this._context = { ...this._context, txHash: receipt.transactionHash };
     this._startPolling();
   }
 
@@ -1327,8 +1607,9 @@ export class PaymentPage extends LitElement {
     }
 
     this._transition("executing");
-    await this._uniswapService!.executeSwap(uniQuote);
+    const uniHash = await this._uniswapService!.executeSwap(uniQuote);
     this._transition("polling");
+    this._context = { ...this._context, txHash: uniHash };
     this._startPolling();
   }
 
@@ -1342,15 +1623,19 @@ export class PaymentPage extends LitElement {
     }
 
     this._transition("executing");
-    await this._acrossService!.executeSwap(acrossQuote.swapTx);
+    const acrossHash = await this._acrossService!.executeSwap(acrossQuote.swapTx);
     this._transition("polling");
+    this._context = { ...this._context, txHash: acrossHash };
     this._startPolling();
   }
 
   private _isUserRejection(err: unknown): boolean {
     if (err && typeof err === "object") {
       if ("code" in err && (err as { code: number }).code === 4001) return true;
-      if ("message" in err && typeof (err as { message: string }).message === "string") {
+      if (
+        "message" in err &&
+        typeof (err as { message: string }).message === "string"
+      ) {
         const msg = (err as { message: string }).message.toLowerCase();
         return msg.includes("user rejected") || msg.includes("user denied");
       }
@@ -1371,7 +1656,10 @@ export class PaymentPage extends LitElement {
       this._transition("paid", { invoice });
       this._startRedirectCountdown();
     } else if (isExpiredStatus(invoice.status)) {
-      this._transition("error", { errorMessage: "Invoice has expired", errorRetryStep: null });
+      this._transition("error", {
+        errorMessage: "Invoice has expired",
+        errorRetryStep: null,
+      });
     } else if (invoice.status === "PartiallyPaid") {
       this._transition("error", {
         errorMessage: "Partial payment received. Please contact support.",
@@ -1400,8 +1688,14 @@ export class PaymentPage extends LitElement {
 
   private _getNativeSymbol(chainId: number): string {
     const map: Record<number, string> = {
-      1: "ETH", 137: "POL", 56: "BNB", 42161: "ETH",
-      10: "ETH", 8453: "ETH", 59144: "ETH", 130: "ETH",
+      1: "ETH",
+      137: "POL",
+      56: "BNB",
+      42161: "ETH",
+      10: "ETH",
+      8453: "ETH",
+      59144: "ETH",
+      130: "ETH",
     };
     return map[chainId] ?? "native token";
   }
@@ -1415,174 +1709,428 @@ export class PaymentPage extends LitElement {
   // === SVG render helpers ===
 
   private _renderOrderIcon() {
-    return svg`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.5C7.31 3.5 3.5 7.31 3.5 12S7.31 20.5 12 20.5 20.5 16.69 20.5 12 16.69 3.5 12 3.5zM2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10S2 17.52 2 12z" fill="currentColor"/>
-      <path d="M10.5 14.3l-2.1-2.1-.7.7 2.8 2.8 6-6-.7-.7-5.3 5.3z" fill="currentColor"/>
-    </svg>`;
+    return svg`
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+      >
+        <path
+          d="M14.1054 5.51107C14.4802 5.88379 14.9872 6.09302 15.5158 6.09302H16.253C17.3576 6.09302 18.253 6.98845 18.253 8.09302V8.80437C18.253 9.33669 18.4652 9.84705 18.8427 10.2224L19.3455 10.7225C20.1318 11.5046 20.1317 12.7771 19.3452 13.5589L18.843 14.0583C18.4654 14.4337 18.253 14.9442 18.253 15.4766V16.1887C18.253 17.2933 17.3576 18.1887 16.253 18.1887H15.5158C14.9872 18.1887 14.4802 18.3979 14.1054 18.7707L13.5823 19.2909C12.8022 20.0668 11.5418 20.0668 10.7616 19.2909L10.2385 18.7707C9.86379 18.3979 9.35673 18.1887 8.82819 18.1887H8.0919C6.98733 18.1887 6.0919 17.2933 6.0919 16.1887V15.4774C6.0919 14.9451 5.87969 14.4347 5.50226 14.0593L4.99887 13.5587C4.21279 12.7768 4.21267 11.5048 4.99859 10.7228L5.50254 10.2214C5.8798 9.84604 6.0919 9.33581 6.0919 8.80362V8.09302C6.0919 6.98845 6.98733 6.09302 8.0919 6.09302H8.82819C9.35673 6.09302 9.86379 5.8838 10.2385 5.51107L10.7616 4.99084C11.5418 4.21492 12.8022 4.21491 13.5823 4.99084L14.1054 5.51107Z"
+          fill="#F7F7F7"
+        />
+        <path
+          d="M13.5823 4.99084L13.2298 5.34535L13.5823 4.99084ZM5.50254 10.2214L5.14988 9.86696L5.50254 10.2214ZM4.99887 13.5587L4.64628 13.9132L4.99887 13.5587ZM4.99859 10.7228L5.35125 11.0773L4.99859 10.7228ZM5.50226 14.0593L5.14967 14.4138L5.50226 14.0593ZM13.5823 19.2909L13.2298 18.9364L13.5823 19.2909ZM14.1054 18.7707L14.458 19.1252L14.1054 18.7707ZM18.843 14.0583L18.4904 13.7037L18.843 14.0583ZM19.3455 10.7225L18.9929 11.077L19.3455 10.7225ZM19.3452 13.5589L18.9927 13.2043L19.3452 13.5589ZM15.5158 6.09302V6.59302H16.253V6.09302V5.59302H15.5158V6.09302ZM18.253 8.09302H17.753V8.80437H18.253H18.753V8.09302H18.253ZM18.8427 10.2224L18.4901 10.5769L18.9929 11.077L19.3455 10.7225L19.6981 10.368L19.1953 9.86791L18.8427 10.2224ZM19.3452 13.5589L18.9927 13.2043L18.4904 13.7037L18.843 14.0583L19.1955 14.4129L19.6978 13.9135L19.3452 13.5589ZM18.253 15.4766H17.753V16.1887H18.253H18.753V15.4766H18.253ZM16.253 18.1887V17.6887H15.5158V18.1887V18.6887H16.253V18.1887ZM14.1054 18.7707L13.7528 18.4161L13.2298 18.9364L13.5823 19.2909L13.9349 19.6454L14.458 19.1252L14.1054 18.7707ZM10.7616 19.2909L11.1142 18.9364L10.5911 18.4162L10.2385 18.7707L9.88596 19.1252L10.409 19.6454L10.7616 19.2909ZM8.82819 18.1887V17.6887H8.0919V18.1887V18.6887H8.82819V18.1887ZM6.0919 16.1887H6.5919V15.4774H6.0919H5.5919V16.1887H6.0919ZM5.50226 14.0593L5.85485 13.7048L5.35146 13.2041L4.99887 13.5587L4.64628 13.9132L5.14967 14.4138L5.50226 14.0593ZM4.99859 10.7228L5.35125 11.0773L5.8552 10.5758L5.50254 10.2214L5.14988 9.86696L4.64593 10.3684L4.99859 10.7228ZM6.0919 8.80362H6.5919V8.09302H6.0919H5.5919V8.80362H6.0919ZM8.0919 6.09302V6.59302H8.82819V6.09302V5.59302H8.0919V6.09302ZM10.2385 5.51107L10.5911 5.86559L11.1142 5.34535L10.7616 4.99084L10.409 4.63632L9.88596 5.15656L10.2385 5.51107ZM13.5823 4.99084L13.2298 5.34535L13.7528 5.86559L14.1054 5.51107L14.458 5.15656L13.9349 4.63632L13.5823 4.99084ZM10.7616 4.99084L11.1142 5.34535C11.6993 4.76341 12.6446 4.76341 13.2298 5.34535L13.5823 4.99084L13.9349 4.63632C12.9597 3.66642 11.3842 3.66642 10.409 4.63632L10.7616 4.99084ZM8.82819 6.09302V6.59302C9.48887 6.59302 10.1227 6.33149 10.5911 5.86559L10.2385 5.51107L9.88596 5.15656C9.60489 5.4361 9.2246 5.59302 8.82819 5.59302V6.09302ZM6.0919 8.09302H6.5919C6.5919 7.26459 7.26348 6.59302 8.0919 6.59302V6.09302V5.59302C6.71119 5.59302 5.5919 6.71231 5.5919 8.09302H6.0919ZM5.50254 10.2214L5.8552 10.5758C6.32677 10.1066 6.5919 9.46885 6.5919 8.80362H6.0919H5.5919C5.5919 9.20276 5.43283 9.58544 5.14988 9.86696L5.50254 10.2214ZM4.99887 13.5587L5.35146 13.2041C4.7619 12.6178 4.76181 11.6637 5.35125 11.0773L4.99859 10.7228L4.64593 10.3684C3.66352 11.3458 3.66368 12.9359 4.64628 13.9132L4.99887 13.5587ZM6.0919 15.4774H6.5919C6.5919 14.812 6.32664 14.174 5.85485 13.7048L5.50226 14.0593L5.14967 14.4138C5.43275 14.6954 5.5919 15.0781 5.5919 15.4774H6.0919ZM8.0919 18.1887V17.6887C7.26348 17.6887 6.5919 17.0171 6.5919 16.1887H6.0919H5.5919C5.5919 17.5694 6.71119 18.6887 8.0919 18.6887V18.1887ZM10.2385 18.7707L10.5911 18.4162C10.1227 17.9502 9.48887 17.6887 8.82819 17.6887V18.1887V18.6887C9.2246 18.6887 9.60489 18.8456 9.88596 19.1252L10.2385 18.7707ZM13.5823 19.2909L13.2298 18.9364C12.6446 19.5183 11.6993 19.5183 11.1142 18.9364L10.7616 19.2909L10.409 19.6454C11.3842 20.6153 12.9597 20.6153 13.9349 19.6454L13.5823 19.2909ZM15.5158 18.1887V17.6887C14.8551 17.6887 14.2213 17.9502 13.7528 18.4161L14.1054 18.7707L14.458 19.1252C14.7391 18.8456 15.1194 18.6887 15.5158 18.6887V18.1887ZM18.253 16.1887H17.753C17.753 17.0171 17.0815 17.6887 16.253 17.6887V18.1887V18.6887C17.6337 18.6887 18.753 17.5694 18.753 16.1887H18.253ZM18.843 14.0583L18.4904 13.7037C18.0184 14.173 17.753 14.8111 17.753 15.4766H18.253H18.753C18.753 15.0773 18.9123 14.6944 19.1955 14.4129L18.843 14.0583ZM19.3455 10.7225L18.9929 11.077C19.5826 11.6636 19.5826 12.6179 18.9927 13.2043L19.3452 13.5589L19.6978 13.9135C20.6808 12.9362 20.681 11.3456 19.6981 10.368L19.3455 10.7225ZM18.253 8.80437H17.753C17.753 9.46977 18.0183 10.1077 18.4901 10.5769L18.8427 10.2224L19.1953 9.86791C18.9122 9.58638 18.753 9.20361 18.753 8.80437H18.253ZM16.253 6.09302V6.59302C17.0815 6.59302 17.753 7.26459 17.753 8.09302H18.253H18.753C18.753 6.71231 17.6337 5.59302 16.253 5.59302V6.09302ZM15.5158 6.09302V5.59302C15.1194 5.59302 14.7391 5.4361 14.458 5.15656L14.1054 5.51107L13.7528 5.86559C14.2213 6.33149 14.8551 6.59302 15.5158 6.59302V6.09302Z"
+          fill="#595959"
+        />
+        <path
+          d="M8.90625 12L11.1562 14.25L15.6562 9.75"
+          stroke="#595959"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    `;
   }
 
   private _renderKalatoriLogo() {
-    return svg`<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="7.5" cy="7.5" r="7" stroke="currentColor" stroke-width="0.8" opacity="0.5"/>
-      <path d="M4.5 7.5a3 3 0 116 0 3 3 0 01-6 0z" stroke="currentColor" stroke-width="0.8" opacity="0.5"/>
-    </svg>`;
+    return html`
+      <img src="/logo.svg" alt="Kalatori Logo" />
+    `;
   }
 
   private _renderDisconnectIcon() {
-    return svg`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M10.5 2.86L13.14 5.5M13.14 5.5L10.5 8.14M13.14 5.5H6.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M5.5 13.14L2.86 10.5M2.86 10.5L5.5 7.86M2.86 10.5H9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path d="M7.5 7.36157L7.57851 6.18962C7.61402 5.65954 7.85897 5.16537 8.25932 4.81613L9.09213 4.08967C9.88471 3.3983 11.0773 3.43892 11.821 4.18262L11.8521 4.21365C12.671 5.03258 12.6253 6.37372 11.7526 7.13503L10.5 8.22766" stroke="#767676" stroke-linecap="round" />
+        <path d="M8.5 8.86169L8.33758 9.99285C8.2695 10.467 8.03354 10.9009 7.67259 11.2157L6.7739 11.9997C5.98132 12.6911 4.78868 12.6504 4.04498 11.9067L4.01395 11.8757C3.19502 11.0568 3.2407 9.71564 4.11345 8.95433L5.36603 7.86169" stroke="#767676" stroke-linecap="round" />
+        <path d="M14.1978 8.65771L12.5215 8.65771" stroke="#767676" stroke-linecap="round" />
+        <path d="M1.5 6.61646L3.17624 6.61646" stroke="#767676" stroke-linecap="round" />
+        <path d="M9.44409 11.7363V13.4126" stroke="#767676" stroke-linecap="round" />
+        <path d="M6.25366 3.53784L6.25366 1.8616" stroke="#767676" stroke-linecap="round" />
+        <path d="M12.8096 12.019L11.6243 10.8338" stroke="#767676" stroke-linecap="round" />
+        <path d="M2.88818 3.25513L4.07347 4.44041" stroke="#767676" stroke-linecap="round" />
+      </svg>
+    `;
   }
 
   private _renderSearchIcon() {
-    return svg`<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.2"/>
-      <path d="M10 10l3.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 15 15"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.2" />
+        <path
+          d="M10 10l3.5 3.5"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+        />
+      </svg>
+    `;
   }
 
   private _renderChevronIcon() {
-    return svg`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M6 4l4 4-4 4"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    `;
+  }
+
+  private _renderDiamondIcon() {
+    return svg`
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M11.0711 11.5711C11.3472 11.5711 11.5711 11.3472 11.5711 11.0711L11.5711 6.57107C11.5711 6.29493 11.3472 6.07107 11.0711 6.07107C10.7949 6.07107 10.5711 6.29493 10.5711 6.57107L10.5711 10.5711L6.57107 10.5711C6.29493 10.5711 6.07107 10.7949 6.07107 11.0711C6.07107 11.3472 6.29493 11.5711 6.57107 11.5711L11.0711 11.5711ZM4 4L3.64645 4.35355L10.7175 11.4246L11.0711 11.0711L11.4246 10.7175L4.35355 3.64645L4 4Z"
+          fill="currentColor"
+        />
+      </svg>
+    `;
   }
 
   private _renderExchangeIcon() {
-    return svg`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M4 5.5h8.5l-2-2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M12 10.5H3.5l2 2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 5.5h8.5l-2-2"
+          stroke="currentColor"
+          stroke-width="1"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M12 10.5H3.5l2 2"
+          stroke="currentColor"
+          stroke-width="1"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    `;
+  }
+
+  private _renderRateLoadingIcon() {
+    return svg`
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M5.11997 14.0033C5.60297 15.7851 6.76318 17.3836 8.4882 18.3795C11.9515 20.3791 16.3801 19.1925 18.3796 15.7291L18.9497 14.7417M19.1085 10.2551C18.6323 8.45686 17.4675 6.84133 15.7292 5.83772C12.2659 3.83817 7.83735 5.02479 5.8378 8.48812L5.26775 9.47548"
+          stroke="currentColor"
+        />
+        <path
+          d="M18.5586 11.4866C18.658 11.3427 18.8714 11.3426 18.9707 11.4866L21.126 14.6096C21.2404 14.7754 21.1214 15.0022 20.9199 15.0022H16.6064C16.4051 15.0021 16.2862 14.7764 16.4004 14.6106L18.5586 11.4866ZM7.61719 9.21411C7.81871 9.21408 7.93769 9.43988 7.82324 9.60571L5.66504 12.7297C5.56565 12.8735 5.35331 12.8734 5.25391 12.7297L3.09863 9.60669C2.98422 9.44092 3.10235 9.21429 3.30371 9.21411H7.61719Z"
+          fill="currentColor"
+        />
+      </svg>
+    `;
   }
 
   private _renderGasIcon() {
-    return svg`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M3 13V3.5C3 2.67 3.67 2 4.5 2h4C9.33 2 10 2.67 10 3.5V13" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M2.5 13h8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-      <path d="M10 7h1.5c.83 0 1.5.67 1.5 1.5V11c0 .55.45 1 1 1s1-.45 1-1V6.5L12.5 4" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="5" y="4.5" width="3" height="2.5" rx="0.5" stroke="currentColor" stroke-width="0.8"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M8.32422 2.63818C8.78269 3.01979 9.39309 3.56141 10.001 4.20166C10.6103 4.84345 11.2079 5.57416 11.6504 6.3335C12.095 7.09656 12.3632 7.85467 12.3633 8.56104C12.3633 10.0995 11.8473 11.2308 11.0557 11.979C10.2589 12.7319 9.13895 13.1382 7.86328 13.1382C6.58761 13.1382 5.46763 12.7319 4.6709 11.979C3.87922 11.2308 3.36328 10.0995 3.36328 8.56104C3.36334 7.85467 3.63154 7.09656 4.07617 6.3335C4.51868 5.57416 5.11627 4.84345 5.72559 4.20166C6.33347 3.56141 6.94387 3.01979 7.40234 2.63818C7.58312 2.48772 7.74025 2.36316 7.86328 2.26709C7.98631 2.36316 8.14344 2.48772 8.32422 2.63818Z"
+          stroke="currentColor"
+        />
+        <path
+          d="M7.86328 8.34424C8.03448 8.52524 8.25034 8.76789 8.46484 9.05029C8.95393 9.69421 9.36328 10.4462 9.36328 11.1001C9.36321 11.8407 9.1632 12.3513 8.89551 12.6675C8.63251 12.9779 8.27453 13.1382 7.86328 13.1382C7.45204 13.1382 7.09406 12.9779 6.83105 12.6675C6.56336 12.3513 6.36335 11.8407 6.36328 11.1001C6.36328 10.4462 6.77263 9.69421 7.26172 9.05029C7.47622 8.76789 7.69208 8.52524 7.86328 8.34424Z"
+          stroke="currentColor"
+        />
+      </svg>
+    `;
   }
 
   private _renderCheckmarkIcon() {
-    return svg`<svg width="17" height="10" viewBox="0 0 17 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M1 4.5L6 9.5L16 0.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+    return svg`
+      <svg width="18" height="12" viewBox="0 0 18 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M0.5 3.68182L7.39189 10.5L17.5 0.5" stroke="currentColor" stroke-linecap="round"/>
+      </svg>
+    `;
+  }
+
+  private _getExplorerName(explorerUrl: string): string {
+    try {
+      const host = new URL(explorerUrl).hostname;
+      const name = host.split(".")[0];
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    } catch {
+      return "Explorer";
+    }
   }
 
   private _renderEtherscanIcon() {
-    return html`<img
-      src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8' fill='%2321325B'/%3E%3Cpath d='M5.5 7.2c0-.2.2-.4.4-.4h1c.2 0 .4.2.4.4v3.2c0 .2-.2.4-.4.4h-1c-.2 0-.4-.2-.4-.4V7.2zm3.2-2c0-.2.2-.4.4-.4h1c.2 0 .4.2.4.4v5.2c0 .2-.2.4-.4.4h-1c-.2 0-.4-.2-.4-.4V5.2z' fill='%23fff'/%3E%3C/svg%3E"
-      alt="Etherscan"
-      style="width:16px;height:16px"
-    />`;
+    return html`
+      <img
+        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8' fill='%2321325B'/%3E%3Cpath d='M5.5 7.2c0-.2.2-.4.4-.4h1c.2 0 .4.2.4.4v3.2c0 .2-.2.4-.4.4h-1c-.2 0-.4-.2-.4-.4V7.2zm3.2-2c0-.2.2-.4.4-.4h1c.2 0 .4.2.4.4v5.2c0 .2-.2.4-.4.4h-1c-.2 0-.4-.2-.4-.4V5.2z' fill='%23fff'/%3E%3C/svg%3E"
+        alt="Etherscan"
+        style="width:16px;height:16px"
+      />
+    `;
   }
 
   private _renderExternalLinkIcon() {
-    return svg`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M13 6.5h4.5V11" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M17.5 6.5L10 14" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+        opacity="0.9"
+      >
+        <path
+          d="M15.354 12.3536C15.549 12.1583 15.549 11.8417 15.354 11.6464L12.172 8.46447C11.976 8.26921 11.66 8.26921 11.464 8.46447C11.269 8.65973 11.269 8.97631 11.464 9.17157L14.293 12L11.464 14.8284C11.269 15.0237 11.269 15.3403 11.464 15.5355C11.66 15.7308 11.976 15.7308 12.172 15.5355L15.354 12.3536ZM8 12V12.5H15V12V11.5H8V12Z"
+          fill="var(--border-secondary)"
+        />
+        <path
+          d="M9.943 7.989L4.943 8.046L5.035 16.046L10.034 15.988"
+          stroke="var(--border-secondary)"
+          stroke-linejoin="round"
+        />
+      </svg>
+    `;
   }
 
   private _renderSpinnerIcon() {
-    return svg`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        />
+      </svg>
+    `;
   }
 
   private _renderCloseIcon() {
-    return svg`<svg width="8" height="8" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M1 1l6 6M7 1L1 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 8 8"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M1 1l6 6M7 1L1 7"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+        />
+      </svg>
+    `;
   }
 
   private _renderSkeletonItems(count = 5) {
-    return html`${Array.from({ length: count }, (_, i) => html`
-      <div class="skeleton-item" style="animation-delay: ${i * 0.1}s">
-        <div class="skeleton-circle" style="animation-delay: ${i * 0.1}s"></div>
-        <div class="skeleton-lines">
-          <div class="skeleton-line skeleton-line--medium" style="animation-delay: ${i * 0.1}s"></div>
-          <div class="skeleton-line skeleton-line--short" style="animation-delay: ${i * 0.1}s"></div>
-        </div>
-      </div>
-    `)}`;
+    return html`
+      ${Array.from({ length: count }, (_, i) =>
+        html`
+          <div class="skeleton-item" style="animation-delay: ${i * 0.1}s">
+            <div class="skeleton-circle" style="animation-delay: ${i *
+              0.1}s"></div>
+            <div class="skeleton-lines">
+              <div
+                class="skeleton-line skeleton-line--medium"
+                style="animation-delay: ${i * 0.1}s"
+              >
+              </div>
+              <div
+                class="skeleton-line skeleton-line--short"
+                style="animation-delay: ${i * 0.1}s"
+              >
+              </div>
+            </div>
+          </div>
+        `)}
+    `;
   }
 
   private _renderTokenIcon(logoUrl: string, symbol: string, size = 36) {
     if (!logoUrl) {
-      return html`<span class="token-icon-fallback" style="width:${size}px;height:${size}px">${symbol.slice(0, 2)}</span>`;
+      return html`
+        <span
+          class="token-icon-fallback"
+          style="width:${size}px;height:${size}px"
+        >${symbol.slice(0, 2)}</span>
+      `;
     }
-    return html`<img
-      src=${logoUrl}
-      alt=${symbol}
-      style="width:${size}px;height:${size}px;border-radius:50%"
-      @error=${(e: Event) => {
-        const img = e.target as HTMLImageElement;
-        const fallback = document.createElement("span");
-        fallback.className = "token-icon-fallback";
-        fallback.style.cssText = `width:${size}px;height:${size}px;display:inline-flex`;
-        fallback.textContent = symbol.slice(0, 2);
-        img.replaceWith(fallback);
-      }}
-    />`;
+    return html`
+      <img
+        src="${logoUrl}"
+        alt="${symbol}"
+        style="width:${size}px;height:${size}px;border-radius:50%"
+        @error="${(e: Event) => {
+          const img = e.target as HTMLImageElement;
+          const fallback = document.createElement("span");
+          fallback.className = "token-icon-fallback";
+          fallback.style.cssText =
+            `width:${size}px;height:${size}px;display:inline-flex`;
+          fallback.textContent = symbol.slice(0, 2);
+          img.replaceWith(fallback);
+        }}"
+      />
+    `;
   }
 
   private _renderWalletIcon() {
-    return svg`<svg width="19" height="15" viewBox="0 0 19 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M16.5 3.5H3C2.17 3.5 1.5 2.83 1.5 2V12.5C1.5 13.33 2.17 14 3 14H16.5C17.33 14 18 13.33 18 12.5V5C18 4.17 17.33 3.5 16.5 3.5Z" stroke="currentColor" stroke-width="1.2"/>
-      <circle cx="14.5" cy="8.75" r="1" fill="currentColor"/>
-      <path d="M1.5 2C1.5 1.17 2.17 0.5 3 0.5H14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>`;
+    return svg`
+      <svg
+        width="19"
+        height="15"
+        viewBox="0 0 19 15"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M2.24833 15C4.67294 15 6.49483 13 7.58206 11.4208C7.45242 11.7514 7.38275 12.1019 7.37622 12.4562C7.37622 13.3781 7.93567 14.0354 9.03767 14.0354C10.5503 14.0354 12.1674 12.7771 13.0044 11.4208C12.9508 11.5981 12.9213 11.7817 12.9168 11.9667C12.9168 12.6094 13.2989 13.0146 14.0779 13.0146C16.5311 13.0146 19 8.89062 19 5.28437C19 2.47396 17.5011 0 13.7391 0C7.12711 0 0 7.66042 0 12.6094C0 14.5531 1.102 15 2.24833 15ZM11.4623 4.97708C11.4623 4.27812 11.8739 3.78854 12.4756 3.78854C13.0636 3.78854 13.4752 4.27812 13.4752 4.97604C13.4752 5.67604 13.0636 6.17917 12.4756 6.17917C11.8739 6.17917 11.4623 5.67604 11.4623 4.97708ZM14.6068 4.97708C14.6068 4.27812 15.0184 3.78854 15.6201 3.78854C16.2081 3.78854 16.6197 4.27812 16.6197 4.97604C16.6197 5.67604 16.2081 6.17917 15.6201 6.17917C15.0184 6.17917 14.6068 5.67604 14.6068 4.97708Z"
+          fill="#AB9FF2"
+        />
+      </svg>
+    `;
   }
 
   private _formatPrice(price: string) {
     const match = price.match(/^(\$)(\d+)(\.?\d*)$/);
-    if (!match) return html`${price}`;
-    return html`<span>${match[1]}</span><span>${match[2]}</span><span>${match[3]}</span>`;
+    if (!match) {
+      return html`
+        ${price}
+      `;
+    }
+    const cents = match[3]
+      ? `.${match[3].replace(".", "").padEnd(2, "0").slice(0, 2)}`
+      : ".00";
+    return html`
+      <span>${match[1]}</span><span>${match[2]}</span><span>${cents}</span>
+    `;
   }
 
   private _formatTotal(price: string) {
     const match = price.match(/^(\$)(\d+)(\.?\d*)$/);
-    if (!match) return html`${price}`;
+    if (!match) {
+      return html`
+        ${price}
+      `;
+    }
+    const cents = match[3]
+      ? `.${match[3].replace(".", "").padEnd(2, "0").slice(0, 2)}`
+      : ".00";
     return html`
       <span class="total-currency">${match[1]}</span>
       <span class="total-amount">${match[2]}</span>
-      <span class="total-cents">${match[3]}</span>
+      <span class="total-cents">${cents}</span>
+    `;
+  }
+
+  private _renderPayAmount(amount: string) {
+    const dotIndex = amount.indexOf(".");
+    if (dotIndex === -1) {
+      return html`<span class="pay-btn-amount">${amount}</span>`;
+    }
+    const intPart = amount.slice(0, dotIndex + 1);
+    const decPart = amount.slice(dotIndex + 1);
+    return html`
+      <span class="pay-btn-amount">
+        <span>${intPart}</span><span class="pay-btn-amount-dec">${decPart}</span>
+      </span>
     `;
   }
 
   private _renderTokenSheet() {
     const ctx = this._context;
-    const isOpen = this._step !== "loading" && this._step !== "invoice-error" && this._step !== "idle";
+    const isOpen = this._step !== "loading" && this._step !== "invoice-error" &&
+      this._step !== "idle";
     const isQuoting = this._step === "quoting";
-    const isProcessing = ["approving", "executing", "polling"].includes(this._step);
+    const isProcessing = ["approving", "executing", "polling"].includes(
+      this._step,
+    );
     const isPaid = this._step === "paid";
     const isError = this._step === "error";
     const isTokenSelect = this._step === "token-select";
     const isReadyToPay = this._step === "ready-to-pay";
 
-    const processingMessages: Record<string, string> = {
-      "quoting": "Getting best price...",
-      "approving": "Approving token...",
-      "executing": "Sending payment...",
-      "polling": "Waiting for payment confirmation...",
-    };
-
-    const showTokenList = isTokenSelect || isReadyToPay || isQuoting;
+    const showTokenList = isTokenSelect || isReadyToPay || isQuoting ||
+      isProcessing;
     const tokenOptions = showTokenList ? this._computeTokenOptions() : [];
     const filteredOptions = this._searchQuery
-      ? tokenOptions.filter(o => {
-          const q = this._searchQuery.toLowerCase();
-          return o.symbol.toLowerCase().includes(q) || o.chainName.toLowerCase().includes(q);
-        })
+      ? tokenOptions.filter((o) => {
+        const q = this._searchQuery.toLowerCase();
+        return o.symbol.toLowerCase().includes(q) ||
+          o.chainName.toLowerCase().includes(q);
+      })
       : tokenOptions;
 
     return html`
       <kp-bottom-sheet
-        ?open=${isOpen}
+        ?open="${isOpen}"
         scrollable
-        @close=${this._onSheetClose}
+        @close="${this._onSheetClose}"
       >
         <div slot="header">
           <div class="wallet-header">
@@ -1590,201 +2138,275 @@ export class PaymentPage extends LitElement {
               <div class="wallet-address-icon">
                 ${this._renderWalletIcon()}
               </div>
-              <span class="wallet-address-text">${this._walletAddress || "0x..."}</span>
-              <button class="disconnect-btn" aria-label="Disconnect wallet" @click=${this._onDisconnect}>
+              <span class="wallet-address-text">${this._walletAddress ||
+                "0x..."}</span>
+              <button
+                class="disconnect-btn"
+                aria-label="Disconnect wallet"
+                @click="${this._onDisconnect}"
+              >
                 ${this._renderDisconnectIcon()}
                 <span class="disconnect-text">Disconnect</span>
               </button>
             </div>
           </div>
           ${isPaid
-            ? html`
-                <div class="tx-link">
-                  <a class="tx-link-inner" href="#" target="_blank" rel="noopener noreferrer">
-                    <span class="tx-link-text">View transaction on</span>
-                    <span class="tx-link-icon">${this._renderEtherscanIcon()}</span>
-                    <span class="tx-link-text">Etherscan</span>
-                    <span class="tx-link-external">${this._renderExternalLinkIcon()}</span>
-                  </a>
-                </div>
-              `
+            ? (() => {
+                const chain = ctx.selectedChainId
+                  ? CHAINS_BY_ID[ctx.selectedChainId]
+                  : null;
+                const explorerUrl = chain?.explorerUrl ?? "https://etherscan.io";
+                const explorerName = this._getExplorerName(explorerUrl);
+                const txUrl = ctx.txHash
+                  ? `${explorerUrl}/tx/${ctx.txHash}`
+                  : "#";
+                return html`
+                  <div class="tx-link">
+                    <a class="tx-link-inner" href="${txUrl}" target="_blank" rel="noopener noreferrer">
+                      <span class="tx-link-text">View transaction on</span>
+                      <span class="tx-link-text">${explorerName}</span>
+                      <span class="tx-link-external">${this
+                        ._renderExternalLinkIcon()}</span>
+                    </a>
+                  </div>
+                `;
+              })()
             : html`
-                <div class="pay-with-bar">
-                  <span class="pay-with-label">Pay with</span>
-                  ${this._searching
-                    ? html`
-                        <div class="search-group">
-                          ${this._renderSearchIcon()}
-                          <input
-                            class="search-input"
-                            type="text"
-                            name="token-search"
-                            aria-label="Search tokens"
-                            .value=${this._searchQuery}
-                            @input=${this._onSearchInput}
-                            placeholder="Search\u2026"
-                          />
-                          <button class="clear-search" aria-label="Clear search" @click=${this._onClearSearch}>
-                            ${this._renderCloseIcon()}
-                          </button>
-                        </div>
-                      `
-                    : html`
-                        <button class="find-token" @click=${this._onSearchClick}>
-                          ${this._renderSearchIcon()}
-                          <span>Find token</span>
-                        </button>
-                      `}
-                </div>
-              `}
+              <div class="pay-with-bar">
+                <span class="pay-with-label">Pay with</span>
+                ${this._searching
+                  ? html`
+                    <div class="search-group">
+                      ${this._renderSearchIcon()}
+                      <input
+                        class="search-input"
+                        type="text"
+                        name="token-search"
+                        aria-label="Search tokens"
+                        .value="${this._searchQuery}"
+                        @input="${this._onSearchInput}"
+                        placeholder="Search"
+                      />
+                      <button class="clear-search" aria-label="Clear search" @click="${this
+                        ._onClearSearch}">
+                        ${this._renderCloseIcon()}
+                      </button>
+                    </div>
+                  `
+                  : html`
+                    <button class="find-token" @click="${this._onSearchClick}">
+                      ${this._renderSearchIcon()}
+                      <span>Find token</span>
+                    </button>
+                  `}
+              </div>
+            `}
         </div>
 
         ${isPaid
           ? html`
-              <div class="success-body">
-                <div class="success-amount">
-                  <span class="success-amount-text">–${ctx.requiredAmountHuman}</span>
-                  <span class="success-amount-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 36)}</span>
-                  <span class="success-amount-text">${ctx.selectedTokenSymbol}</span>
+            <div class="success-body">
+              <div class="success-amount">
+                <span class="success-amount-text">–${ctx
+                  .requiredAmountHuman}</span>
+                <div class="success-amount-icon-wrapper">
+                  <span class="success-amount-icon">${this._renderTokenIcon(
+                    ctx.selectedTokenLogoUrl,
+                    ctx.selectedTokenSymbol,
+                    36,
+                  )}</span>
+                  ${ctx.selectedChainLogoUrl
+                    ? html`<div class="success-chain-badge">
+                        <img src="${ctx.selectedChainLogoUrl}" alt="" />
+                      </div>`
+                    : nothing}
                 </div>
-                <div class="success-redirect">
-                  Redirecting in ${ctx.redirectCountdown}s...
-                </div>
+                <span class="success-amount-text">${ctx
+                  .selectedTokenSymbol}</span>
               </div>
-            `
-          : isError
-            ? html`
-                <div class="success-body">
-                  <div class="success-redirect" style="color: var(--content-primary)">
-                    ${ctx.errorMessage}
-                  </div>
+              <div class="success-redirect-section">
+                <div class="success-redirect">
+                  Redirecting you to the receipt page...
                 </div>
-              `
-            : showTokenList
-              ? html`
-                  <div class="balance-header">
-                    <span class="balance-header-label">Available balance</span>
-                    <div class="exchange-rate">
-                      ${this._renderChevronIcon()}
-                      <span class="balance-header-label">Exchange rate</span>
-                    </div>
-                  </div>
-                  <div class="balance-list">
-                    ${this._loadingTokens
-                      ? this._renderSkeletonItems(5)
-                      : filteredOptions.map(
-                          (o) => {
-                            const isSelected = ctx.selectedTokenSymbol === o.symbol && ctx.selectedChainId === o.chainId;
-                            const requiredFiat = `$${(parseFloat(o.requiredAmount) * o.usdPrice).toFixed(2)}`;
-                            const isStablecoin = o.usdPrice >= 0.95 && o.usdPrice <= 1.05;
-                            return html`
-                              <kp-balance-item
-                                name=${o.symbol}
-                                amount=${o.balanceHuman}
-                                fiat-value=${requiredFiat}
-                                crypto-value=${isStablecoin ? "" : o.requiredAmount}
-                                ?selected=${isSelected}
-                                style="${!o.sufficient ? 'opacity: 0.4; pointer-events: none;' : ''}"
-                                @select=${() => this._onTokenSelected(o)}
-                              >
-                                <span slot="icon">${this._renderTokenIcon(o.logoUrl, o.symbol)}</span>
-                                <span slot="chain-icon">${this._renderTokenIcon(o.chainLogoUrl, o.chainName, 14)}</span>
-                              </kp-balance-item>
-                            `;
-                          },
-                        )}
-                  </div>
-                `
-              : isProcessing
-                ? html`
-                    <div class="success-body">
-                      <div class="spinner">${this._renderSpinnerIcon()}</div>
-                      <div class="success-redirect" style="color: var(--content-primary)">
-                        ${processingMessages[this._step] || "Processing..."}
-                      </div>
-                    </div>
-                  `
-                : nothing}
+                <div class="success-divider"></div>
+              </div>
+            </div>
+          `
+          : isError
+          ? html`
+            <div class="success-body">
+              <div class="success-redirect" style="color: var(--content-primary)">
+                ${ctx.errorMessage}
+              </div>
+            </div>
+          `
+          : showTokenList
+          ? html`
+            <div class="balance-header">
+              <span class="balance-header-label">Available balance</span>
+              <div class="exchange-rate">
+                ${this._renderDiamondIcon()}
+                <span class="balance-header-label">Exchange rate</span>
+              </div>
+            </div>
+            <div class="balance-list" style="${isProcessing ? "pointer-events: none;" : ""}">
+              ${this._loadingTokens
+                ? this._renderSkeletonItems(5)
+                : filteredOptions.map(
+                  (o) => {
+                    const isSelected = ctx.selectedTokenSymbol === o.symbol &&
+                      ctx.selectedChainId === o.chainId;
+                    const requiredFiat = `$${
+                      (parseFloat(o.requiredAmount) * o.usdPrice).toFixed(2)
+                    }`;
+                    const isStablecoin = o.usdPrice >= 0.95 &&
+                      o.usdPrice <= 1.05;
+                    return html`
+                      <kp-balance-item
+                        name="${o.symbol}"
+                        amount="${o.balanceHuman}"
+                        fiat-value="${requiredFiat}"
+                        crypto-value="${isStablecoin ? "" : o.requiredAmount}"
+                        unit-price="$${(parseFloat(o.balanceHuman) * o.usdPrice).toFixed(2)}"
+                        ?selected="${isSelected}"
+                        style="${!o.sufficient
+                          ? "opacity: 0.4; pointer-events: none;"
+                          : ""}"
+                        @select="${() => this._onTokenSelected(o)}"
+                      >
+                        <span slot="icon">${this._renderTokenIcon(
+                          o.logoUrl,
+                          o.symbol,
+                        )}</span>
+                        <span slot="chain-icon">${this._renderTokenIcon(
+                          o.chainLogoUrl,
+                          o.chainName,
+                          14,
+                        )}</span>
+                      </kp-balance-item>
+                    `;
+                  },
+                )}
+            </div>
+          `
+          : nothing}
 
         <div slot="footer" class="pay-cta">
           ${isPaid
             ? html`
-                <div class="pay-btn--success" role="status" aria-label="Successful payment">
-                  <span class="checkmark">${this._renderCheckmarkIcon()}</span>
-                  <span class="pay-btn-text">Successful payment</span>
-                </div>
-              `
+              <div class="pay-btn--success" role="status" aria-label="Successful payment">
+                <span class="checkmark">${this._renderCheckmarkIcon()}</span>
+                <span class="pay-btn-text">Successful payment</span>
+              </div>
+            `
             : isError
-              ? html`
-                  ${ctx.errorRetryStep
-                    ? html`<button class="pay-btn" @click=${this._onRetry}>
-                        <span class="pay-btn-text">Try again</span>
-                      </button>`
-                    : html`<div class="pay-btn--processing" role="status">
-                        <span class="pay-btn-text">${ctx.errorMessage}</span>
-                      </div>`}
-                `
-              : isProcessing
+            ? html`
+              ${ctx.errorRetryStep
                 ? html`
-                    <div class="pay-btn--processing" role="status" aria-label="Processing payment">
-                      <span class="spinner">${this._renderSpinnerIcon()}</span>
-                      <span class="pay-btn-text">Processing</span>
-                      ${ctx.requiredAmountHuman
-                        ? html`<span class="pay-btn-amount">${ctx.requiredAmountHuman}</span>`
-                        : nothing}
-                      <span class="pay-btn-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 16)}</span>
-                      ${ctx.selectedTokenSymbol
-                        ? html`<span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>`
-                        : nothing}
+                  <button class="pay-btn" @click="${this._onRetry}">
+                    <span class="pay-btn-text">Try again</span>
+                  </button>
+                `
+                : html`
+                  <div class="pay-btn--processing" role="status">
+                    <span class="pay-btn-text">${ctx.errorMessage}</span>
+                  </div>
+                `}
+            `
+            : isProcessing
+            ? html`
+              <div class="pay-btn--processing" role="status" aria-label="Processing payment">
+                <span class="pay-btn-processing-icon">${this._renderRateLoadingIcon()}</span>
+                ${ctx.requiredAmountHuman
+                  ? this._renderPayAmount(ctx.requiredAmountHuman)
+                  : nothing}
+                <span class="pay-btn-icon">${this._renderTokenIcon(
+                  ctx.selectedTokenLogoUrl,
+                  ctx.selectedTokenSymbol,
+                  16,
+                )}</span>
+                ${ctx.selectedTokenSymbol
+                  ? html`
+                    <span class="pay-btn-ticker">${ctx
+                      .selectedTokenSymbol}</span>
+                  `
+                  : nothing}
+              </div>
+            `
+            : isQuoting
+            ? html`
+              <div class="pay-btn--quoting" role="status" aria-label="Updating rate">
+                <span class="pay-btn-quoting-icon">${this._renderRateLoadingIcon()}</span>
+                <span class="pay-btn-text">Updating rate</span>
+              </div>
+            `
+            : isReadyToPay
+            ? html`
+              <button class="pay-btn" @click="${this._executePayment}">
+                <span class="pay-btn-text">Pay</span>
+                ${this._renderPayAmount(ctx.requiredAmountHuman)}
+                <span class="pay-btn-icon">${this._renderTokenIcon(
+                  ctx.selectedTokenLogoUrl,
+                  ctx.selectedTokenSymbol,
+                  16,
+                )}</span>
+                <span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>
+                ${ctx.requiredFiatHuman
+                  ? html`<span class="pay-btn-fiat">${ctx.requiredFiatHuman}</span>`
+                  : nothing}
+              </button>
+            `
+            : this._quoteError
+            ? html`
+              <div class="pay-btn--processing" role="status">
+                <span class="pay-btn-text">${this._quoteError}</span>
+              </div>
+            `
+            : html`
+              <div class="pay-btn--disabled">
+                <span class="pay-btn-text">Select token to pay</span>
+              </div>
+            `}
+          ${ctx.exchangeFee || ctx.gasFee
+            ? html`
+              <div class="fee-row ${(isProcessing || isPaid)
+                ? "fee-row--processing"
+                : ""}">
+                ${ctx.exchangeFee
+                  ? html`
+                    <div class="fee-item">
+                      <span class="fee-amount">${ctx.exchangeFee}</span>
+                      ${this._renderExchangeIcon()}
+                      <span class="fee-label">Exchange</span>
                     </div>
                   `
-                : isQuoting
+                  : nothing}
+                ${ctx.exchangeFee && ctx.gasFee
+                  ? html`<span class="fee-plus">+</span>`
+                  : nothing}
+                ${ctx.gasFee
                   ? html`
-                      <div class="pay-btn--processing" role="status" aria-label="Getting quote">
-                        <span class="spinner">${this._renderSpinnerIcon()}</span>
-                        <span class="pay-btn-text">Getting best price...</span>
-                        <span class="pay-btn-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 16)}</span>
-                        ${ctx.selectedTokenSymbol
-                          ? html`<span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>`
-                          : nothing}
-                      </div>
-                    `
-                : isReadyToPay
-                  ? html`
-                      <button class="pay-btn" @click=${this._executePayment}>
-                        <span class="pay-btn-text">Pay</span>
-                        <span class="pay-btn-amount">${ctx.requiredAmountHuman}</span>
-                        <span class="pay-btn-icon">${this._renderTokenIcon(ctx.selectedTokenLogoUrl, ctx.selectedTokenSymbol, 16)}</span>
-                        <span class="pay-btn-ticker">${ctx.selectedTokenSymbol}</span>
-                      </button>
-                      ${ctx.paymentPath !== "direct" && ctx.selectedChainId
-                        ? html`<span class="pay-btn-fiat">Requires ${this._getNativeSymbol(ctx.selectedChainId)} for gas fees</span>`
-                        : nothing}
-                    `
-                  : this._quoteError
-                    ? html`
-                        <div class="pay-btn--processing" role="status">
-                          <span class="pay-btn-text">${this._quoteError}</span>
-                        </div>
-                      `
+                    <div class="fee-item">
+                      <span class="fee-amount">${ctx.gasFee}</span>
+                      ${this._renderGasIcon()}
+                      <span class="fee-label">Gas Fee</span>
+                    </div>
+                  `
+                  : nothing}
+              </div>
+            `
+            : html`
+              <div class="fee-row">
+                <div class="fee-item">
+                  ${isQuoting
+                    ? html`<span class="fee-label">Loading fees...</span>`
                     : html`
-                        <button class="pay-btn" @click=${() => {}}>
-                          <span class="pay-btn-text">Select a token to pay</span>
-                        </button>
-                      `}
-          <div class="fee-row ${(isProcessing || isPaid) ? "fee-row--processing" : ""}">
-            <div class="fee-item">
-              <span class="fee-amount">${this.exchangeFee}</span>
-              ${this._renderExchangeIcon()}
-              <span class="fee-label">Exchange</span>
-            </div>
-            <span class="fee-plus">+</span>
-            <div class="fee-item">
-              <span class="fee-amount">${this.gasFee}</span>
-              ${this._renderGasIcon()}
-              <span class="fee-label">Gas Fee</span>
-            </div>
-          </div>
+                      ${this._renderGasIcon()}
+                      <span class="fee-label">Gas fee depends on selected token</span>
+                    `}
+                </div>
+              </div>
+            `}
         </div>
       </kp-bottom-sheet>
     `;
@@ -1795,7 +2417,11 @@ export class PaymentPage extends LitElement {
       return html`
         <div class="page" style="align-items: center; justify-content: center;">
           <div class="spinner">${this._renderSpinnerIcon()}</div>
-          <div style="margin-top: 10px; font-size: 14px; color: var(--content-secondary);">Loading invoice...</div>
+          <div
+            style="margin-top: 10px; font-size: 14px; color: var(--content-secondary);"
+          >
+            Loading invoice...
+          </div>
         </div>
       `;
     }
@@ -1803,7 +2429,9 @@ export class PaymentPage extends LitElement {
     if (this._step === "invoice-error") {
       return html`
         <div class="page" style="align-items: center; justify-content: center;">
-          <div style="font-size: 14px; color: var(--content-secondary); text-align: center;">
+          <div
+            style="font-size: 14px; color: var(--content-secondary); text-align: center;"
+          >
             ${this._context.errorMessage || "Invoice error"}
           </div>
         </div>
@@ -1813,22 +2441,26 @@ export class PaymentPage extends LitElement {
     return html`
       <div class="page">
         <div class="header">
-          ${this.orderId
+          ${this.invoiceId
             ? html`
-                <div class="order-number">
-                  ${this._renderOrderIcon()}
-                  <span>ORDER ${this.orderId}</span>
-                </div>
-              `
+              <div class="order-number">
+                ${this._renderOrderIcon()}
+                <span>ORDER ${this.invoiceId}</span>
+              </div>
+            `
             : nothing}
           <div class="merchant">
             ${this.merchantLogo
-              ? html`<div class="merchant-logo">
-                  <img src=${this.merchantLogo} alt="" />
-                </div>`
-              : html`<div class="merchant-logo">
+              ? html`
+                <div class="merchant-logo">
+                  <img src="${this.merchantLogo}" alt="" />
+                </div>
+              `
+              : html`
+                <div class="merchant-logo">
                   <slot name="merchant-logo"></slot>
-                </div>`}
+                </div>
+              `}
             <span class="merchant-name">Pay ${this.merchantName}</span>
           </div>
         </div>
@@ -1838,61 +2470,71 @@ export class PaymentPage extends LitElement {
           <div class="items-list">
             <slot name="items">
               ${this.items.map(
-                (item) => html`
-                  <kp-order-item
-                    name=${item.name}
-                    description=${item.description || ""}
-                    .quantity=${item.quantity}
-                    price=${item.price}
-                  >
-                    ${item.image
-                      ? html`<img
-                          slot="image"
-                          src=${item.image}
-                          alt=${item.name}
-                        />`
-                      : nothing}
-                  </kp-order-item>
-                `,
+                (item) =>
+                  html`
+                    <kp-order-item
+                      name="${item.name}"
+                      description="${item.description || ""}"
+                      .quantity="${item.quantity}"
+                      price="${item.price}"
+                    >
+                      ${item.image
+                        ? html`
+                          <img
+                            slot="image"
+                            src="${item.image}"
+                            alt="${item.name}"
+                          />
+                        `
+                        : nothing}
+                    </kp-order-item>
+                  `,
               )}
             </slot>
           </div>
           ${this.shipping
             ? html`
-                <div class="shipping">
-                  <span class="shipping-label">Shipping</span>
-                  <span class="shipping-price"
-                    >${this._formatPrice(this.shipping)}</span
-                  >
-                </div>
-              `
+              <div class="shipping">
+                <span class="shipping-label">Shipping</span>
+                <span class="shipping-price">${this._formatPrice(
+                  this.shipping,
+                )}</span>
+              </div>
+            `
             : nothing}
         </div>
 
         ${this.total
           ? html`
-              <div class="total">
-                <span class="total-label">Total</span>
-                <div class="total-price">${this._formatTotal(this.total)}</div>
-              </div>
-            `
+            <div class="total">
+              <span class="total-label">Total</span>
+              <div class="total-price">${this._formatTotal(this.total)}</div>
+            </div>
+          `
           : nothing}
 
         <div class="cta">
-          <kp-button weight="primary" @click=${this._onButtonClick}>
+          <kp-button weight="primary" @click="${this._onButtonClick}">
             <svg
               slot="icon"
-              width="11.5"
-              height="10"
-              viewBox="0 0 12 10"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
               aria-hidden="true"
             >
               <path
-                d="M10.5 1H1.5C0.9 1 0.5 1.4 0.5 2V8C0.5 8.6 0.9 9 1.5 9H10.5C11.1 9 11.5 8.6 11.5 8V2C11.5 1.4 11.1 1 10.5 1ZM10.5 8H1.5V5H10.5V8ZM10.5 3H1.5V2H10.5V3Z"
-                fill="var(--brand-quinary)"
+                d="M15.0586 5.27441C16.0232 4.97762 17 5.6988 17 6.70801V15C17 15.8284 16.3284 16.5 15.5 16.5H6.5C5.67157 16.5 5 15.8284 5 15V9.47754C5 8.81917 5.42942 8.23772 6.05859 8.04395L15.0586 5.27441Z"
+                fill="black"
+                stroke="white"
               />
+              <path
+                d="M6.5 8.29199H16.5C17.3284 8.29199 18 8.96357 18 9.79199V17.792C18 18.6204 17.3284 19.292 16.5 19.292H6.5C5.67157 19.292 5 18.6204 5 17.792V9.79199C5 8.96357 5.67157 8.29199 6.5 8.29199Z"
+                fill="black"
+                stroke="white"
+              />
+              <circle cx="14.5" cy="13.792" r="1" fill="white" />
             </svg>
             ${this._connectedAccount ? "Pay" : this.buttonLabel}
           </kp-button>

@@ -34,7 +34,7 @@ The project builds as a **library** (not an app). Vite library mode produces a U
 
 - **Color space:** OKLCH throughout — brand colors from Figma, semantic tokens following shadcn/ui naming (`--primary`, `--secondary`, `--destructive`, `--accent`, etc.)
 - **Pattern:** Brand color primitives (`--royal-blue`, `--deep-navy`, etc.) mapped to semantic tokens (`--primary: var(--royal-blue)`)
-- **Font:** Inter (Google Fonts) is the **only** typeface in the project. Never use any other font-family — always reference `var(--font-family)` which resolves to `"Inter", sans-serif`. No exceptions.
+- **Font:** Alaska (self-hosted, base64-inlined variable WOFF2) is the **only** typeface in the project. Never use any other font-family — always reference `var(--font-family)` which resolves to `"Alaska", sans-serif`. No exceptions. The `@font-face` declaration lives in `src/styles/font.css.ts`.
 - **Light mode only** currently — dark mode variables not yet implemented
 
 ## Key Conventions

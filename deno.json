@@ -21,7 +21,6 @@
     "postcss": "npm:postcss@8.5.6",
     "terser": "npm:terser@5.37.0",
     "viem": "npm:viem@2.38.5",
-    "msw": "npm:msw@2.12.9",
     "vite": "npm:vite@7.1.12"
   },
   "nodeModulesDir": "auto",

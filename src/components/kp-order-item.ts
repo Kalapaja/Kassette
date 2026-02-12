@@ -26,7 +26,7 @@ export class KpOrderItem extends LitElement {
       .left {
         display: flex;
         gap: 8px;
-        align-items: flex-end;
+        align-items: flex-start;
       }
 
       .image {
@@ -111,9 +111,7 @@ export class KpOrderItem extends LitElement {
         <div class="info">
           <div class="name-row">
             <span>${this.name}</span>
-            ${this.quantity > 1
-              ? html`<span class="quantity">x${this.quantity}</span>`
-              : null}
+            <span class="quantity">x${this.quantity}</span>
           </div>
           ${this.description
             ? html`<span class="description">${this.description}</span>`
@@ -122,7 +120,7 @@ export class KpOrderItem extends LitElement {
       </div>
       <div class="price">
         ${currency ? html`<span class="currency">${currency}</span>` : null}${match
-          ? html`<span>${match[1]}</span><span>${match[2]}</span>`
+          ? html`<span>${match[1]}</span><span>${match[2] ? `.${match[2].replace(".", "").padEnd(2, "0").slice(0, 2)}` : ".00"}</span>`
           : html`<span>${numericParts}</span>`}
       </div>
     `;

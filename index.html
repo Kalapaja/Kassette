@@ -5,32 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Payment Page - Development</title>
     <meta name="theme-color" content="#f9f9f9" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
-      rel="stylesheet"
-    />
     <style>
       * {
         margin: 0;
         padding: 0;
       }
       body {
-        font-family: "Inter", sans-serif;
-        background: oklch(95% 0 0);
+        font-family: "Alaska", sans-serif;
+        background: white;
         min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
       }
     </style>
   </head>
   <body>
     <payment-page
       id="payment"
-      order-id="353891"
       merchant-name="JPDesignShop"
+      merchant-logo-url="%VITE_MERCHANT_LOGO_URL%"
       button-label="Connect Wallet & Pay"
       exchange-fee="$1.50"
       gas-fee="$0.30"

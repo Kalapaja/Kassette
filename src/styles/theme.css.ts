@@ -1,10 +1,9 @@
 import { css } from "lit";
+import { fontFace } from "./font.css.ts";
 
-export const theme = css`
-  @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
-
+const themeStyles = css`
   :host {
-    --font-family: "Inter", sans-serif;
+    --font-family: "Alaska", sans-serif;
     font-family: var(--font-family);
     /* Brand Colors */
     --deep-navy: oklch(0.34 0.161 263.507);
@@ -27,6 +26,8 @@ export const theme = css`
     --content-secondary: oklch(0.42 0 0);
     --content-tetriary: oklch(0.52 0 0);
     --fill-primary: var(--white);
+    --fill-secondary: oklch(0.97 0 0);
+    --fill-tetriary: oklch(0.94 0 0);
     --brand-primary: var(--deep-navy);
     --brand-border-tetriary: var(--brand-quaternary);
     --border-secondary: oklch(0.88 0 0);
@@ -74,3 +75,5 @@ export const theme = css`
     --chart-5: var(--flux-red);
   }
 `;
+
+export const theme = [fontFace, themeStyles];

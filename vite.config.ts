@@ -31,35 +31,35 @@ export default defineConfig(({ mode }) => {
       minify: isProduction ? "terser" : false,
       terserOptions: isProduction
         ? {
-            compress: {
-              drop_console: true,
-              drop_debugger: true,
-              passes: 2,
-              dead_code: true,
-              unused: true,
-              conditionals: true,
-              evaluate: true,
-              booleans: true,
-              loops: true,
-              properties: true,
-              inline: 2,
-              reduce_vars: true,
-              join_vars: true,
-              collapse_vars: true,
-            },
-            mangle: {
-              properties: false,
-              toplevel: true,
-              safari10: true,
-            },
-            format: {
-              comments: false,
-              ecma: 2020,
-              safari10: true,
-            },
-            keep_classnames: false,
-            keep_fnames: false,
-          }
+          compress: {
+            drop_console: true,
+            drop_debugger: true,
+            passes: 2,
+            dead_code: true,
+            unused: true,
+            conditionals: true,
+            evaluate: true,
+            booleans: true,
+            loops: true,
+            properties: true,
+            inline: 2,
+            reduce_vars: true,
+            join_vars: true,
+            collapse_vars: true,
+          },
+          mangle: {
+            properties: false,
+            toplevel: true,
+            safari10: true,
+          },
+          format: {
+            comments: false,
+            ecma: 2020,
+            safari10: true,
+          },
+          keep_classnames: false,
+          keep_fnames: false,
+        }
         : undefined,
       sourcemap: isProduction ? true : "inline",
       target: "es2020",
@@ -86,7 +86,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 3001,
-      open: true,
+      open: false,
       cors: true,
       proxy: {
         "/invoice": {

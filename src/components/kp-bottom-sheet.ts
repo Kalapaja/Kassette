@@ -36,10 +36,12 @@ export class KpBottomSheet extends LitElement {
         left: 0;
         right: 0;
         bottom: 0;
+        max-width: 393px;
+        margin: 0 auto;
         max-height: 85vh;
         background: var(--fill-primary);
         border-radius: 30px 30px 0 0;
-        box-shadow: 0 4px 20px oklch(0 0 0 / 0.1);
+        box-shadow: 0 4px 40px oklch(0 0 0 / 0.2);
         transform: translateY(100%);
         transition: transform 0.3s ease;
         z-index: 11;
