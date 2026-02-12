@@ -1048,9 +1048,6 @@ export class PaymentPage extends LitElement {
   @property({ type: String })
   accessor total = "";
 
-  @property({ type: String, attribute: "button-label" })
-  accessor buttonLabel = "Connect Wallet & Pay";
-
   @property({ type: String, attribute: "invoice-id" })
   accessor invoiceId = "";
 
@@ -2536,7 +2533,7 @@ export class PaymentPage extends LitElement {
               />
               <circle cx="14.5" cy="13.792" r="1" fill="white" />
             </svg>
-            ${this._connectedAccount ? "Pay" : this.buttonLabel}
+            ${this._connectedAccount ? "Pay" : "Connect Wallet & Pay"}
           </kp-button>
         </div>
 

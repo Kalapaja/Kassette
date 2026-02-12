@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Payment Page - Development</title>
+    <title>%VITE_PAYMENT_PAGE_TITLE%</title>
     <meta name="theme-color" content="#f9f9f9" />
     <style>
       * {
@@ -20,11 +20,8 @@
   <body>
     <payment-page
       id="payment"
-      merchant-name="JPDesignShop"
+      merchant-name="%VITE_MERCHANT_NAME%"
       merchant-logo-url="%VITE_MERCHANT_LOGO_URL%"
-      button-label="Connect Wallet & Pay"
-      exchange-fee="$1.50"
-      gas-fee="$0.30"
       project-id="%VITE_REWON_PROJECT_ID%"
     ></payment-page>
 
