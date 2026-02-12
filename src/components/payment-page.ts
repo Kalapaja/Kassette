@@ -184,7 +184,8 @@ export class PaymentPage extends LitElement {
       }
 
       .merchant-logo ::slotted(*),
-      .merchant-logo img {
+      .merchant-logo img,
+      .merchant-logo svg {
         width: 100%;
         height: 100%;
         object-fit: cover;
@@ -1584,6 +1585,13 @@ export class PaymentPage extends LitElement {
       invoice!.payment_address as `0x${string}`,
       requiredAmount,
     );
+    this._invoiceService!.registerSwap({
+      invoice_id: this.invoiceId,
+      from_amount_units: Number(requiredAmount),
+      from_chain_id: this._context.selectedChainId!,
+      from_asset_id: selectedTokenAddress!,
+      transaction_hash: receipt.transactionHash,
+    });
     this._transition("polling");
     this._context = { ...this._context, txHash: receipt.transactionHash };
     this._startPolling();
@@ -1614,6 +1622,13 @@ export class PaymentPage extends LitElement {
 
     this._transition("executing");
     const uniHash = await this._uniswapService!.executeSwap(uniQuote);
+    this._invoiceService!.registerSwap({
+      invoice_id: this.invoiceId,
+      from_amount_units: Number(this._context.requiredAmount),
+      from_chain_id: this._context.selectedChainId!,
+      from_asset_id: this._context.selectedTokenAddress!,
+      transaction_hash: uniHash,
+    });
     this._transition("polling");
     this._context = { ...this._context, txHash: uniHash };
     this._startPolling();
@@ -1630,6 +1645,13 @@ export class PaymentPage extends LitElement {
 
     this._transition("executing");
     const acrossHash = await this._acrossService!.executeSwap(acrossQuote.swapTx);
+    this._invoiceService!.registerSwap({
+      invoice_id: this.invoiceId,
+      from_amount_units: Number(this._context.requiredAmount),
+      from_chain_id: this._context.selectedChainId!,
+      from_asset_id: this._context.selectedTokenAddress!,
+      transaction_hash: acrossHash,
+    });
     this._transition("polling");
     this._context = { ...this._context, txHash: acrossHash };
     this._startPolling();
@@ -2531,17 +2553,11 @@ export class PaymentPage extends LitElement {
             `
             : nothing}
           <div class="merchant">
-            ${this.merchantLogo
-              ? html`
-                <div class="merchant-logo">
-                  <img src="${this.merchantLogo}" alt="" />
-                </div>
-              `
-              : html`
-                <div class="merchant-logo">
-                  <slot name="merchant-logo"></slot>
-                </div>
-              `}
+            <div class="merchant-logo">
+              ${this.merchantLogo
+                ? html`<img src="${this.merchantLogo}" alt="" />`
+                : this._renderKalatoriLogo()}
+            </div>
             <span class="merchant-name">Pay ${this.merchantName}</span>
           </div>
         </div>
