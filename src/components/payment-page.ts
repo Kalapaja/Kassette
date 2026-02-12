@@ -1270,6 +1270,15 @@ export class PaymentPage extends LitElement {
       this._step = "idle";
       this._searchQuery = "";
       this._searching = false;
+      this._context = {
+        ...this._context,
+        selectedChainId: null,
+        selectedTokenAddress: null,
+        selectedTokenSymbol: "",
+        selectedTokenLogoUrl: "",
+        selectedChainLogoUrl: "",
+        selectedTokenDecimals: 6,
+      };
     }
   }
 
