@@ -7,7 +7,7 @@ export class InvoiceService {
   private _lastKnownInvoice: Invoice | null = null;
 
   async fetchInvoice(invoiceId: string): Promise<Invoice> {
-    const res = await fetch(`/invoice?invoice_id=${invoiceId}`);
+    const res = await fetch(`/public/invoice?invoice_id=${invoiceId}`);
     if (!res.ok) {
       throw new Error(`Invoice fetch failed: ${res.status}`);
     }
@@ -73,7 +73,7 @@ export class InvoiceService {
     transaction_hash: string;
   }): Promise<void> {
     try {
-      const res = await fetch("/swap/register", {
+      const res = await fetch("/public/swap/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
