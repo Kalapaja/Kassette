@@ -1035,41 +1035,31 @@ export class PaymentPage extends LitElement {
         color: var(--content-primary);
       }
 
-      .locale-toggle {
+      .locale-select {
         position: absolute;
         top: 12px;
         right: 0;
-        display: flex;
-        border: 1px solid var(--border-secondary);
-        border-radius: var(--radius);
-        overflow: hidden;
         z-index: 1;
-      }
-
-      .locale-option {
         font-family: var(--font-family);
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 500;
-        padding: 4px 10px;
+        padding: 2px 4px;
         border: none;
-        cursor: pointer;
-        background: var(--fill-primary);
+        border-radius: var(--radius);
+        background: transparent;
         color: var(--content-tetriary);
-        transition: background 0.15s, color 0.15s;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
       }
 
-      .locale-option:focus-visible {
+      .locale-select:focus-visible {
         outline: 2px solid var(--ring);
         outline-offset: -2px;
       }
 
-      .locale-option.active {
-        background: var(--brand-primary);
-        color: var(--fill-primary);
-      }
-
-      .locale-option:not(.active):hover {
-        background: var(--fill-tetriary);
+      .locale-select:hover {
+        color: var(--content-secondary);
       }
     `,
   ];
@@ -2582,20 +2572,16 @@ export class PaymentPage extends LitElement {
 
     return html`
       <div class="page">
-        <div class="locale-toggle" role="radiogroup" aria-label="${this._t("aria.languageSwitcher")}">
+        <select
+          class="locale-select"
+          aria-label="${this._t("aria.languageSwitcher")}"
+          .value="${this._locale}"
+          @change="${(e: Event) => this._onLocaleChange((e.target as HTMLSelectElement).value as Locale)}"
+        >
           ${SUPPORTED_LOCALES.map(
-            (loc) => html`
-              <button
-                class="locale-option ${loc === this._locale ? "active" : ""}"
-                role="radio"
-                aria-checked="${loc === this._locale ? "true" : "false"}"
-                @click="${() => this._onLocaleChange(loc)}"
-              >
-                ${LOCALE_LABELS[loc]}
-              </button>
-            `
+            (loc) => html`<option value="${loc}" ?selected="${loc === this._locale}">${LOCALE_LABELS[loc]}</option>`
           )}
-        </div>
+        </select>
         <div class="header">
           ${this.invoiceId
             ? html`
