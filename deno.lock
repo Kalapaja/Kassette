@@ -1,6 +1,9 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@*": "1.0.17",
+    "jsr:@std/assert@1": "1.0.17",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
     "npm:@reown/appkit-adapter-wagmi@1.8.12": "1.8.12_@wagmi+core@2.16.7__viem@2.38.5___ws@8.18.3____bufferutil@4.1.0____utf-8-validate@5.0.10_viem@2.38.5__ws@8.18.3___bufferutil@4.1.0___utf-8-validate@5.0.10_wagmi@2.19.1__@tanstack+react-query@5.90.5___react@19.2.3__react@19.2.3__viem@2.38.5___ws@8.18.3____bufferutil@4.1.0____utf-8-validate@5.0.10__@wagmi+core@2.22.1___viem@2.38.5____ws@8.18.3_____bufferutil@4.1.0_____utf-8-validate@5.0.10___react@19.2.3___use-sync-external-store@1.4.0____react@19.2.3__use-sync-external-store@1.4.0___react@19.2.3_valtio@2.1.7",
     "npm:@reown/appkit@1.8.12": "1.8.12_valtio@2.1.7",
     "npm:@wagmi/core@2.16.7": "2.16.7_viem@2.38.5__ws@8.18.3___bufferutil@4.1.0___utf-8-validate@5.0.10",
@@ -12,6 +15,17 @@
     "npm:terser@5.37.0": "5.37.0",
     "npm:viem@2.38.5": "2.38.5_ws@8.18.3__bufferutil@4.1.0__utf-8-validate@5.0.10",
     "npm:vite@7.1.12": "7.1.12_terser@5.37.0_picomatch@4.0.3"
+  },
+  "jsr": {
+    "@std/assert@1.0.17": {
+      "integrity": "df5ebfffe77c03b3fa1401e11c762cc8f603d51021c56c4d15a8c7ab45e90dbe",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    }
   },
   "npm": {
     "@adraffy/ens-normalize@1.11.1": {
@@ -4000,6 +4014,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@std/assert@1",
       "npm:@reown/appkit-adapter-wagmi@1.8.12",
       "npm:@reown/appkit@1.8.12",
       "npm:@wagmi/core@2.16.7",

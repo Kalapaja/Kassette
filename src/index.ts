@@ -20,6 +20,8 @@ export { KpBalanceItem } from "./components/kp-balance-item.ts";
 export { KpOrderItem } from "./components/kp-order-item.ts";
 export { KpBottomSheet } from "./components/kp-bottom-sheet.ts";
 
+export type { Locale } from "./i18n/index.ts";
+export type { FiatParts } from "./i18n/format.ts";
 export type { Invoice, InvoiceStatus } from "./types/invoice.types.ts";
 export type { ApiResponse } from "./types/payment.types.ts";
 export { InvoiceService } from "./services/invoice.service.ts";

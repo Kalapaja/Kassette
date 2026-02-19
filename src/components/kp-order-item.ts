@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { theme } from "../styles/theme.css.ts";
+import type { FiatParts } from "@/i18n/format.ts";
 
 @customElement("kp-order-item")
 export class KpOrderItem extends LitElement {
@@ -98,6 +99,9 @@ export class KpOrderItem extends LitElement {
   @property({ type: String })
   accessor price = "";
 
+  @property({ type: Object, attribute: false })
+  accessor priceParts: FiatParts | null = null;
+
   override render() {
     const [currency, ...rest] = this.price.split(/(\d+)/);
     const numericParts = rest.join("");
@@ -118,11 +122,21 @@ export class KpOrderItem extends LitElement {
             : null}
         </div>
       </div>
-      <div class="price">
-        ${currency ? html`<span class="currency">${currency}</span>` : null}${match
-          ? html`<span>${match[1]}</span><span>${match[2] ? `.${match[2].replace(".", "").padEnd(2, "0").slice(0, 2)}` : ".00"}</span>`
-          : html`<span>${numericParts}</span>`}
-      </div>
+      ${this.priceParts
+        ? html`
+            <div class="price">
+              <span class="currency">${this.priceParts.currency}</span>
+              <span>${this.priceParts.integer}</span>
+              <span class="cents">${this.priceParts.decimal}</span>
+            </div>
+          `
+        : html`
+            <div class="price">
+              ${currency ? html`<span class="currency">${currency}</span>` : null}${match
+                ? html`<span>${match[1]}</span><span>${match[2] ? `.${match[2].replace(".", "").padEnd(2, "0").slice(0, 2)}` : ".00"}</span>`
+                : html`<span>${numericParts}</span>`}
+            </div>
+          `}
     `;
   }
 }

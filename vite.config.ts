@@ -90,13 +90,11 @@ export default defineConfig(({ mode }) => {
       open: false,
       cors: true,
       proxy: {
-        "/invoice": {
+        "/public/invoice": {
           target: "http://localhost:8080",
-          rewrite: (path) => `/public${path}`,
         },
-        "/swap": {
+        "/public/swap": {
           target: "http://localhost:8080",
-          rewrite: (path) => `/public${path}`,
         },
       },
     },

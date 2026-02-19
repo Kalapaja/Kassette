@@ -165,7 +165,10 @@ export class KpSelect extends LitElement {
   accessor label = "";
 
   @property({ type: String })
-  accessor placeholder = "Select";
+  accessor placeholder = "";
+
+  @property({ type: String, attribute: "aria-fallback-label" })
+  accessor ariaFallbackLabel = "Select an option";
 
   @property({ type: String })
   accessor value = "";
@@ -268,7 +271,7 @@ export class KpSelect extends LitElement {
         role="combobox"
         aria-expanded="${this._open}"
         aria-haspopup="listbox"
-        aria-label="${this.label || "Select an option"}"
+        aria-label="${this.label || this.ariaFallbackLabel}"
         @click="${this._toggle}"
         @keydown="${this._handleTriggerKeyDown}"
       >

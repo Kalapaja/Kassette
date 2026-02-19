@@ -74,6 +74,15 @@ export class KpMode extends LitElement {
   @property({ reflect: true })
   accessor mode: ModeValue = "light";
 
+  @property({ type: String, attribute: "group-label" })
+  accessor groupLabel = "Color mode";
+
+  @property({ type: String, attribute: "light-label" })
+  accessor lightLabel = "Light mode";
+
+  @property({ type: String, attribute: "dark-label" })
+  accessor darkLabel = "Dark mode";
+
   private _select(value: ModeValue) {
     if (this.mode === value) return;
     this.mode = value;
@@ -125,14 +134,14 @@ export class KpMode extends LitElement {
       <div
         class="switcher"
         role="radiogroup"
-        aria-label="Color mode"
+        aria-label="${this.groupLabel}"
         @keydown=${this._onKeyDown}
       >
         <button
           class="option"
           role="radio"
           aria-checked=${this.mode === "light" ? "true" : "false"}
-          aria-label="Light mode"
+          aria-label="${this.lightLabel}"
           tabindex=${this.mode === "light" ? "0" : "-1"}
           @click=${() => this._select("light")}
         >
@@ -142,7 +151,7 @@ export class KpMode extends LitElement {
           class="option"
           role="radio"
           aria-checked=${this.mode === "dark" ? "true" : "false"}
-          aria-label="Dark mode"
+          aria-label="${this.darkLabel}"
           tabindex=${this.mode === "dark" ? "0" : "-1"}
           @click=${() => this._select("dark")}
         >

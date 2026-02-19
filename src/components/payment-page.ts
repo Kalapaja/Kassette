@@ -29,6 +29,8 @@ import { CHAINS_BY_ID } from "../config/chains.ts";
 import { UNISWAP_SWAP_ROUTER_02 } from "../config/uniswap.ts";
 import { formatUnits, parseUnits } from "viem";
 import { switchChain } from "@wagmi/core";
+import { t, detectLocale, SUPPORTED_LOCALES, LOCALE_LABELS, type Locale, type TranslationKey } from "@/i18n/index.ts";
+import { formatFiat, parseFiatString, fiatPartsToString, type FiatParts } from "@/i18n/format.ts";
 
 export interface OrderItem {
   name: string;
@@ -123,6 +125,7 @@ export class PaymentPage extends LitElement {
       }
 
       .page {
+        position: relative;
         display: flex;
         flex-direction: column;
         max-width: 393px;
@@ -1031,6 +1034,43 @@ export class PaymentPage extends LitElement {
       .fee-row--processing .fee-item svg {
         color: var(--content-primary);
       }
+
+      .locale-toggle {
+        position: absolute;
+        top: 12px;
+        right: 0;
+        display: flex;
+        border: 1px solid var(--border-secondary);
+        border-radius: var(--radius);
+        overflow: hidden;
+        z-index: 1;
+      }
+
+      .locale-option {
+        font-family: var(--font-family);
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 10px;
+        border: none;
+        cursor: pointer;
+        background: var(--fill-primary);
+        color: var(--content-tetriary);
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .locale-option:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: -2px;
+      }
+
+      .locale-option.active {
+        background: var(--brand-primary);
+        color: var(--fill-primary);
+      }
+
+      .locale-option:not(.active):hover {
+        background: var(--fill-tetriary);
+      }
     `,
   ];
 
@@ -1055,6 +1095,12 @@ export class PaymentPage extends LitElement {
   @property({ type: String, attribute: "project-id" })
   accessor projectId = "";
 
+
+  @state()
+  private accessor _locale: Locale = "en";
+
+  @state()
+  private accessor _totalAmount = 0;
 
   @state()
   private accessor _step: PaymentStep = "loading";
@@ -1132,8 +1178,34 @@ export class PaymentPage extends LitElement {
     }
   }
 
+  private _t(key: TranslationKey, params?: Record<string, string>): string {
+    return t(this._locale, key, params);
+  }
+
+  private _renderFiatParts(
+    parts: FiatParts,
+    variant: "default" | "total" = "default",
+  ): ReturnType<typeof html> {
+    const prefix = variant === "total" ? "total-" : "";
+    return html`
+      <span class="${prefix}currency">${parts.currency}</span>
+      <span class="${prefix}amount">${parts.integer}</span>
+      <span class="${prefix}cents">${parts.decimal}</span>
+    `;
+  }
+
+  private _onLocaleChange(locale: Locale): void {
+    this._locale = locale;
+    try {
+      globalThis.localStorage.setItem("kp-locale", locale);
+    } catch {
+      // localStorage may be unavailable (private browsing, full storage)
+    }
+  }
+
   override connectedCallback(): void {
     super.connectedCallback();
+    this._locale = detectLocale();
     this._injectFontFace();
     this._invoiceService = new InvoiceService();
     this._balanceService = new BalanceService();
@@ -1316,12 +1388,12 @@ export class PaymentPage extends LitElement {
       if (!isActiveStatus(invoice.status)) {
         this._transition("invoice-error", {
           invoice,
-          errorMessage: `Invoice is ${invoice.status}`,
+          errorMessage: this._t("error.invoiceStatus", { status: invoice.status }),
         });
         return;
       }
       // Update total from invoice
-      this.total = `$${invoice.amount}`;
+      this._totalAmount = parseFloat(invoice.amount);
       // Update items from invoice cart
       this.items = invoice.cart.items.map((item) => ({
         name: item.name,
@@ -1332,7 +1404,7 @@ export class PaymentPage extends LitElement {
       this._transition("idle", { invoice });
     } catch {
       this._transition("invoice-error", {
-        errorMessage: "Failed to load invoice",
+        errorMessage: this._t("error.loadInvoice"),
       });
     }
   }
@@ -1455,8 +1527,8 @@ export class PaymentPage extends LitElement {
         paymentPath: path,
         requiredAmount: amount,
         requiredAmountHuman: this._context.invoice!.amount,
-        requiredFiatHuman: `$${this._context.invoice!.amount}`,
-        exchangeFee: "$0.00",
+        requiredFiatHuman: fiatPartsToString(formatFiat(parseFloat(this._context.invoice!.amount), this._locale)),
+        exchangeFee: fiatPartsToString(formatFiat(0, this._locale)),
         gasFee: "",
         quote: {
           path: "direct",
@@ -1501,26 +1573,25 @@ export class PaymentPage extends LitElement {
       });
 
       if (requestId !== this._quoteRequestId) return; // stale response
-      const fiatValue = (parseFloat(quote.userPayAmountHuman) * usdPrice)
-        .toFixed(2);
+      const fiatValue = parseFloat(quote.userPayAmountHuman) * usdPrice;
 
       // Extract fees from quote
       let exchangeFee = "";
       let gasFee = "";
       if (quote.acrossQuote) {
         const f = quote.acrossQuote.fees;
-        exchangeFee = `$${parseFloat(f.totalFeeUsd).toFixed(2)}`;
-        gasFee = `$${parseFloat(f.originGasFeeUsd).toFixed(2)}`;
+        exchangeFee = fiatPartsToString(formatFiat(parseFloat(f.totalFeeUsd), this._locale));
+        gasFee = fiatPartsToString(formatFiat(parseFloat(f.originGasFeeUsd), this._locale));
       } else if (quote.uniswapQuote) {
         const feePct = quote.uniswapQuote.feeTier / 1_000_000;
-        const feeUsd = parseFloat(fiatValue) * feePct;
-        exchangeFee = `$${feeUsd.toFixed(2)}`;
+        const feeUsd = fiatValue * feePct;
+        exchangeFee = fiatPartsToString(formatFiat(feeUsd, this._locale));
       }
 
       this._transition("ready-to-pay", {
         requiredAmount: quote.userPayAmount,
         requiredAmountHuman: quote.userPayAmountHuman,
-        requiredFiatHuman: `$${fiatValue}`,
+        requiredFiatHuman: fiatPartsToString(formatFiat(fiatValue, this._locale)),
         exchangeFee,
         gasFee,
         quote,
@@ -1529,7 +1600,7 @@ export class PaymentPage extends LitElement {
       if (requestId !== this._quoteRequestId) return; // stale error
       this._quoteError = err instanceof Error
         ? err.message
-        : "Failed to get quote";
+        : this._t("error.getQuote");
       this._transition("token-select");
     }
   }
@@ -1546,7 +1617,7 @@ export class PaymentPage extends LitElement {
         });
       } catch {
         this._transition("error", {
-          errorMessage: "Failed to switch network",
+          errorMessage: this._t("error.switchNetwork"),
           errorRetryStep: "ready-to-pay",
         });
         return;
@@ -1571,7 +1642,7 @@ export class PaymentPage extends LitElement {
         return;
       }
       this._transition("error", {
-        errorMessage: err instanceof Error ? err.message : "Payment failed",
+        errorMessage: err instanceof Error ? err.message : this._t("error.paymentFailed"),
         errorRetryStep: "ready-to-pay",
       });
     }
@@ -1685,12 +1756,12 @@ export class PaymentPage extends LitElement {
       this._startRedirectCountdown();
     } else if (isExpiredStatus(invoice.status)) {
       this._transition("error", {
-        errorMessage: "Invoice has expired",
+        errorMessage: this._t("error.invoiceExpired"),
         errorRetryStep: null,
       });
     } else if (invoice.status === "PartiallyPaid") {
       this._transition("error", {
-        errorMessage: "Partial payment received. Please contact support.",
+        errorMessage: this._t("error.partialPayment"),
         errorRetryStep: null,
       });
     }
@@ -2159,37 +2230,6 @@ export class PaymentPage extends LitElement {
     `;
   }
 
-  private _formatPrice(price: string) {
-    const match = price.match(/^(\$)(\d+)(\.?\d*)$/);
-    if (!match) {
-      return html`
-        ${price}
-      `;
-    }
-    const cents = match[3]
-      ? `.${match[3].replace(".", "").padEnd(2, "0").slice(0, 2)}`
-      : ".00";
-    return html`
-      <span>${match[1]}</span><span>${match[2]}</span><span>${cents}</span>
-    `;
-  }
-
-  private _formatTotal(price: string) {
-    const match = price.match(/^(\$)(\d+)(\.?\d*)$/);
-    if (!match) {
-      return html`
-        ${price}
-      `;
-    }
-    const cents = match[3]
-      ? `.${match[3].replace(".", "").padEnd(2, "0").slice(0, 2)}`
-      : ".00";
-    return html`
-      <span class="total-currency">${match[1]}</span>
-      <span class="total-amount">${match[2]}</span>
-      <span class="total-cents">${cents}</span>
-    `;
-  }
 
   private _renderPayAmount(amount: string) {
     const dotIndex = amount.indexOf(".");
@@ -2233,6 +2273,7 @@ export class PaymentPage extends LitElement {
       <kp-bottom-sheet
         ?open="${isOpen}"
         scrollable
+        dialog-label="${this._t("aria.bottomSheet")}"
         @close="${this._onSheetClose}"
       >
         <div slot="header">
@@ -2245,7 +2286,7 @@ export class PaymentPage extends LitElement {
                 "0x..."}</span>
               <button
                 class="disconnect-btn"
-                aria-label="Disconnect wallet"
+                aria-label="${this._t("aria.disconnectWallet")}"
                 @click="${this._onDisconnect}"
               >
                 ${this._renderDisconnectIcon()}
@@ -2266,8 +2307,7 @@ export class PaymentPage extends LitElement {
                 return html`
                   <div class="tx-link">
                     <a class="tx-link-inner" href="${txUrl}" target="_blank" rel="noopener noreferrer">
-                      <span class="tx-link-text">View transaction on</span>
-                      <span class="tx-link-text">${explorerName}</span>
+                      <span class="tx-link-text">${this._t("transaction.viewOn", { explorer: explorerName })}</span>
                       <span class="tx-link-external">${this
                         ._renderExternalLinkIcon()}</span>
                     </a>
@@ -2276,7 +2316,7 @@ export class PaymentPage extends LitElement {
               })()
             : html`
               <div class="pay-with-bar">
-                <span class="pay-with-label">Pay with</span>
+                <span class="pay-with-label">${this._t("sheet.payWith")}</span>
                 ${this._searching
                   ? html`
                     <div class="search-group">
@@ -2285,12 +2325,12 @@ export class PaymentPage extends LitElement {
                         class="search-input"
                         type="text"
                         name="token-search"
-                        aria-label="Search tokens"
+                        aria-label="${this._t("aria.searchTokens")}"
                         .value="${this._searchQuery}"
                         @input="${this._onSearchInput}"
-                        placeholder="Search"
+                        placeholder="${this._t("sheet.search")}"
                       />
-                      <button class="clear-search" aria-label="Clear search" @click="${this
+                      <button class="clear-search" aria-label="${this._t("aria.clearSearch")}" @click="${this
                         ._onClearSearch}">
                         ${this._renderCloseIcon()}
                       </button>
@@ -2299,7 +2339,7 @@ export class PaymentPage extends LitElement {
                   : html`
                     <button class="find-token" @click="${this._onSearchClick}">
                       ${this._renderSearchIcon()}
-                      <span>Find token</span>
+                      <span>${this._t("sheet.findToken")}</span>
                     </button>
                   `}
               </div>
@@ -2329,7 +2369,7 @@ export class PaymentPage extends LitElement {
               </div>
               <div class="success-redirect-section">
                 <div class="success-redirect">
-                  Redirecting you to the receipt page...
+                  ${this._t("redirect.message")}
                 </div>
                 <div class="success-divider"></div>
               </div>
@@ -2346,10 +2386,10 @@ export class PaymentPage extends LitElement {
           : showTokenList
           ? html`
             <div class="balance-header">
-              <span class="balance-header-label">Available balance</span>
+              <span class="balance-header-label">${this._t("sheet.availableBalance")}</span>
               <div class="exchange-rate">
                 ${this._renderDiamondIcon()}
-                <span class="balance-header-label">Exchange rate</span>
+                <span class="balance-header-label">${this._t("sheet.exchangeRate")}</span>
               </div>
             </div>
             <div class="balance-list" style="${isProcessing ? "pointer-events: none;" : ""}">
@@ -2359,18 +2399,17 @@ export class PaymentPage extends LitElement {
                   (o) => {
                     const isSelected = ctx.selectedTokenSymbol === o.symbol &&
                       ctx.selectedChainId === o.chainId;
-                    const requiredFiat = `$${
-                      (parseFloat(o.requiredAmount) * o.usdPrice).toFixed(2)
-                    }`;
                     const isStablecoin = o.usdPrice >= 0.95 &&
                       o.usdPrice <= 1.05;
                     return html`
                       <kp-balance-item
                         name="${o.symbol}"
                         amount="${o.balanceHuman}"
-                        fiat-value="${requiredFiat}"
+                        .fiatParts="${formatFiat(parseFloat(o.requiredAmount) * o.usdPrice, this._locale)}"
                         crypto-value="${isStablecoin ? "" : o.requiredAmount}"
-                        unit-price="$${(parseFloat(o.balanceHuman) * o.usdPrice).toFixed(2)}"
+                        .valueParts="${formatFiat(parseFloat(o.balanceHuman) * o.usdPrice, this._locale)}"
+                        balance-label="${this._t("aria.balance")}"
+                        value-label="${this._t("aria.value")}"
                         ?selected="${isSelected}"
                         style="${!o.sufficient
                           ? "opacity: 0.4; pointer-events: none;"
@@ -2397,9 +2436,9 @@ export class PaymentPage extends LitElement {
         <div slot="footer" class="pay-cta">
           ${isPaid
             ? html`
-              <div class="pay-btn--success" role="status" aria-label="Successful payment">
+              <div class="pay-btn--success" role="status" aria-label="${this._t("aria.successfulPayment")}">
                 <span class="checkmark">${this._renderCheckmarkIcon()}</span>
-                <span class="pay-btn-text">Successful payment</span>
+                <span class="pay-btn-text">${this._t("sheet.button.success")}</span>
               </div>
             `
             : isError
@@ -2407,7 +2446,7 @@ export class PaymentPage extends LitElement {
               ${ctx.errorRetryStep
                 ? html`
                   <button class="pay-btn" @click="${this._onRetry}">
-                    <span class="pay-btn-text">Try again</span>
+                    <span class="pay-btn-text">${this._t("sheet.button.tryAgain")}</span>
                   </button>
                 `
                 : html`
@@ -2418,7 +2457,7 @@ export class PaymentPage extends LitElement {
             `
             : isProcessing
             ? html`
-              <div class="pay-btn--processing" role="status" aria-label="Processing payment">
+              <div class="pay-btn--processing" role="status" aria-label="${this._t("aria.processingPayment")}">
                 <span class="pay-btn-processing-icon">${this._renderRateLoadingIcon()}</span>
                 ${ctx.requiredAmountHuman
                   ? this._renderPayAmount(ctx.requiredAmountHuman)
@@ -2438,15 +2477,15 @@ export class PaymentPage extends LitElement {
             `
             : isQuoting
             ? html`
-              <div class="pay-btn--quoting" role="status" aria-label="Updating rate">
+              <div class="pay-btn--quoting" role="status" aria-label="${this._t("aria.updatingRate")}">
                 <span class="pay-btn-quoting-icon">${this._renderRateLoadingIcon()}</span>
-                <span class="pay-btn-text">Updating rate</span>
+                <span class="pay-btn-text">${this._t("sheet.button.updatingRate")}</span>
               </div>
             `
             : isReadyToPay
             ? html`
               <button class="pay-btn" @click="${this._executePayment}">
-                <span class="pay-btn-text">Pay</span>
+                <span class="pay-btn-text">${this._t("button.pay")}</span>
                 ${this._renderPayAmount(ctx.requiredAmountHuman)}
                 <span class="pay-btn-icon">${this._renderTokenIcon(
                   ctx.selectedTokenLogoUrl,
@@ -2467,7 +2506,7 @@ export class PaymentPage extends LitElement {
             `
             : html`
               <div class="pay-btn--disabled">
-                <span class="pay-btn-text">Select token to pay</span>
+                <span class="pay-btn-text">${this._t("sheet.button.selectToken")}</span>
               </div>
             `}
           ${ctx.exchangeFee || ctx.gasFee
@@ -2480,7 +2519,7 @@ export class PaymentPage extends LitElement {
                     <div class="fee-item">
                       <span class="fee-amount">${ctx.exchangeFee}</span>
                       ${this._renderExchangeIcon()}
-                      <span class="fee-label">Exchange</span>
+                      <span class="fee-label">${this._t("fees.exchange")}</span>
                     </div>
                   `
                   : nothing}
@@ -2492,7 +2531,7 @@ export class PaymentPage extends LitElement {
                     <div class="fee-item">
                       <span class="fee-amount">${ctx.gasFee}</span>
                       ${this._renderGasIcon()}
-                      <span class="fee-label">Gas Fee</span>
+                      <span class="fee-label">${this._t("fees.gasFee")}</span>
                     </div>
                   `
                   : nothing}
@@ -2502,10 +2541,10 @@ export class PaymentPage extends LitElement {
               <div class="fee-row">
                 <div class="fee-item">
                   ${isQuoting
-                    ? html`<span class="fee-label">Loading fees...</span>`
+                    ? html`<span class="fee-label">${this._t("fees.loading")}</span>`
                     : html`
                       ${this._renderGasIcon()}
-                      <span class="fee-label">Gas fee depends on selected token</span>
+                      <span class="fee-label">${this._t("fees.gasDepends")}</span>
                     `}
                 </div>
               </div>
@@ -2523,7 +2562,7 @@ export class PaymentPage extends LitElement {
           <div
             style="margin-top: 10px; font-size: 14px; color: var(--content-secondary);"
           >
-            Loading invoice...
+            ${this._t("loading.invoice")}
           </div>
         </div>
       `;
@@ -2535,7 +2574,7 @@ export class PaymentPage extends LitElement {
           <div
             style="font-size: 14px; color: var(--content-secondary); text-align: center;"
           >
-            ${this._context.errorMessage || "Invoice error"}
+            ${this._context.errorMessage || this._t("error.invoiceDefault")}
           </div>
         </div>
       `;
@@ -2543,12 +2582,26 @@ export class PaymentPage extends LitElement {
 
     return html`
       <div class="page">
+        <div class="locale-toggle" role="radiogroup" aria-label="${this._t("aria.languageSwitcher")}">
+          ${SUPPORTED_LOCALES.map(
+            (loc) => html`
+              <button
+                class="locale-option ${loc === this._locale ? "active" : ""}"
+                role="radio"
+                aria-checked="${loc === this._locale ? "true" : "false"}"
+                @click="${() => this._onLocaleChange(loc)}"
+              >
+                ${LOCALE_LABELS[loc]}
+              </button>
+            `
+          )}
+        </div>
         <div class="header">
           ${this.invoiceId
             ? html`
               <div class="order-number">
                 ${this._renderOrderIcon()}
-                <span>ORDER ${this.invoiceId}</span>
+                <span>${this._t("order.badge", { id: this.invoiceId })}</span>
               </div>
             `
             : nothing}
@@ -2558,12 +2611,12 @@ export class PaymentPage extends LitElement {
                 ? html`<img src="${this.merchantLogo}" alt="" />`
                 : this._renderKalatoriLogo()}
             </div>
-            <span class="merchant-name">Pay ${this.merchantName}</span>
+            <span class="merchant-name">${this._t("merchant.pay", { name: this.merchantName })}</span>
           </div>
         </div>
 
         <div class="items-section">
-          <div class="section-label">Your order</div>
+          <div class="section-label">${this._t("order.yourOrder")}</div>
           <div class="items-list">
             <slot name="items">
               ${this.items.map(
@@ -2574,6 +2627,7 @@ export class PaymentPage extends LitElement {
                       description="${item.description || ""}"
                       .quantity="${item.quantity}"
                       price="${item.price}"
+                      .priceParts="${formatFiat(parseFiatString(item.price), this._locale)}"
                     >
                       ${item.image
                         ? html`
@@ -2592,20 +2646,18 @@ export class PaymentPage extends LitElement {
           ${this.shipping
             ? html`
               <div class="shipping">
-                <span class="shipping-label">Shipping</span>
-                <span class="shipping-price">${this._formatPrice(
-                  this.shipping,
-                )}</span>
+                <span class="shipping-label">${this._t("order.shipping")}</span>
+                <span class="shipping-price">${this._renderFiatParts(formatFiat(parseFiatString(this.shipping), this._locale))}</span>
               </div>
             `
             : nothing}
         </div>
 
-        ${this.total
+        ${this._totalAmount
           ? html`
             <div class="total">
-              <span class="total-label">Total</span>
-              <div class="total-price">${this._formatTotal(this.total)}</div>
+              <span class="total-label">${this._t("order.total")}</span>
+              <div class="total-price">${this._renderFiatParts(formatFiat(this._totalAmount, this._locale), "total")}</div>
             </div>
           `
           : nothing}
@@ -2633,12 +2685,12 @@ export class PaymentPage extends LitElement {
               />
               <circle cx="14.5" cy="13.792" r="1" fill="white" />
             </svg>
-            ${this._connectedAccount ? "Pay" : "Connect Wallet & Pay"}
+            ${this._connectedAccount ? this._t("button.pay") : this._t("button.connectAndPay")}
           </kp-button>
         </div>
 
         <div class="footer">
-          <span class="footer-text">Powered by</span>
+          <span class="footer-text">${this._t("footer.poweredBy")}</span>
           <span class="footer-logo">
             ${this._renderKalatoriLogo()}
             <span class="footer-text">Kalatori</span>

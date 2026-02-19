@@ -144,6 +144,9 @@ export class KpBottomSheet extends LitElement {
   @property({ type: Boolean, reflect: true })
   accessor scrollable = false;
 
+  @property({ type: String, attribute: "dialog-label" })
+  accessor dialogLabel = "Bottom sheet";
+
   override connectedCallback() {
     super.connectedCallback();
     this._onKeyDown = this._onKeyDown.bind(this);
@@ -175,7 +178,7 @@ export class KpBottomSheet extends LitElement {
   override render() {
     return html`
       <div class="overlay" @click=${this._onOverlayClick}></div>
-      <div class="sheet" role="dialog" aria-label=${this.title || "Bottom sheet"}>
+      <div class="sheet" role="dialog" aria-label=${this.title || this.dialogLabel}>
         <div class="handle-area">
           <div class="handle"></div>
         </div>

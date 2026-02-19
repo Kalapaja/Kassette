@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing, svg } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { theme } from "../styles/theme.css.ts";
+import { type FiatParts, fiatPartsToString } from "@/i18n/format.ts";
 
 @customElement("kp-balance-item")
 export class KpBalanceItem extends LitElement {
@@ -200,6 +201,18 @@ export class KpBalanceItem extends LitElement {
   @property({ type: Boolean, reflect: true })
   accessor selected = false;
 
+  @property({ type: Object, attribute: false })
+  accessor fiatParts: FiatParts | null = null;
+
+  @property({ type: Object, attribute: false })
+  accessor valueParts: FiatParts | null = null;
+
+  @property({ type: String, attribute: "balance-label" })
+  accessor balanceLabel = "balance";
+
+  @property({ type: String, attribute: "value-label" })
+  accessor valueLabel = "value";
+
   private _onClick() {
     this.dispatchEvent(
       new CustomEvent("select", {
@@ -218,38 +231,47 @@ export class KpBalanceItem extends LitElement {
   }
 
   private _renderFiat() {
-    const fiat = this.fiatValue;
-    if (!fiat) return nothing;
-    const match = fiat.match(/^\$?([\d,]+)(\.(\d+))?$/);
-    if (!match) return html`<span class="fiat">${fiat}</span>`;
-    const integer = match[1];
-    const decimal = match[3] || "00";
+    if (this.fiatParts) {
+      return html`
+        <span class="fiat">
+          <span>${this.fiatParts.currency}</span>
+          <span>${this.fiatParts.integer}</span>
+          <span class="fiat-decimal">${this.fiatParts.decimal}</span>
+        </span>
+      `;
+    }
+    // Fallback for backward compat with string fiatValue
+    if (!this.fiatValue) return nothing;
+    const match = this.fiatValue.match(/^\$?([\d,]+)(\.(\d+))?$/);
+    if (!match) return html`<span class="fiat">${this.fiatValue}</span>`;
     return html`
       <span class="fiat">
         <span>$</span>
-        <span>${integer}</span>
-        <span>.${decimal}</span>
+        <span>${match[1]}</span>
+        <span class="fiat-decimal">.${match[3] ?? "00"}</span>
       </span>
     `;
   }
 
   private _renderValue() {
-    const fiat = this.fiatValue;
-    if (!fiat) return nothing;
-
-    const match = fiat.match(/^\$?([\d,]+)(\.(\d+))?$/);
-    if (!match) {
-      return html`<span class="value"><span class="value-integer">${fiat}</span></span>`;
+    if (this.valueParts) {
+      return html`
+        <span class="value">
+          <span>${this.valueParts.currency}</span>
+          <span>${this.valueParts.integer}</span>
+          <span class="value-decimal">${this.valueParts.decimal}</span>
+        </span>
+      `;
     }
-
-    const integer = match[1];
-    const decimal = match[3] || "00";
-
+    // Fallback for backward compat with string unitPrice
+    if (!this.unitPrice) return nothing;
+    const match = this.unitPrice.match(/^\$?([\d,]+)(\.(\d+))?$/);
+    if (!match) return html`<span class="value">${this.unitPrice}</span>`;
     return html`
       <span class="value">
-        <span class="value-currency">$</span>
-        <span class="value-integer">${integer}</span>
-        <span class="value-decimal">.${decimal}</span>
+        <span>$</span>
+        <span>${match[1]}</span>
+        <span class="value-decimal">.${match[3] ?? "00"}</span>
       </span>
     `;
   }
@@ -263,7 +285,7 @@ export class KpBalanceItem extends LitElement {
         role="option"
         tabindex="0"
         aria-selected="${this.selected}"
-        aria-label="${this.name}, balance ${this.amount}${this.fiatValue ? `, value ${this.fiatValue}` : ""}"
+        aria-label="${this.name}, ${this.balanceLabel} ${this.amount}${this.fiatParts ? `, ${this.valueLabel} ${fiatPartsToString(this.fiatParts)}` : this.fiatValue ? `, ${this.valueLabel} ${this.fiatValue}` : ""}"
         @click="${this._onClick}"
         @keydown="${this._onKeyDown}"
       >
