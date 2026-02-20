@@ -49,7 +49,8 @@ export class KpOrderItem extends LitElement {
       .info {
         display: flex;
         flex-direction: column;
-        width: 181px;
+        flex: 1;
+        min-width: 0;
       }
 
       .name-row {

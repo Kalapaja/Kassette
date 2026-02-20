@@ -1061,6 +1061,22 @@ export class PaymentPage extends LitElement {
       .locale-select:hover {
         color: var(--content-secondary);
       }
+
+      /* === Tablet === */
+      @media (min-width: 768px) {
+        .page {
+          max-width: 677px;
+          padding: 80px 80px 0;
+        }
+
+        .items-section {
+          margin-top: 60px;
+        }
+
+        .order-number span {
+          max-width: 400px;
+        }
+      }
     `,
   ];
 

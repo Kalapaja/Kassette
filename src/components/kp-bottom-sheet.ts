@@ -129,6 +129,13 @@ export class KpBottomSheet extends LitElement {
           transition: none;
         }
       }
+
+      /* === Tablet === */
+      @media (min-width: 768px) {
+        .sheet {
+          max-width: 677px;
+        }
+      }
     `,
   ];
 
