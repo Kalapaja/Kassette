@@ -1062,19 +1062,80 @@ export class PaymentPage extends LitElement {
         color: var(--content-secondary);
       }
 
+      /* === Top bar (tablet+) === */
+      .top-bar {
+        display: none;
+      }
+
+      .back-link {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        color: var(--content-tetriary);
+        font-size: 14px;
+        font-weight: 421;
+        line-height: 20px;
+        font-family: var(--font-family);
+      }
+
+      .back-link:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+
+      .back-arrow {
+        width: 14px;
+        height: 14px;
+      }
+
+      .powered-by-bar {
+        display: inline-flex;
+        height: 23px;
+        align-items: flex-end;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 421;
+        line-height: 14px;
+        color: var(--content-tetriary);
+        font-family: var(--font-family);
+      }
+
+      .powered-by-bar svg {
+        width: 15px;
+        height: 15px;
+      }
+
       /* === Tablet === */
       @media (min-width: 768px) {
+        .top-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 20px;
+        }
+
         .page {
           max-width: 677px;
           padding: 80px 80px 0;
         }
 
         .items-section {
-          margin-top: 60px;
+          margin-top: 80px;
         }
 
         .order-number span {
           max-width: 400px;
+        }
+
+        .footer {
+          display: none;
+        }
+
+        .locale-select {
+          display: none;
         }
       }
     `,
@@ -1323,6 +1384,13 @@ export class PaymentPage extends LitElement {
 
   private _formatAddress(address: string): string {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
+  private _onBackClick() {
+    const url = this._context.invoice?.redirect_url;
+    if (url) {
+      globalThis.location.href = url;
+    }
   }
 
   private _onButtonClick() {
@@ -2587,6 +2655,23 @@ export class PaymentPage extends LitElement {
     }
 
     return html`
+      <div class="top-bar">
+        ${this._context.invoice?.redirect_url
+          ? html`
+            <a class="back-link" @click=${this._onBackClick}>
+              <svg class="back-arrow" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M8.5 2.5L4 7L8.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>${this.merchantName}</span>
+            </a>
+          `
+          : html`<span></span>`}
+        <div class="powered-by-bar">
+          <span>${this._t("footer.poweredBy")}</span>
+          ${this._renderKalatoriLogo()}
+          <span>Kalatori</span>
+        </div>
+      </div>
       <div class="page">
         <select
           class="locale-select"
