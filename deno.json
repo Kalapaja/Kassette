@@ -11,6 +11,7 @@
     "release:prepare": "deno run --allow-read --allow-write --allow-run --allow-env scripts/prepare-release.ts"
   },
   "imports": {
+    "@/": "./src/",
     "@reown/appkit": "npm:@reown/appkit@1.8.12",
     "@reown/appkit-adapter-wagmi": "npm:@reown/appkit-adapter-wagmi@1.8.12",
     "@wagmi/core": "npm:@wagmi/core@2.16.7",
