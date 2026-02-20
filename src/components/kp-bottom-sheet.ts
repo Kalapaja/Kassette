@@ -136,6 +136,41 @@ export class KpBottomSheet extends LitElement {
           max-width: 677px;
         }
       }
+
+      /* === Desktop === */
+      @media (min-width: 1200px) {
+        .overlay {
+          display: none;
+        }
+
+        .sheet {
+          position: static;
+          max-width: 430px;
+          max-height: none;
+          border-radius: 20px;
+          border: 1px solid var(--border-tetriary);
+          box-shadow: none;
+          transform: none;
+          transition: none;
+          margin: 0;
+        }
+
+        :host([open]) .sheet {
+          transform: none;
+        }
+
+        :host(:not([open])) {
+          display: none;
+        }
+
+        .handle-area {
+          display: none;
+        }
+
+        .header-slot {
+          padding-top: 20px;
+        }
+      }
     `,
   ];
 

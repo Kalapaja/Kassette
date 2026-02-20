@@ -124,6 +124,10 @@ export class PaymentPage extends LitElement {
         background: var(--fill-primary);
       }
 
+      .desktop-layout {
+        display: contents;
+      }
+
       .page {
         position: relative;
         display: flex;
@@ -1130,11 +1134,84 @@ export class PaymentPage extends LitElement {
           max-width: 400px;
         }
 
+        .total {
+          position: sticky;
+          bottom: 90px;
+          background: var(--fill-primary);
+          padding-top: 10px;
+          z-index: 4;
+        }
+
+        .cta {
+          position: sticky;
+          bottom: 20px;
+          background: var(--fill-primary);
+          padding-top: 10px;
+          z-index: 5;
+        }
+
         .footer {
           display: none;
         }
 
         .locale-select {
+          display: none;
+        }
+      }
+
+      /* === Desktop === */
+      @media (min-width: 1200px) {
+        .desktop-layout {
+          display: flex;
+          justify-content: center;
+          align-items: stretch;
+          gap: 118px;
+          padding: 0 40px;
+          box-sizing: border-box;
+        }
+
+        .page {
+          width: 424px;
+          max-width: 424px;
+          margin: 0;
+          padding: 76px 0 0;
+          flex-shrink: 0;
+          min-height: auto;
+        }
+
+        .items-section {
+          flex: 1;
+        }
+
+        .total {
+          margin-top: auto;
+          position: static;
+          padding-top: 0;
+        }
+
+        .cta {
+          position: static;
+          padding-top: 0;
+        }
+
+        .footer {
+          display: none;
+        }
+
+        .locale-select {
+          display: none;
+        }
+
+        kp-bottom-sheet {
+          width: 430px;
+          margin-top: 72px;
+          flex-shrink: 0;
+          align-self: flex-start;
+          position: sticky;
+          top: 20px;
+        }
+
+        :host(:not([data-step="idle"])) .cta {
           display: none;
         }
       }
@@ -1230,6 +1307,8 @@ export class PaymentPage extends LitElement {
   private _quoteRequestId = 0;
   private _unsubscribeAccount: (() => void) | null = null;
   private _redirectTimer: ReturnType<typeof setInterval> | null = null;
+  private _desktopMql: MediaQueryList | null = null;
+  private _isDesktop = false;
 
   private _transition(next: PaymentStep, ctx?: Partial<StepContext>): void {
     const allowed = VALID_TRANSITIONS[this._step];
@@ -1274,6 +1353,9 @@ export class PaymentPage extends LitElement {
     super.connectedCallback();
     this._locale = detectLocale();
     this._injectFontFace();
+    this._desktopMql = globalThis.matchMedia("(min-width: 1200px)");
+    this._isDesktop = this._desktopMql.matches;
+    this._desktopMql.addEventListener("change", this._onDesktopChange);
     this._invoiceService = new InvoiceService();
     this._balanceService = new BalanceService();
     this._tokenService = new TokenService();
@@ -1294,6 +1376,7 @@ export class PaymentPage extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this._cleanupWallet();
+    this._desktopMql?.removeEventListener("change", this._onDesktopChange);
     this._invoiceService?.destroy();
     this._balanceService?.destroy();
     this._paymentService?.destroy();
@@ -1308,6 +1391,7 @@ export class PaymentPage extends LitElement {
 
   override updated(): void {
     this._scaleSuccessAmount();
+    this.setAttribute("data-step", this._step);
   }
 
   private _scaleSuccessAmount(): void {
@@ -1386,6 +1470,11 @@ export class PaymentPage extends LitElement {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }
 
+  private _onDesktopChange = (e: MediaQueryListEvent) => {
+    this._isDesktop = e.matches;
+    this.requestUpdate();
+  };
+
   private _onBackClick() {
     const url = this._context.invoice?.redirect_url;
     if (url) {
@@ -1409,6 +1498,7 @@ export class PaymentPage extends LitElement {
   }
 
   private _onSheetClose() {
+    if (this._isDesktop) return;
     if (
       this._step === "token-select" ||
       this._step === "ready-to-pay" ||
@@ -2672,120 +2762,122 @@ export class PaymentPage extends LitElement {
           <span>Kalatori</span>
         </div>
       </div>
-      <div class="page">
-        <select
-          class="locale-select"
-          aria-label="${this._t("aria.languageSwitcher")}"
-          .value="${this._locale}"
-          @change="${(e: Event) => this._onLocaleChange((e.target as HTMLSelectElement).value as Locale)}"
-        >
-          ${SUPPORTED_LOCALES.map(
-            (loc) => html`<option value="${loc}" ?selected="${loc === this._locale}">${LOCALE_LABELS[loc]}</option>`
-          )}
-        </select>
-        <div class="header">
-          ${this.invoiceId
+      <div class="desktop-layout">
+        <div class="page">
+          <select
+            class="locale-select"
+            aria-label="${this._t("aria.languageSwitcher")}"
+            .value="${this._locale}"
+            @change="${(e: Event) => this._onLocaleChange((e.target as HTMLSelectElement).value as Locale)}"
+          >
+            ${SUPPORTED_LOCALES.map(
+              (loc) => html`<option value="${loc}" ?selected="${loc === this._locale}">${LOCALE_LABELS[loc]}</option>`
+            )}
+          </select>
+          <div class="header">
+            ${this.invoiceId
+              ? html`
+                <div class="order-number">
+                  ${this._renderOrderIcon()}
+                  <span>${this._t("order.badge", { id: this.invoiceId })}</span>
+                </div>
+              `
+              : nothing}
+            <div class="merchant">
+              <div class="merchant-logo">
+                ${this.merchantLogo
+                  ? html`<img src="${this.merchantLogo}" alt="" />`
+                  : this._renderKalatoriLogo()}
+              </div>
+              <span class="merchant-name">${this._t("merchant.pay", { name: this.merchantName })}</span>
+            </div>
+          </div>
+
+          <div class="items-section">
+            <div class="section-label">${this._t("order.yourOrder")}</div>
+            <div class="items-list">
+              <slot name="items">
+                ${this.items.map(
+                  (item) =>
+                    html`
+                      <kp-order-item
+                        name="${item.name}"
+                        description="${item.description || ""}"
+                        .quantity="${item.quantity}"
+                        price="${item.price}"
+                        .priceParts="${formatFiat(parseFiatString(item.price), this._locale)}"
+                      >
+                        ${item.image
+                          ? html`
+                            <img
+                              slot="image"
+                              src="${item.image}"
+                              alt="${item.name}"
+                            />
+                          `
+                          : nothing}
+                      </kp-order-item>
+                    `,
+                )}
+              </slot>
+            </div>
+            ${this.shipping
+              ? html`
+                <div class="shipping">
+                  <span class="shipping-label">${this._t("order.shipping")}</span>
+                  <span class="shipping-price">${this._renderFiatParts(formatFiat(parseFiatString(this.shipping), this._locale))}</span>
+                </div>
+              `
+              : nothing}
+          </div>
+
+          ${this._totalAmount
             ? html`
-              <div class="order-number">
-                ${this._renderOrderIcon()}
-                <span>${this._t("order.badge", { id: this.invoiceId })}</span>
+              <div class="total">
+                <span class="total-label">${this._t("order.total")}</span>
+                <div class="total-price">${this._renderFiatParts(formatFiat(this._totalAmount, this._locale), "total")}</div>
               </div>
             `
             : nothing}
-          <div class="merchant">
-            <div class="merchant-logo">
-              ${this.merchantLogo
-                ? html`<img src="${this.merchantLogo}" alt="" />`
-                : this._renderKalatoriLogo()}
-            </div>
-            <span class="merchant-name">${this._t("merchant.pay", { name: this.merchantName })}</span>
+
+          <div class="cta">
+            <kp-button weight="primary" @click="${this._onButtonClick}">
+              <svg
+                slot="icon"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M15.0586 5.27441C16.0232 4.97762 17 5.6988 17 6.70801V15C17 15.8284 16.3284 16.5 15.5 16.5H6.5C5.67157 16.5 5 15.8284 5 15V9.47754C5 8.81917 5.42942 8.23772 6.05859 8.04395L15.0586 5.27441Z"
+                  fill="black"
+                  stroke="white"
+                />
+                <path
+                  d="M6.5 8.29199H16.5C17.3284 8.29199 18 8.96357 18 9.79199V17.792C18 18.6204 17.3284 19.292 16.5 19.292H6.5C5.67157 19.292 5 18.6204 5 17.792V9.79199C5 8.96357 5.67157 8.29199 6.5 8.29199Z"
+                  fill="black"
+                  stroke="white"
+                />
+                <circle cx="14.5" cy="13.792" r="1" fill="white" />
+              </svg>
+              ${this._connectedAccount ? this._t("button.pay") : this._t("button.connectAndPay")}
+            </kp-button>
+          </div>
+
+          <div class="footer">
+            <span class="footer-text">${this._t("footer.poweredBy")}</span>
+            <span class="footer-logo">
+              ${this._renderKalatoriLogo()}
+              <span class="footer-text">Kalatori</span>
+            </span>
           </div>
         </div>
 
-        <div class="items-section">
-          <div class="section-label">${this._t("order.yourOrder")}</div>
-          <div class="items-list">
-            <slot name="items">
-              ${this.items.map(
-                (item) =>
-                  html`
-                    <kp-order-item
-                      name="${item.name}"
-                      description="${item.description || ""}"
-                      .quantity="${item.quantity}"
-                      price="${item.price}"
-                      .priceParts="${formatFiat(parseFiatString(item.price), this._locale)}"
-                    >
-                      ${item.image
-                        ? html`
-                          <img
-                            slot="image"
-                            src="${item.image}"
-                            alt="${item.name}"
-                          />
-                        `
-                        : nothing}
-                    </kp-order-item>
-                  `,
-              )}
-            </slot>
-          </div>
-          ${this.shipping
-            ? html`
-              <div class="shipping">
-                <span class="shipping-label">${this._t("order.shipping")}</span>
-                <span class="shipping-price">${this._renderFiatParts(formatFiat(parseFiatString(this.shipping), this._locale))}</span>
-              </div>
-            `
-            : nothing}
-        </div>
-
-        ${this._totalAmount
-          ? html`
-            <div class="total">
-              <span class="total-label">${this._t("order.total")}</span>
-              <div class="total-price">${this._renderFiatParts(formatFiat(this._totalAmount, this._locale), "total")}</div>
-            </div>
-          `
-          : nothing}
-
-        <div class="cta">
-          <kp-button weight="primary" @click="${this._onButtonClick}">
-            <svg
-              slot="icon"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-            >
-              <path
-                d="M15.0586 5.27441C16.0232 4.97762 17 5.6988 17 6.70801V15C17 15.8284 16.3284 16.5 15.5 16.5H6.5C5.67157 16.5 5 15.8284 5 15V9.47754C5 8.81917 5.42942 8.23772 6.05859 8.04395L15.0586 5.27441Z"
-                fill="black"
-                stroke="white"
-              />
-              <path
-                d="M6.5 8.29199H16.5C17.3284 8.29199 18 8.96357 18 9.79199V17.792C18 18.6204 17.3284 19.292 16.5 19.292H6.5C5.67157 19.292 5 18.6204 5 17.792V9.79199C5 8.96357 5.67157 8.29199 6.5 8.29199Z"
-                fill="black"
-                stroke="white"
-              />
-              <circle cx="14.5" cy="13.792" r="1" fill="white" />
-            </svg>
-            ${this._connectedAccount ? this._t("button.pay") : this._t("button.connectAndPay")}
-          </kp-button>
-        </div>
-
-        <div class="footer">
-          <span class="footer-text">${this._t("footer.poweredBy")}</span>
-          <span class="footer-logo">
-            ${this._renderKalatoriLogo()}
-            <span class="footer-text">Kalatori</span>
-          </span>
-        </div>
+        ${this._renderTokenSheet()}
       </div>
-
-      ${this._renderTokenSheet()}
     `;
   }
 }
