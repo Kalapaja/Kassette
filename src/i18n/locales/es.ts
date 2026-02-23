@@ -59,5 +59,18 @@ export const es: Record<keyof typeof en, string> = {
   "aria.value": "valor",
   "aria.languageSwitcher": "Idioma",
 
+  "recovery.pendingFound": "Se encontro un intento de pago anterior",
+  "recovery.doubleChargeWarning": "Iniciar un nuevo pago mientras esta transaccion esta pendiente puede resultar en un doble cobro.",
+  "recovery.speedUp": "Acelerar",
+  "recovery.speedingUp": "Acelerando...",
+  "recovery.dismiss": "Descartar y reintentar",
+  "recovery.connectWallet": "Conecta la billetera que envio la transaccion original",
+  "recovery.wrongWallet": "La billetera conectada no coincide con el remitente original",
+  "recovery.txNotFound": "Transaccion no encontrada en la cadena",
+  "recovery.speedUpFailed": "La aceleracion fallo. Intenta desde tu billetera.",
+  "recovery.justNow": "justo ahora",
+  "recovery.minutesAgo": "hace {count}m",
+  "recovery.hoursAgo": "hace {count}h",
+
   "select.placeholder": "Seleccionar",
 };

@@ -2,7 +2,6 @@ import type { Config } from "@wagmi/core";
 import {
   readContract,
   writeContract,
-  waitForTransactionReceipt,
 } from "@wagmi/core";
 import { encodeFunctionData } from "viem";
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from "../config/across.ts";
@@ -102,11 +101,9 @@ export class UniswapService {
     };
   }
 
-  async executeSwap(quote: UniswapQuote): Promise<`0x${string}`> {
+  submitSwap(quote: UniswapQuote): Promise<`0x${string}`> {
     // 5% slippage cap on input
     const maxAmountIn = (quote.amountIn * 105n) / 100n;
-
-    let hash: `0x${string}`;
 
     if (quote.isNativeToken) {
       // Native token (MATIC): use multicall with [exactOutputSingle, refundETH]
@@ -132,34 +129,31 @@ export class UniswapService {
         args: [],
       });
 
-      hash = await writeContract(this._config, {
+      return writeContract(this._config, {
         address: UNISWAP_SWAP_ROUTER_02,
         abi: SWAP_ROUTER_ABI,
         functionName: "multicall",
         args: [[swapCalldata, refundCalldata]],
         value: maxAmountIn,
       });
-    } else {
-      // ERC20 token: direct exactOutputSingle
-      hash = await writeContract(this._config, {
-        address: UNISWAP_SWAP_ROUTER_02,
-        abi: SWAP_ROUTER_ABI,
-        functionName: "exactOutputSingle",
-        args: [
-          {
-            tokenIn: quote.tokenIn,
-            tokenOut: quote.tokenOut,
-            fee: quote.feeTier,
-            recipient: quote.recipient,
-            amountOut: quote.amountOut,
-            amountInMaximum: maxAmountIn,
-            sqrtPriceLimitX96: 0n,
-          },
-        ],
-      });
     }
 
-    await waitForTransactionReceipt(this._config, { hash });
-    return hash;
+    // ERC20 token: direct exactOutputSingle
+    return writeContract(this._config, {
+      address: UNISWAP_SWAP_ROUTER_02,
+      abi: SWAP_ROUTER_ABI,
+      functionName: "exactOutputSingle",
+      args: [
+        {
+          tokenIn: quote.tokenIn,
+          tokenOut: quote.tokenOut,
+          fee: quote.feeTier,
+          recipient: quote.recipient,
+          amountOut: quote.amountOut,
+          amountInMaximum: maxAmountIn,
+          sqrtPriceLimitX96: 0n,
+        },
+      ],
+    });
   }
 }

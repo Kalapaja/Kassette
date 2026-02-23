@@ -120,24 +120,26 @@ export class AcrossService {
     };
   }
 
+  submitApproval(tx: TransactionData): Promise<`0x${string}`> {
+    return sendTransaction(this._config, {
+      to: tx.to,
+      data: tx.data,
+      value: tx.value,
+    });
+  }
+
   async executeApprovals(approvalTxns: TransactionData[]): Promise<void> {
     for (const tx of approvalTxns) {
-      const hash = await sendTransaction(this._config, {
-        to: tx.to,
-        data: tx.data,
-        value: tx.value,
-      });
+      const hash = await this.submitApproval(tx);
       await waitForTransactionReceipt(this._config, { hash });
     }
   }
 
-  async executeSwap(swapTx: TransactionData): Promise<`0x${string}`> {
-    const hash = await sendTransaction(this._config, {
+  submitSwap(swapTx: TransactionData): Promise<`0x${string}`> {
+    return sendTransaction(this._config, {
       to: swapTx.to,
       data: swapTx.data,
       value: swapTx.value,
     });
-    await waitForTransactionReceipt(this._config, { hash });
-    return hash;
   }
 }
