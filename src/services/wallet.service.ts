@@ -1,13 +1,13 @@
 import { createAppKit } from "@reown/appkit";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import {
-  mainnet,
-  polygon,
-  bsc,
   arbitrum,
-  optimism,
   base,
+  bsc,
   linea,
+  mainnet,
+  optimism,
+  polygon,
   unichain,
 } from "@reown/appkit/networks";
 import type { AppKit } from "@reown/appkit";
@@ -52,7 +52,16 @@ export class WalletService {
     }
 
     try {
-      const networks = [mainnet, polygon, bsc, arbitrum, optimism, base, linea, unichain];
+      const networks = [
+        mainnet,
+        polygon,
+        bsc,
+        arbitrum,
+        optimism,
+        base,
+        linea,
+        unichain,
+      ];
 
       this.wagmiAdapter = new WagmiAdapter({
         projectId,

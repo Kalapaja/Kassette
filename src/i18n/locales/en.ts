@@ -68,6 +68,20 @@ export const en = {
   "aria.value": "value",
   "aria.languageSwitcher": "Language",
 
+  // -- Recovery --
+  "recovery.pendingFound": "Previous payment attempt found",
+  "recovery.doubleChargeWarning": "Starting a new payment while this transaction is pending may result in a double charge.",
+  "recovery.speedUp": "Speed Up",
+  "recovery.speedingUp": "Speeding up...",
+  "recovery.dismiss": "Dismiss & Retry",
+  "recovery.connectWallet": "Connect the wallet that sent the original transaction",
+  "recovery.wrongWallet": "Connected wallet doesn't match the original sender",
+  "recovery.txNotFound": "Transaction not found on chain",
+  "recovery.speedUpFailed": "Speed-up failed. Try through your wallet app.",
+  "recovery.justNow": "just now",
+  "recovery.minutesAgo": "{count}m ago",
+  "recovery.hoursAgo": "{count}h ago",
+
   // -- Select defaults --
   "select.placeholder": "Select",
 } as const;

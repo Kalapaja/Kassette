@@ -22,32 +22,30 @@ export class PaymentService {
     });
   }
 
-  async approve(
+  submitApprove(
     tokenAddress: `0x${string}`,
     spender: `0x${string}`,
     amount: bigint,
-  ): Promise<TransactionReceipt> {
-    const hash = await writeContract(this._config, {
+  ): Promise<Hash> {
+    return writeContract(this._config, {
       abi: erc20Abi,
       address: tokenAddress,
       functionName: "approve",
       args: [spender, amount],
     });
-    return this.waitForReceipt(hash);
   }
 
-  async transfer(
+  submitTransfer(
     tokenAddress: `0x${string}`,
     to: `0x${string}`,
     amount: bigint,
-  ): Promise<TransactionReceipt> {
-    const hash = await writeContract(this._config, {
+  ): Promise<Hash> {
+    return writeContract(this._config, {
       abi: erc20Abi,
       address: tokenAddress,
       functionName: "transfer",
       args: [to, amount],
     });
-    return this.waitForReceipt(hash);
   }
 
   waitForReceipt(hash: Hash): Promise<TransactionReceipt> {

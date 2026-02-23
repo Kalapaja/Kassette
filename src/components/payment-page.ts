@@ -18,6 +18,7 @@ import {
   type QuoteResult,
   QuoteService,
 } from "../services/quote.service.ts";
+import { PendingTxService, type PendingTxRecord } from "@/services/pending-tx.service.ts";
 import type { Invoice } from "../types/invoice.types.ts";
 import {
   isActiveStatus,
@@ -27,8 +28,18 @@ import {
 import { getTokenKey } from "../config/tokens.ts";
 import { CHAINS_BY_ID } from "../config/chains.ts";
 import { UNISWAP_SWAP_ROUTER_02 } from "../config/uniswap.ts";
-import { formatUnits, parseUnits } from "viem";
-import { switchChain } from "@wagmi/core";
+import { createPublicClient, http, formatUnits, parseUnits, type Hash, type TransactionReceipt, type Chain } from "viem";
+import {
+  mainnet,
+  polygon,
+  bsc,
+  arbitrum,
+  optimism,
+  base,
+  linea,
+  unichain,
+} from "viem/chains";
+import { sendTransaction, switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import { t, detectLocale, SUPPORTED_LOCALES, LOCALE_LABELS, type Locale, type TranslationKey } from "@/i18n/index.ts";
 import { formatFiat, parseFiatString, fiatPartsToString, type FiatParts } from "@/i18n/format.ts";
 
@@ -40,6 +51,17 @@ export interface OrderItem {
   image?: string;
 }
 
+const VIEM_CHAINS: Record<number, Chain> = {
+  1: mainnet,
+  137: polygon,
+  56: bsc,
+  42161: arbitrum,
+  10: optimism,
+  8453: base,
+  59144: linea,
+  130: unichain,
+};
+
 export type PaymentStep =
   | "loading"
   | "invoice-error"
@@ -50,11 +72,12 @@ export type PaymentStep =
   | "approving"
   | "executing"
   | "polling"
+  | "recovering"
   | "paid"
   | "error";
 
 const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
-  "loading": ["idle", "invoice-error"],
+  "loading": ["idle", "invoice-error", "recovering", "polling"],
   "invoice-error": [],
   "idle": ["token-select"],
   "token-select": ["quoting", "ready-to-pay", "idle"],
@@ -70,6 +93,7 @@ const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
   "approving": ["executing", "error", "ready-to-pay"],
   "executing": ["polling", "error", "ready-to-pay"],
   "polling": ["paid", "error"],
+  "recovering": ["polling", "token-select", "recovering", "error", "paid"],
   "paid": [],
   "error": ["ready-to-pay", "token-select"],
 };
@@ -90,6 +114,7 @@ interface StepContext {
   exchangeFee: string;
   gasFee: string;
   txHash: string;
+  pendingTxTimestamp: string;
   errorMessage: string;
   errorRetryStep: PaymentStep | null;
   redirectCountdown: number;
@@ -112,6 +137,7 @@ interface TokenOption {
 
 @customElement("payment-page")
 export class PaymentPage extends LitElement {
+  private static readonly GAS_BUMP_MULTIPLIER = 1.15;
   static override styles = [
     theme,
     css`
@@ -1039,6 +1065,82 @@ export class PaymentPage extends LitElement {
         color: var(--content-primary);
       }
 
+      /* === Recovery UI === */
+      .recovery-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 24px 16px;
+      }
+
+      .recovery-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--content-primary);
+      }
+
+      .recovery-details {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .recovery-amount {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--content-primary);
+      }
+
+      .recovery-elapsed {
+        font-size: 13px;
+        color: var(--content-secondary);
+      }
+
+      .recovery-tx-link {
+        font-size: 13px;
+        color: var(--primary);
+        text-decoration: none;
+        font-family: var(--font-family);
+      }
+
+      .recovery-tx-link:hover {
+        text-decoration: underline;
+      }
+
+      .recovery-warning {
+        font-size: 13px;
+        color: var(--destructive);
+        text-align: center;
+        padding: 12px 16px;
+        background: oklch(from var(--destructive) l c h / 0.08);
+        border-radius: 8px;
+        margin: 0 16px;
+      }
+
+      .recovery-error {
+        font-size: 13px;
+        color: var(--destructive);
+        text-align: center;
+        padding: 8px 16px;
+      }
+
+      .recovery-actions {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+      }
+
+      .recovery-actions .pay-btn {
+        flex: 1;
+      }
+
+      .pay-btn--secondary {
+        background: var(--secondary);
+        color: var(--content-primary);
+      }
+
       .locale-select {
         position: absolute;
         top: 12px;
@@ -1266,6 +1368,7 @@ export class PaymentPage extends LitElement {
     exchangeFee: "",
     gasFee: "",
     txHash: "",
+    pendingTxTimestamp: "",
     errorMessage: "",
     errorRetryStep: null,
     redirectCountdown: 5,
@@ -1304,9 +1407,11 @@ export class PaymentPage extends LitElement {
   private _acrossService: AcrossService | null = null;
   private _uniswapService: UniswapService | null = null;
   private _quoteService: QuoteService | null = null;
+  private _pendingTxService: PendingTxService | null = null;
   private _quoteRequestId = 0;
   private _unsubscribeAccount: (() => void) | null = null;
   private _redirectTimer: ReturnType<typeof setInterval> | null = null;
+  private _recoveryInterval: ReturnType<typeof setInterval> | null = null;
   private _desktopMql: MediaQueryList | null = null;
   private _isDesktop = false;
 
@@ -1362,6 +1467,7 @@ export class PaymentPage extends LitElement {
     this._tokenService.init().catch(() => {
       // Falls back to SUPPORTED_TOKENS internally
     });
+    this._pendingTxService = new PendingTxService();
     this._initializeWallet();
     const params = new URLSearchParams(globalThis.location.search);
     const effectiveInvoiceId = this.invoiceId ||
@@ -1375,6 +1481,7 @@ export class PaymentPage extends LitElement {
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._stopRecoveryMonitoring();
     this._cleanupWallet();
     this._desktopMql?.removeEventListener("change", this._onDesktopChange);
     this._invoiceService?.destroy();
@@ -1550,6 +1657,7 @@ export class PaymentPage extends LitElement {
     try {
       const invoice = await this._invoiceService!.fetchInvoice(this.invoiceId);
       if (!isActiveStatus(invoice.status)) {
+        this._pendingTxService!.remove(this.invoiceId);
         this._transition("invoice-error", {
           invoice,
           errorMessage: this._t("error.invoiceStatus", { status: invoice.status }),
@@ -1565,6 +1673,16 @@ export class PaymentPage extends LitElement {
         price: `$${item.price}`,
         image: item.image_url,
       }));
+
+      // Check for pending tx BEFORE going to idle
+      this._pendingTxService!.cleanupExpired();
+      const pendingRecord = this._pendingTxService!.load(this.invoiceId);
+
+      if (pendingRecord) {
+        await this._handlePendingTxRecovery(invoice, pendingRecord);
+        return;
+      }
+
       this._transition("idle", { invoice });
     } catch {
       this._transition("invoice-error", {
@@ -1815,11 +1933,30 @@ export class PaymentPage extends LitElement {
   private async _executeDirect(): Promise<void> {
     this._transition("executing");
     const { selectedTokenAddress, invoice, requiredAmount } = this._context;
-    const receipt = await this._paymentService!.transfer(
+
+    const hash = await this._paymentService!.submitTransfer(
       selectedTokenAddress!,
       invoice!.payment_address as `0x${string}`,
       requiredAmount,
     );
+
+    this._context = { ...this._context, txHash: hash };
+    this._pendingTxService!.save({
+      txHash: hash,
+      chainId: this._context.selectedChainId!,
+      tokenAddress: selectedTokenAddress!,
+      tokenSymbol: this._context.selectedTokenSymbol,
+      tokenDecimals: this._context.selectedTokenDecimals,
+      amount: requiredAmount.toString(),
+      amountHuman: this._context.requiredAmountHuman,
+      invoiceId: this.invoiceId,
+      paymentPath: this._context.paymentPath!,
+      timestamp: new Date().toISOString(),
+      invoiceValidTill: invoice!.valid_till,
+    });
+
+    const receipt = await this._paymentService!.waitForReceipt(hash);
+
     this._invoiceService!.registerSwap({
       invoice_id: this.invoiceId,
       from_amount_units: Number(requiredAmount),
@@ -1827,13 +1964,13 @@ export class PaymentPage extends LitElement {
       from_asset_id: selectedTokenAddress!,
       transaction_hash: receipt.transactionHash,
     });
+    this._pendingTxService!.remove(this.invoiceId);
     this._transition("polling");
-    this._context = { ...this._context, txHash: receipt.transactionHash };
     this._startPolling();
   }
 
   private async _executeUniswapSwap(): Promise<void> {
-    const { quote, selectedTokenAddress } = this._context;
+    const { quote, selectedTokenAddress, invoice } = this._context;
     const uniQuote = quote!.uniswapQuote!;
     const account = this._walletService!.getAccount()!;
 
@@ -1847,30 +1984,49 @@ export class PaymentPage extends LitElement {
       );
       if (allowance < maxAmountIn) {
         this._transition("approving");
-        await this._paymentService!.approve(
+        const approveHash = await this._paymentService!.submitApprove(
           selectedTokenAddress!,
           UNISWAP_SWAP_ROUTER_02,
           maxAmountIn,
         );
+        await this._paymentService!.waitForReceipt(approveHash);
       }
     }
 
     this._transition("executing");
-    const uniHash = await this._uniswapService!.executeSwap(uniQuote);
+    const swapHash = await this._uniswapService!.submitSwap(uniQuote);
+
+    this._context = { ...this._context, txHash: swapHash };
+    this._pendingTxService!.save({
+      txHash: swapHash,
+      chainId: this._context.selectedChainId!,
+      tokenAddress: selectedTokenAddress!,
+      tokenSymbol: this._context.selectedTokenSymbol,
+      tokenDecimals: this._context.selectedTokenDecimals,
+      amount: this._context.requiredAmount.toString(),
+      amountHuman: this._context.requiredAmountHuman,
+      invoiceId: this.invoiceId,
+      paymentPath: this._context.paymentPath!,
+      timestamp: new Date().toISOString(),
+      invoiceValidTill: invoice!.valid_till,
+    });
+
+    await this._paymentService!.waitForReceipt(swapHash as Hash);
+
     this._invoiceService!.registerSwap({
       invoice_id: this.invoiceId,
       from_amount_units: Number(this._context.requiredAmount),
       from_chain_id: this._context.selectedChainId!,
       from_asset_id: this._context.selectedTokenAddress!,
-      transaction_hash: uniHash,
+      transaction_hash: swapHash,
     });
+    this._pendingTxService!.remove(this.invoiceId);
     this._transition("polling");
-    this._context = { ...this._context, txHash: uniHash };
     this._startPolling();
   }
 
   private async _executeAcrossSwap(): Promise<void> {
-    const { quote } = this._context;
+    const { quote, selectedTokenAddress, invoice } = this._context;
     const acrossQuote = quote!.acrossQuote!;
 
     if (acrossQuote.approvalTxns.length > 0) {
@@ -1879,16 +2035,34 @@ export class PaymentPage extends LitElement {
     }
 
     this._transition("executing");
-    const acrossHash = await this._acrossService!.executeSwap(acrossQuote.swapTx);
+    const swapHash = await this._acrossService!.submitSwap(acrossQuote.swapTx);
+
+    this._context = { ...this._context, txHash: swapHash };
+    this._pendingTxService!.save({
+      txHash: swapHash,
+      chainId: this._context.selectedChainId!,
+      tokenAddress: selectedTokenAddress!,
+      tokenSymbol: this._context.selectedTokenSymbol,
+      tokenDecimals: this._context.selectedTokenDecimals,
+      amount: this._context.requiredAmount.toString(),
+      amountHuman: this._context.requiredAmountHuman,
+      invoiceId: this.invoiceId,
+      paymentPath: this._context.paymentPath!,
+      timestamp: new Date().toISOString(),
+      invoiceValidTill: invoice!.valid_till,
+    });
+
+    await waitForTransactionReceipt(this._walletService!.wagmiConfig!, { hash: swapHash as Hash });
+
     this._invoiceService!.registerSwap({
       invoice_id: this.invoiceId,
       from_amount_units: Number(this._context.requiredAmount),
       from_chain_id: this._context.selectedChainId!,
       from_asset_id: this._context.selectedTokenAddress!,
-      transaction_hash: acrossHash,
+      transaction_hash: swapHash,
     });
+    this._pendingTxService!.remove(this.invoiceId);
     this._transition("polling");
-    this._context = { ...this._context, txHash: acrossHash };
     this._startPolling();
   }
 
@@ -1906,6 +2080,90 @@ export class PaymentPage extends LitElement {
     return false;
   }
 
+  private async _handlePendingTxRecovery(
+    invoice: Invoice,
+    record: PendingTxRecord,
+  ): Promise<void> {
+    // Populate context from persisted record
+    const chain = CHAINS_BY_ID[record.chainId];
+    this._context = {
+      ...this._context,
+      invoice,
+      txHash: record.txHash,
+      selectedChainId: record.chainId,
+      selectedTokenAddress: record.tokenAddress as `0x${string}`,
+      selectedTokenSymbol: record.tokenSymbol,
+      selectedTokenDecimals: record.tokenDecimals,
+      requiredAmountHuman: record.amountHuman,
+      paymentPath: record.paymentPath,
+      pendingTxTimestamp: record.timestamp,
+      selectedChainLogoUrl: chain?.logoUrl ?? "",
+      selectedTokenLogoUrl: this._resolveTokenLogo(record.chainId, record.tokenAddress),
+    };
+
+    // Try to check on-chain status with 5s timeout
+    try {
+      const receipt = await Promise.race([
+        this._getTransactionReceipt(record.txHash as `0x${string}`, record.chainId),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+
+      if (receipt) {
+        // Tx already confirmed — go straight to polling
+        this._invoiceService!.registerSwap({
+          invoice_id: this.invoiceId,
+          from_amount_units: Number(record.amount),
+          from_chain_id: record.chainId,
+          from_asset_id: record.tokenAddress,
+          transaction_hash: record.txHash,
+        });
+        this._pendingTxService!.remove(this.invoiceId);
+        this._transition("polling", this._context);
+        this._startPolling();
+        return;
+      }
+    } catch {
+      // getTransactionReceipt failed or timed out — fall through to recovery UI
+    }
+
+    // Tx still pending or check failed — show recovery UI
+    this._transition("recovering", this._context);
+    this._startRecoveryMonitoring();
+  }
+
+  private _formatElapsed(isoTimestamp: string): string {
+    if (!isoTimestamp) return "";
+    const diff = Date.now() - new Date(isoTimestamp).getTime();
+    const minutes = Math.floor(diff / 60_000);
+    if (minutes < 1) return this._t("recovery.justNow");
+    if (minutes < 60) return this._t("recovery.minutesAgo", { count: String(minutes) });
+    const hours = Math.floor(minutes / 60);
+    return this._t("recovery.hoursAgo", { count: String(hours) });
+  }
+
+  private _resolveTokenLogo(chainId: number, tokenAddress: string): string {
+    const token = this._tokenService?.findToken(chainId, tokenAddress as `0x${string}`);
+    return token?.logoUrl ?? "";
+  }
+
+  private async _getTransactionReceipt(
+    hash: `0x${string}`,
+    chainId: number,
+  ): Promise<TransactionReceipt | null> {
+    const chain = CHAINS_BY_ID[chainId];
+    if (!chain) return null;
+    const viemChain = VIEM_CHAINS[chainId];
+    const client = createPublicClient({
+      chain: viemChain,
+      transport: http(chain.rpcUrl),
+    });
+    try {
+      return await client.getTransactionReceipt({ hash });
+    } catch {
+      return null;
+    }
+  }
+
   private _startPolling(): void {
     this._invoiceService!.startPolling(
       this._context.invoice!.id,
@@ -1914,11 +2172,47 @@ export class PaymentPage extends LitElement {
     );
   }
 
+  private _startRecoveryMonitoring(): void {
+    this._stopRecoveryMonitoring();
+    this._recoveryInterval = setInterval(async () => {
+      try {
+        const receipt = await this._getTransactionReceipt(
+          this._context.txHash as `0x${string}`,
+          this._context.selectedChainId!,
+        );
+        if (receipt) {
+          this._stopRecoveryMonitoring();
+          this._invoiceService!.registerSwap({
+            invoice_id: this.invoiceId,
+            from_amount_units: Number(this._context.requiredAmount),
+            from_chain_id: this._context.selectedChainId!,
+            from_asset_id: this._context.selectedTokenAddress!,
+            transaction_hash: this._context.txHash,
+          });
+          this._pendingTxService!.remove(this.invoiceId);
+          this._transition("polling");
+          this._startPolling();
+        }
+      } catch {
+        // Silently retry on next interval
+      }
+    }, 5000);
+  }
+
+  private _stopRecoveryMonitoring(): void {
+    if (this._recoveryInterval) {
+      clearInterval(this._recoveryInterval);
+      this._recoveryInterval = null;
+    }
+  }
+
   private _onInvoiceUpdate(invoice: Invoice): void {
     if (isFinalStatus(invoice.status)) {
+      this._pendingTxService!.remove(this.invoiceId);
       this._transition("paid", { invoice });
       this._startRedirectCountdown();
     } else if (isExpiredStatus(invoice.status)) {
+      this._pendingTxService!.remove(this.invoiceId);
       this._transition("error", {
         errorMessage: this._t("error.invoiceExpired"),
         errorRetryStep: null,
@@ -1947,6 +2241,116 @@ export class PaymentPage extends LitElement {
     if (retryStep) {
       this._transition(retryStep, { errorMessage: "" });
     }
+  }
+
+  private async _onSpeedUp(): Promise<void> {
+    const { txHash, selectedChainId } = this._context;
+    const config = this._walletService!.wagmiConfig!;
+
+    try {
+      // 1. Verify wallet is connected
+      const account = this._walletService!.getAccount();
+      if (!account) {
+        this._context = { ...this._context, errorMessage: this._t("recovery.connectWallet") };
+        this.requestUpdate();
+        return;
+      }
+
+      // 2. Get original tx details
+      const chain = CHAINS_BY_ID[selectedChainId!];
+      const viemChain = VIEM_CHAINS[selectedChainId!];
+      const client = createPublicClient({
+        chain: viemChain,
+        transport: http(chain.rpcUrl),
+      });
+
+      const originalTx = await client.getTransaction({ hash: txHash as `0x${string}` });
+      if (!originalTx) {
+        this._context = { ...this._context, errorMessage: this._t("recovery.txNotFound") };
+        this.requestUpdate();
+        return;
+      }
+
+      // Already confirmed? Jump to polling.
+      if (originalTx.blockNumber !== null) {
+        this._stopRecoveryMonitoring();
+        this._pendingTxService!.remove(this.invoiceId);
+        this._transition("polling");
+        this._startPolling();
+        return;
+      }
+
+      // Verify sender matches connected wallet
+      if (originalTx.from.toLowerCase() !== account.address.toLowerCase()) {
+        this._context = { ...this._context, errorMessage: this._t("recovery.wrongWallet") };
+        this.requestUpdate();
+        return;
+      }
+
+      // 3. Ensure correct chain
+      if (account.chainId !== selectedChainId) {
+        await switchChain(config, { chainId: selectedChainId! });
+      }
+
+      // 4. Calculate bumped gas
+      const bump = PaymentPage.GAS_BUMP_MULTIPLIER;
+
+      let gasParams: Record<string, bigint>;
+
+      if (originalTx.maxFeePerGas != null && originalTx.maxPriorityFeePerGas != null) {
+        // EIP-1559
+        const currentFees = await client.estimateFeesPerGas();
+        const bumpedMax = BigInt(Math.ceil(Number(originalTx.maxFeePerGas) * bump));
+        const bumpedPriority = BigInt(Math.ceil(Number(originalTx.maxPriorityFeePerGas) * bump));
+
+        gasParams = {
+          maxFeePerGas: bumpedMax > currentFees.maxFeePerGas ? bumpedMax : currentFees.maxFeePerGas,
+          maxPriorityFeePerGas: bumpedPriority > (currentFees.maxPriorityFeePerGas ?? 0n)
+            ? bumpedPriority : (currentFees.maxPriorityFeePerGas ?? 0n),
+        };
+      } else {
+        // Legacy
+        const currentGasPrice = await client.getGasPrice();
+        const bumpedGasPrice = BigInt(Math.ceil(Number(originalTx.gasPrice!) * bump));
+        gasParams = {
+          gasPrice: bumpedGasPrice > currentGasPrice ? bumpedGasPrice : currentGasPrice,
+        };
+      }
+
+      // 5. Send replacement tx
+      const newHash = await sendTransaction(config, {
+        to: originalTx.to!,
+        value: originalTx.value,
+        data: originalTx.input,
+        nonce: originalTx.nonce,
+        ...gasParams,
+      });
+
+      // 6. Update persistence and context
+      const record = this._pendingTxService!.load(this.invoiceId)!;
+      this._pendingTxService!.save({ ...record, txHash: newHash, timestamp: new Date().toISOString() });
+      this._context = { ...this._context, txHash: newHash, pendingTxTimestamp: new Date().toISOString(), errorMessage: "" };
+      this._transition("recovering"); // self-transition to refresh UI
+      this._startRecoveryMonitoring(); // restart monitoring with new hash
+
+    } catch {
+      // Wallet rejected, network error, insufficient funds — show fallback
+      this._context = {
+        ...this._context,
+        errorMessage: this._t("recovery.speedUpFailed"),
+      };
+      this.requestUpdate();
+    }
+  }
+
+  private _onDismissRecovery(): void {
+    this._stopRecoveryMonitoring();
+    this._pendingTxService!.remove(this.invoiceId);
+    this._transition("token-select", {
+      txHash: "",
+      pendingTxTimestamp: "",
+      errorMessage: "",
+    });
   }
 
   private _getNativeSymbol(chainId: number): string {
@@ -2419,6 +2823,7 @@ export class PaymentPage extends LitElement {
     );
     const isPaid = this._step === "paid";
     const isError = this._step === "error";
+    const isRecovering = this._step === "recovering";
     const isTokenSelect = this._step === "token-select";
     const isReadyToPay = this._step === "ready-to-pay";
 
@@ -2547,6 +2952,43 @@ export class PaymentPage extends LitElement {
               </div>
             </div>
           `
+          : isRecovering
+          ? html`
+            <div class="success-body">
+              <div class="recovery-info">
+                <div class="recovery-title">
+                  ${this._t("recovery.pendingFound")}
+                </div>
+                <div class="recovery-details">
+                  <span class="recovery-amount">
+                    ${ctx.requiredAmountHuman} ${ctx.selectedTokenSymbol}
+                  </span>
+                  <span class="recovery-elapsed">
+                    ${this._formatElapsed(ctx.pendingTxTimestamp)}
+                  </span>
+                </div>
+                ${(() => {
+                  const chain = ctx.selectedChainId ? CHAINS_BY_ID[ctx.selectedChainId] : null;
+                  const explorerUrl = chain?.explorerUrl ?? "https://etherscan.io";
+                  const txUrl = ctx.txHash ? `${explorerUrl}/tx/${ctx.txHash}` : "#";
+                  const truncated = ctx.txHash
+                    ? `${ctx.txHash.slice(0, 6)}...${ctx.txHash.slice(-4)}`
+                    : "";
+                  return html`
+                    <a class="recovery-tx-link" href="${txUrl}" target="_blank" rel="noopener noreferrer">
+                      ${truncated} ↗
+                    </a>
+                  `;
+                })()}
+              </div>
+              <div class="recovery-warning">
+                ${this._t("recovery.doubleChargeWarning")}
+              </div>
+              ${ctx.errorMessage
+                ? html`<div class="recovery-error">${ctx.errorMessage}</div>`
+                : nothing}
+            </div>
+          `
           : showTokenList
           ? html`
             <div class="balance-header">
@@ -2618,6 +3060,24 @@ export class PaymentPage extends LitElement {
                     <span class="pay-btn-text">${ctx.errorMessage}</span>
                   </div>
                 `}
+            `
+            : isRecovering
+            ? html`
+              <div class="recovery-actions">
+                <button
+                  class="pay-btn"
+                  @click="${this._onSpeedUp}"
+                  ?disabled="${!this._connectedAccount}"
+                >
+                  <span class="pay-btn-text">${this._t("recovery.speedUp")}</span>
+                </button>
+                <button
+                  class="pay-btn pay-btn--secondary"
+                  @click="${this._onDismissRecovery}"
+                >
+                  <span class="pay-btn-text">${this._t("recovery.dismiss")}</span>
+                </button>
+              </div>
             `
             : isProcessing
             ? html`
