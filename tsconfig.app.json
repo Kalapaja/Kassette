@@ -11,5 +11,8 @@
     "src/**/*.d.ts",
     "src/app/**/*.ts",
     "src/environments/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.spec.ts"
   ]
 }
