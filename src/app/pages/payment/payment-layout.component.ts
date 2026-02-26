@@ -8,6 +8,7 @@ import {
   OnDestroy,
   OnInit,
   signal,
+  untracked,
   viewChild,
   NgZone,
 } from '@angular/core';
@@ -230,15 +231,17 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   private createWalletEffect(): () => void {
     const effectRef = effect(() => {
+      // Track only wallet signals — step is read untracked
+      // so closing the sheet (step→idle) won't re-trigger this effect
       const isConnected = this.walletState.isConnected();
       const address = this.walletState.address();
       const chainId = this.walletState.chainId();
-      const step = this.state.currentStep();
 
       if (isConnected && address) {
         this.state.walletAddress.set(this.formatAddress(address));
         this.state.connectedAccount.set({ address, chainId: chainId ?? 1 });
 
+        const step = untracked(() => this.state.currentStep());
         if (step === 'idle') {
           this.onWalletConnected({ address, chainId: chainId ?? 1 });
         }
@@ -246,8 +249,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         this.state.walletAddress.set('');
         this.state.connectedAccount.set(null);
 
+        const step = untracked(() => this.state.currentStep());
         if (step !== 'loading' && step !== 'polling' && step !== 'paid' && step !== 'invoice-error') {
-          // Force-reset: wallet disconnect can happen from any state
           this.state.currentStep.set('idle');
           this.state.paymentPath.set(null);
           this.state.quote.set(null);
@@ -439,6 +442,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private async loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
+    await this.tokenService.ready;
     const allTokens = this.tokenService.getAllTokens();
 
     // Build prices map from Across API data (already in TokenService)

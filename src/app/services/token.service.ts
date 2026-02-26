@@ -23,8 +23,19 @@ interface AcrossTokenResponse {
 export class TokenService {
   private readonly http = inject(HttpClient);
   private _tokens: TokenConfig[] = [];
+  private _ready: Promise<void> | null = null;
+
+  /** Wait for token list to be loaded */
+  get ready(): Promise<void> {
+    return this._ready ?? Promise.resolve();
+  }
 
   async init(): Promise<void> {
+    this._ready = this._doInit();
+    return this._ready;
+  }
+
+  private async _doInit(): Promise<void> {
     try {
       const data = await firstValueFrom(
         this.http.get<AcrossTokenResponse[]>(
