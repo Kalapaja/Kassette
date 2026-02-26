@@ -90,12 +90,14 @@ const GAS_BUMP_MULTIPLIER = 1.15;
   },
 })
 export class PaymentLayoutComponent implements OnInit, OnDestroy {
-  // ── Inputs ──
-  merchantName = input<string>(environment.merchantName || '');
-  merchantLogo = input<string>(environment.merchantLogoUrl || '');
+  // ── Inputs (invoiceId bound from route via withComponentInputBinding) ──
   invoiceId = input<string>('');
-  projectId = input<string>(environment.projectId || '');
-  shipping = input<string>('');
+
+  // ── Config signals (not route-bound — read from environment / runtime config) ──
+  readonly merchantName = signal(environment.merchantName || '');
+  readonly merchantLogo = signal(environment.merchantLogoUrl || '');
+  readonly projectId = signal(environment.projectId || '');
+  readonly shipping = signal('');
 
   // ── Injected services ──
   protected readonly state = inject(PaymentStateService);
@@ -112,7 +114,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private readonly quoteService = inject(QuoteService);
   private readonly pendingTxService = inject(PendingTxService);
   private readonly ngZone = inject(NgZone);
-  private readonly elementRef = inject(ElementRef);
 
   // ── Local state ──
   items: OrderItem[] = [];
@@ -182,11 +183,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   });
 
   constructor() {
-    // Sync data-step attribute
-    effect(() => {
-      const step = this.state.currentStep();
-      this.elementRef.nativeElement.setAttribute('data-step', step);
-    });
+    // Wallet connection effect — must be created in constructor for injection context
+    this.walletEffectCleanup = this.createWalletEffect();
   }
 
   // ── Lifecycle ──
@@ -210,9 +208,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       // Falls back to SUPPORTED_TOKENS internally
     });
 
-    // Set up wallet connection effect
-    this.setupWalletEffect();
-
     // Load invoice
     const params = new URLSearchParams(globalThis.location.search);
     const effectiveInvoiceId = this.invoiceId() || params.get('invoice_id') || '';
@@ -233,7 +228,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   // ── Wallet connection effect ──
 
-  private setupWalletEffect(): void {
+  private createWalletEffect(): () => void {
     const effectRef = effect(() => {
       const isConnected = this.walletState.isConnected();
       const address = this.walletState.address();
@@ -251,7 +246,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         this.state.walletAddress.set('');
         this.state.connectedAccount.set(null);
 
-        if (step !== 'polling' && step !== 'paid') {
+        if (step !== 'loading' && step !== 'polling' && step !== 'paid' && step !== 'invoice-error') {
           // Force-reset: wallet disconnect can happen from any state
           this.state.currentStep.set('idle');
           this.state.paymentPath.set(null);
@@ -260,7 +255,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.walletEffectCleanup = () => effectRef.destroy();
+    return () => effectRef.destroy();
   }
 
   // ── Template event handlers ──

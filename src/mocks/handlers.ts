@@ -56,7 +56,7 @@ export const handlers = [
    * GET /public/invoice/:invoiceId — returns the mock invoice
    * with the current (possibly overridden) status.
    */
-  http.get('/public/invoice/:invoiceId', () => {
+  http.get('/public/invoice', () => {
     return HttpResponse.json({
       ...MOCK_INVOICE,
       invoice: { ...MOCK_INVOICE.invoice, status: mockInvoiceStatus },

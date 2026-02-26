@@ -42,12 +42,6 @@
                   "maximumError": "20kB"
                 }
               ],
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.development.ts",
-                  "with": "src/environments/environment.ts"
-                }
-              ],
               "outputHashing": "all",
               "baseHref": "/public/assets/"
             },
@@ -72,6 +66,7 @@
           "defaultConfiguration": "development",
           "options": {
             "port": 3001,
+            "host": "127.0.0.1",
             "proxyConfig": "proxy.conf.json"
           }
         },
