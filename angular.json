@@ -22,7 +22,10 @@
                 "input": "public"
               }
             ],
-            "styles": [],
+            "styles": [
+              "src/styles/font.css",
+              "src/styles/theme.css"
+            ],
             "scripts": []
           },
           "configurations": {
