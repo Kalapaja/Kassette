@@ -5,3 +5,4 @@ dist/
 .specs
 
 .DS_store
+.angular/
