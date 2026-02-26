@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>%VITE_PAYMENT_PAGE_TITLE%</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="theme-color" content="#f9f9f9" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Alaska", sans-serif;
+        background: white;
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <payment-page
+      id="payment"
+      merchant-name="%VITE_MERCHANT_NAME%"
+      merchant-logo-url="%VITE_MERCHANT_LOGO_URL%"
+      project-id="%VITE_REWON_PROJECT_ID%"
+    ></payment-page>
+
+    <script type="module">
+      import("./src/index.ts");
+    </script>
+  </body>
+</html>
