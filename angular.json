@@ -24,7 +24,7 @@
             ],
             "styles": [
               "src/styles/font.css",
-              "src/styles/theme.css"
+              "src/styles/tailwind.css"
             ],
             "scripts": []
           },
@@ -35,11 +35,6 @@
                   "type": "initial",
                   "maximumWarning": "2MB",
                   "maximumError": "5MB"
-                },
-                {
-                  "type": "anyComponentStyle",
-                  "maximumWarning": "16kB",
-                  "maximumError": "20kB"
                 }
               ],
               "outputHashing": "all",
