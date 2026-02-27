@@ -5,30 +5,30 @@ import type { FiatParts } from '../../i18n/format';
   selector: 'kp-order-item',
   styleUrl: './order-item.component.css',
   template: `
-    <div class="left">
-      <div class="image">
+    <div class="flex gap-2 items-start">
+      <div class="image w-[41px] h-[41px] rounded-[10px] border-[0.5px] border-border-tetriary overflow-hidden shrink-0">
         <ng-content select="[slot=image]" />
       </div>
-      <div class="info">
-        <div class="name-row">
+      <div class="flex flex-col flex-1 min-w-0">
+        <div class="flex gap-1 items-center text-sm leading-[18px] text-content-primary">
           <span>{{ name() }}</span>
-          <span class="quantity">x{{ quantity() }}</span>
+          <span class="opacity-50 text-right shrink-0">x{{ quantity() }}</span>
         </div>
         @if (description()) {
-          <span class="description">{{ description() }}</span>
+          <span class="text-sm leading-[18px] text-content-secondary">{{ description() }}</span>
         }
       </div>
     </div>
     @if (priceParts(); as parts) {
-      <div class="price">
-        <span class="currency">{{ parts.currency }}</span>
+      <div class="flex items-center text-base leading-5 text-content-primary">
+        <span class="font-[421]">{{ parts.currency }}</span>
         <span>{{ parts.integer }}</span>
-        <span class="cents">{{ parts.decimal }}</span>
+        <span>{{ parts.decimal }}</span>
       </div>
     } @else {
-      <div class="price">
+      <div class="flex items-center text-base leading-5 text-content-primary">
         @if (currencySymbol()) {
-          <span class="currency">{{ currencySymbol() }}</span>
+          <span class="font-[421]">{{ currencySymbol() }}</span>
         }
         @if (priceMatch()) {
           <span>{{ priceMatch()![1] }}</span>
