@@ -83,6 +83,9 @@
   --radius-2xl: 2rem;
   --radius-full: 9999px;
 
+  /* Breakpoints */
+  --breakpoint-xl: 1200px;
+
   /* Animations */
   --animate-spin: spin 1.5s linear infinite;
   --animate-shimmer: shimmer 1.5s infinite;

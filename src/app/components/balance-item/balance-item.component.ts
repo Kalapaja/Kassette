@@ -9,7 +9,7 @@ import { type FiatParts, fiatPartsToString } from '../../i18n/format';
   },
   template: `
     <div
-      class="row"
+      class="flex items-center justify-between h-16 p-[5px] border border-border-secondary rounded-xl box-border cursor-pointer transition-[border-color,background-color,box-shadow] duration-150 ease-in-out motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 host-selected:border-content-primary host-selected:bg-fill-secondary host-selected:shadow-[0_4px_20px_oklch(0_0_0/0.1)]"
       role="option"
       tabindex="0"
       [attr.aria-selected]="selected()"
@@ -17,71 +17,71 @@ import { type FiatParts, fiatPartsToString } from '../../i18n/format';
       (click)="onClick()"
       (keydown)="onKeyDown($event)"
     >
-      <div class="inner">
-        <div class="left">
-          <div class="icon-wrapper">
-            <div class="icon">
+      <div class="flex items-center justify-between flex-1 min-h-px min-w-px px-[10px]">
+        <div class="flex items-center gap-[7.5px]">
+          <div class="relative w-9 h-9 shrink-0">
+            <div class="icon w-9 h-9 flex items-center justify-center">
               <ng-content select="[slot=icon]" />
             </div>
-            <div class="chain-badge">
+            <div class="chain-badge absolute -bottom-0.5 -left-0.5 w-4 h-4 rounded-full border-[1.5px] border-fill-primary bg-fill-primary overflow-hidden flex items-center justify-center">
               <ng-content select="[slot=chain-icon]" />
             </div>
           </div>
-          <div class="info">
-            <span class="name">{{ name() }}</span>
+          <div class="flex flex-col gap-[5px] justify-center">
+            <span class="text-sm font-[421] leading-[18px] text-content-primary">{{ name() }}</span>
             @if (selected() && unitPrice()) {
-              <span class="amount-with-rate">
-                <span class="amount">{{ amount() }}</span>
-                <span class="amount-separator">
+              <span class="inline-flex items-center gap-0.5">
+                <span class="text-xs font-[421] leading-[14px] text-content-tetriary">{{ amount() }}</span>
+                <span class="flex items-center justify-center w-[9px] h-[9px] shrink-0">
                   <svg width="9" height="9" viewBox="0 0 9 9" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M0.5 7.79297L7.79289 0.500076" stroke="#D9D9D9" stroke-linecap="round"/>
                   </svg>
                 </span>
-                <span class="amount">{{ unitPrice() }}</span>
+                <span class="text-xs font-[421] leading-[14px] text-content-tetriary">{{ unitPrice() }}</span>
               </span>
             } @else {
-              <span class="amount">{{ amount() }}</span>
+              <span class="text-xs font-[421] leading-[14px] text-content-tetriary">{{ amount() }}</span>
             }
           </div>
         </div>
-        <div class="right">
+        <div class="flex items-center gap-[5px]">
           @if (cryptoValue()) {
             @if (fiatParts()) {
-              <span class="fiat">
+              <span class="flex items-start text-xs font-[421] leading-[14px] text-content-tetriary tabular-nums">
                 <span>{{ fiatParts()!.currency }}</span>
                 <span>{{ fiatParts()!.integer }}</span>
-                <span class="fiat-decimal">{{ fiatParts()!.decimal }}</span>
+                <span>{{ fiatParts()!.decimal }}</span>
               </span>
             } @else if (fiatValue()) {
               @if (fiatMatch()) {
-                <span class="fiat">
+                <span class="flex items-start text-xs font-[421] leading-[14px] text-content-tetriary tabular-nums">
                   <span>$</span>
                   <span>{{ fiatMatch()![1] }}</span>
-                  <span class="fiat-decimal">.{{ fiatMatch()![3] ?? '00' }}</span>
+                  <span>.{{ fiatMatch()![3] ?? '00' }}</span>
                 </span>
               } @else {
-                <span class="fiat">{{ fiatValue() }}</span>
+                <span class="flex items-start text-xs font-[421] leading-[14px] text-content-tetriary tabular-nums">{{ fiatValue() }}</span>
               }
             }
-            <span class="value">
-              <span class="value-integer">{{ cryptoValue() }}</span>
+            <span class="flex items-baseline text-content-primary tabular-nums">
+              <span class="text-lg font-normal leading-3">{{ cryptoValue() }}</span>
             </span>
           } @else {
             @if (valueParts()) {
-              <span class="value">
+              <span class="flex items-baseline text-content-primary tabular-nums">
                 <span>{{ valueParts()!.currency }}</span>
                 <span>{{ valueParts()!.integer }}</span>
-                <span class="value-decimal">{{ valueParts()!.decimal }}</span>
+                <span class="text-[10px] font-medium leading-4">{{ valueParts()!.decimal }}</span>
               </span>
             } @else if (unitPrice()) {
               @if (valueMatch()) {
-                <span class="value">
+                <span class="flex items-baseline text-content-primary tabular-nums">
                   <span>$</span>
                   <span>{{ valueMatch()![1] }}</span>
-                  <span class="value-decimal">.{{ valueMatch()![3] ?? '00' }}</span>
+                  <span class="text-[10px] font-medium leading-4">.{{ valueMatch()![3] ?? '00' }}</span>
                 </span>
               } @else {
-                <span class="value">{{ unitPrice() }}</span>
+                <span class="flex items-baseline text-content-primary tabular-nums">{{ unitPrice() }}</span>
               }
             }
           }
