@@ -1,6 +1,0 @@
-:host {
-  display: inline-flex;
-  align-items: center;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}

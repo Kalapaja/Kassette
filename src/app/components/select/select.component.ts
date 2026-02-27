@@ -19,7 +19,7 @@ export interface SelectOption {
 
 @Component({
   selector: 'kp-select',
-  styleUrl: './select.component.css',
+  styles: `:host { display: flex; flex-direction: column; gap: 5px; position: relative; }`,
   host: {
     '[attr.weight]': 'weight()',
   },

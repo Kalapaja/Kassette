@@ -2,7 +2,7 @@ import { Component, input } from '@angular/core';
 
 @Component({
   selector: 'kp-link',
-  styleUrl: './link.component.css',
+  styles: `:host { display: inline-flex; }`,
   template: `
     <a
       class="appearance-none box-border inline-flex items-center justify-center py-[7.5px] border-b border-border cursor-pointer transition-[border-color] duration-150 ease-in-out hover:border-content-primary focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"

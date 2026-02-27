@@ -4,7 +4,7 @@ export type ModeValue = 'light' | 'dark';
 
 @Component({
   selector: 'kp-mode',
-  styleUrl: './mode.component.css',
+  styles: `:host { display: inline-flex; align-items: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }`,
   host: {
     '[attr.mode]': 'mode()',
   },

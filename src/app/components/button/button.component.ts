@@ -4,7 +4,7 @@ export type ButtonWeight = 'primary' | 'secondary' | 'tetriary';
 
 @Component({
   selector: 'kp-button',
-  styleUrl: './button.component.css',
+  styles: `:host { display: flex; flex-direction: column; gap: 5px; }`,
   host: {
     '[attr.weight]': 'weight()',
     '[attr.disabled]': 'disabled() || null',
