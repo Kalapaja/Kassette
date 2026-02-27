@@ -14,15 +14,15 @@ import { Component, input, output } from '@angular/core';
     '(keydown)': 'onKeyDown($event)',
   },
   template: `
-    <div class="checkbox">
+    <div class="checkbox relative flex items-center justify-center w-[21px] h-[21px] border border-border rounded-[5px] bg-fill-primary box-border shrink-0 transition-[border-color] duration-150 ease-in-out">
       @if (checked()) {
-        <svg class="checkmark" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="w-[11px] h-[11px]" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M1.5 5L5 8.5L10.5 3" stroke="currentColor" />
         </svg>
       }
     </div>
     @if (label()) {
-      <span class="label">{{ label() }}</span>
+      <span class="font-sans text-sm font-[421] leading-[18px] text-content-primary">{{ label() }}</span>
     }
   `,
 })

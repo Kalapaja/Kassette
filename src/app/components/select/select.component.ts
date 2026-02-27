@@ -25,10 +25,10 @@ export interface SelectOption {
   },
   template: `
     @if (label() && weight() === 'primary') {
-      <label class="field-name">{{ label() }}</label>
+      <label class="text-xs font-[421] leading-[14px] tracking-[0.48px] uppercase text-content-primary">{{ label() }}</label>
     }
     <button
-      class="trigger"
+      class="trigger appearance-none box-border flex items-center cursor-pointer font-sans text-sm font-[421] leading-[18px] text-content-primary focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 weight-tetriary:gap-1 weight-primary:h-[60px] weight-primary:px-5 weight-primary:py-[3px] weight-primary:border weight-primary:border-border weight-primary:rounded-lg weight-primary:bg-fill-primary weight-primary:justify-between weight-primary:w-full weight-primary:transition-[border-color] weight-primary:duration-150 weight-primary:ease-in-out weight-primary:hover:border-content-primary weight-primary:focus-visible:border-content-primary"
       role="combobox"
       [attr.aria-expanded]="isOpen()"
       aria-haspopup="listbox"
@@ -36,23 +36,23 @@ export interface SelectOption {
       (click)="toggle()"
       (keydown)="handleTriggerKeyDown($event)"
     >
-      <span class="trigger-text" [class.placeholder]="!selectedLabel()">
+      <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" [class.opacity-30]="!selectedLabel()">
         {{ selectedLabel() || placeholder() }}
       </span>
-      <span class="chevron" [class.open]="isOpen()">
-        <svg viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <span class="flex items-center justify-center shrink-0 w-[11px] h-[11px] transition-transform duration-150 ease-in-out" [class.rotate-180]="isOpen()">
+        <svg class="w-[11px] h-[11px]" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M2.5 4L5.5 7L8.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </span>
     </button>
     @if (isOpen()) {
-      <div class="dropdown" role="listbox">
+      <div class="absolute top-full left-0 z-10 mt-1 min-w-full bg-fill-primary rounded-[4px] shadow-[0_0_10px_0_oklch(0_0_0/0.25)] overflow-hidden weight-primary:rounded-lg" role="listbox">
         @for (option of options(); track option.value; let i = $index) {
           @if (i > 0) {
-            <div class="divider"></div>
+            <div class="h-px bg-border"></div>
           }
           <button
-            class="option"
+            class="option appearance-none box-border flex items-center justify-center w-full p-[10px] font-sans text-sm font-[421] leading-[18px] text-content-primary cursor-pointer hover:bg-brand-quinary focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
             role="option"
             [attr.aria-selected]="option.value === value()"
             tabindex="0"

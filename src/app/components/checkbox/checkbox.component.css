@@ -14,21 +14,6 @@
   pointer-events: none;
 }
 
-.checkbox {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 21px;
-  height: 21px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--fill-primary);
-  box-sizing: border-box;
-  flex-shrink: 0;
-  transition: border-color 0.15s ease;
-}
-
 :host(:hover) .checkbox {
   border-color: var(--content-primary);
 }
@@ -37,17 +22,4 @@
   border-color: var(--content-primary);
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-}
-
-.checkmark {
-  width: 11px;
-  height: 11px;
-}
-
-.label {
-  font-family: var(--font-family);
-  font-size: 14px;
-  font-weight: 421;
-  line-height: 18px;
-  color: var(--content-primary);
 }
