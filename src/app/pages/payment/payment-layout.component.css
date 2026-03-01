@@ -9,7 +9,7 @@
 
 /* Gradient fade above pay CTA */
 .pay-cta::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;
@@ -98,7 +98,7 @@
   }
 
   .total {
-    margin-top: auto;
+    /*margin-top: auto;*/
     position: static;
     padding-top: 0;
   }

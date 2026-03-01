@@ -115,7 +115,7 @@
   </div>
 
   <div class="desktop-layout">
-    <div class="page">
+    <div class="page flex flex-col">
       <select
         class="locale-select absolute top-3 right-0 z-1 font-sans text-[11px] font-medium px-1 py-0.5 border-none rounded-[var(--radius)] bg-transparent text-content-tetriary cursor-pointer appearance-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] hover:text-content-secondary"
         [attr.aria-label]="ts.t('aria.languageSwitcher')"
@@ -208,7 +208,7 @@
       </div>
 
       @if (totalAmount()) {
-        <div class="total flex items-center justify-between py-[5px] border-t border-content-primary mt-auto">
+        <div class="total flex items-center justify-between py-[5px] border-t border-content-primary mt-5">
           <span class="text-[20px] font-[421] leading-5 text-content-primary">{{ ts.t('order.total') }}</span>
           <div class="flex items-end text-content-primary">
             @if (totalFiatParts(); as parts) {
