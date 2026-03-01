@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Force light mode regardless of system preference */
+html {
+  color-scheme: light;
+  background-color: oklch(1 0 0);
+}
+
 /* ============================================
    THEME: OKLCH Design Tokens
    ============================================ */
