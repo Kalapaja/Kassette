@@ -4,9 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <title>Payment Page</title>
+    <title>%VITE_PAYMENT_PAGE_TITLE%</title>
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="theme-color" content="#f9f9f9" />
+    <script>
+      window.__APP_CONFIG__ = {
+        projectId: "%VITE_REOWN_PROJECT_ID%",
+        merchantName: "%VITE_MERCHANT_NAME%",
+        merchantLogoUrl: "%VITE_MERCHANT_LOGO_URL%"
+      };
+    </script>
   </head>
   <body>
     <kp-root></kp-root>

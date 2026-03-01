@@ -22,10 +22,7 @@
                 "input": "public"
               }
             ],
-            "styles": [
-              "src/styles/font.css",
-              "src/styles/tailwind.css"
-            ],
+            "styles": ["src/styles/font.css", "src/styles/tailwind.css"],
             "scripts": []
           },
           "configurations": {
