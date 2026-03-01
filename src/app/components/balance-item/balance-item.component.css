@@ -1,7 +1,3 @@
-:host {
-  display: block;
-}
-
 .icon ::ng-deep * {
   width: 36px;
   height: 36px;

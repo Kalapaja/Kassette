@@ -4,6 +4,7 @@ import { Component, OnDestroy, OnInit, input, output } from '@angular/core';
   selector: 'kp-bottom-sheet',
   styleUrl: './bottom-sheet.component.css',
   host: {
+    class: 'block font-sans',
     '[attr.open]': 'open() || null',
     '[attr.scrollable]': 'scrollable() || null',
   },

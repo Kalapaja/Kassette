@@ -4,6 +4,9 @@ import type { FiatParts } from '../../i18n/format';
 @Component({
   selector: 'kp-order-item',
   styleUrl: './order-item.component.css',
+  host: {
+    class: 'flex items-start justify-between w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
+  },
   template: `
     <div class="flex gap-2 items-start">
       <div class="image w-[41px] h-[41px] rounded-[10px] border-[0.5px] border-border-tetriary overflow-hidden shrink-0">

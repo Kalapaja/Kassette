@@ -1,13 +1,3 @@
-:host {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  user-select: none;
-}
-
 :host([disabled]) {
   opacity: 0.5;
   cursor: not-allowed;

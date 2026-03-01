@@ -4,6 +4,8 @@ import { Component, input, output } from '@angular/core';
   selector: 'kp-checkbox',
   styleUrl: './checkbox.component.css',
   host: {
+    class: 'inline-flex items-center gap-1.5 cursor-pointer select-none touch-manipulation',
+    style: '-webkit-tap-highlight-color: transparent',
     role: 'checkbox',
     '[attr.checked]': 'checked() || null',
     '[attr.disabled]': 'disabled() || null',

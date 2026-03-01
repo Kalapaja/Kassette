@@ -3,6 +3,9 @@ import { Component, input, output, signal } from '@angular/core';
 @Component({
   selector: 'kp-input',
   styleUrl: './input.component.css',
+  host: {
+    class: 'flex flex-col gap-[5px]',
+  },
   template: `
     @if (label() || comment()) {
       <div class="flex justify-between items-start text-xs font-[421] leading-[14px] tracking-[0.48px] uppercase">

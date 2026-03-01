@@ -5,6 +5,7 @@ import { type FiatParts, fiatPartsToString } from '../../i18n/format';
   selector: 'kp-balance-item',
   styleUrl: './balance-item.component.css',
   host: {
+    class: 'block',
     '[attr.selected]': 'selected() || null',
   },
   template: `

@@ -1,8 +1,3 @@
-:host {
-  display: block;
-  font-family: var(--font-family);
-}
-
 /* === Desktop === */
 @media (min-width: 1200px) {
   :host(:not([open])) {
