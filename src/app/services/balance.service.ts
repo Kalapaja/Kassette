@@ -57,12 +57,16 @@ export class BalanceService {
     userAddress: `0x${string}`,
     tokens: TokenConfig[],
   ): Promise<Map<string, bigint>> {
-    const results = new Map<string, bigint>();
+    const results = await this._fetchAllViaRpc(userAddress, tokens);
+    this._cache = new Map(results);
+    return results;
+  }
 
-    console.log(
-      `[BalanceService] getBalances called with ${tokens.length} tokens, clients for chains:`,
-      [...this._clients.keys()],
-    );
+  private async _fetchAllViaRpc(
+    userAddress: `0x${string}`,
+    tokens: TokenConfig[],
+  ): Promise<Map<string, bigint>> {
+    const results = new Map<string, bigint>();
 
     // Group tokens by chainId, only for chains we have clients
     const tokensByChain = new Map<number, TokenConfig[]>();
@@ -73,38 +77,29 @@ export class BalanceService {
       tokensByChain.set(token.chainId, list);
     }
 
-    console.log(
-      `[BalanceService] Tokens grouped into ${tokensByChain.size} chains:`,
-      [...tokensByChain.entries()].map(([id, t]) => `${id}(${t.length})`),
-    );
-
     const chainEntries = [...tokensByChain.entries()];
 
     // Process chains in batches to avoid rate limiting
     for (let i = 0; i < chainEntries.length; i += MAX_CONCURRENCY) {
       const batch = chainEntries.slice(i, i + MAX_CONCURRENCY);
       const batchPromises = batch.map(([chainId, chainTokens]) =>
-        this._getChainBalances(chainId, userAddress, chainTokens)
+        this._fetchChainViaRpc(chainId, userAddress, chainTokens)
           .then((chainBalances) => {
-            console.log(
-              `[BalanceService] Chain ${chainId}: got ${chainBalances.size} balances`,
-            );
             for (const [key, value] of chainBalances) {
               results.set(key, value);
             }
           })
           .catch((e) => {
-            console.error(`[BalanceService] Chain ${chainId} failed:`, e);
+            console.error(`[BalanceService] RPC chain ${chainId} failed:`, e);
           }),
       );
       await Promise.allSettled(batchPromises);
     }
 
-    this._cache = new Map(results);
     return results;
   }
 
-  private async _getChainBalances(
+  private async _fetchChainViaRpc(
     chainId: number,
     userAddress: `0x${string}`,
     tokens: TokenConfig[],
