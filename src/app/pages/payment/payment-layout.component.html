@@ -115,7 +115,7 @@
   </div>
 
   <div class="desktop-layout xl:flex xl:justify-center xl:items-stretch xl:gap-[118px] xl:px-10 xl:box-border">
-    <div class="page flex flex-col md:max-xl:max-w-[677px] md:max-xl:mx-auto md:max-xl:py-0 md:max-xl:px-20 md:max-xl:pt-20 xl:w-[424px] xl:max-w-[424px] xl:m-0 xl:pt-[76px] xl:px-0 xl:shrink-0 xl:min-h-auto">
+    <div class="page flex flex-col max-w-[428px] mx-auto px-5 md:max-xl:max-w-[588px] md:max-xl:px-20 md:max-xl:pt-20 xl:w-[428px] xl:max-w-[428px] xl:m-0 xl:pt-[76px] xl:px-0 xl:shrink-0 xl:min-h-auto">
       <select
         class="locale-select absolute top-3 right-0 z-1 font-sans text-[11px] font-medium px-1 py-0.5 border-none rounded-[var(--radius)] bg-transparent text-content-tetriary cursor-pointer appearance-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] hover:text-content-secondary md:hidden"
         [attr.aria-label]="ts.t('aria.languageSwitcher')"
@@ -208,7 +208,7 @@
       </div>
 
       @if (totalAmount()) {
-        <div class="total flex items-center justify-between py-[5px] border-t border-content-primary mt-5 md:sticky md:bottom-[90px] md:bg-fill-primary md:pt-2.5 md:z-4 xl:static xl:pt-0">
+        <div class="total flex items-center justify-between py-[5px] border-t border-content-primary mt-5 md:max-xl:sticky md:max-xl:bottom-[90px] md:max-xl:bg-fill-primary md:max-xl:pt-2.5 md:max-xl:z-4">
           <span class="text-[20px] font-[421] leading-5 text-content-primary">{{ ts.t('order.total') }}</span>
           <div class="flex items-end text-content-primary">
             @if (totalFiatParts(); as parts) {
@@ -220,7 +220,7 @@
         </div>
       }
 
-      <div class="cta mt-2.5 md:sticky md:bottom-5 md:bg-fill-primary md:pt-2.5 md:z-5 xl:static xl:pt-0">
+      <div class="cta mt-2.5 md:max-xl:sticky md:max-xl:bottom-5 md:max-xl:bg-fill-primary md:max-xl:pt-2.5 md:max-xl:z-5">
         <kp-button weight="primary" (buttonClick)="onButtonClick()">
           <svg
             slot="icon"

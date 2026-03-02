@@ -14,7 +14,7 @@ import { Component, OnDestroy, OnInit, input, output } from '@angular/core';
       (click)="onOverlayClick()"
     ></div>
     <div
-      class="fixed left-0 right-0 bottom-0 max-w-[393px] mx-auto max-h-[85vh] bg-fill-primary rounded-t-[30px] shadow-[0_4px_40px_oklch(0_0_0/0.2)] translate-y-full transition-transform duration-300 ease-in-out motion-reduce:transition-none z-[11] flex flex-col overflow-hidden host-open:translate-y-0 md:max-w-[677px] xl:static xl:max-w-[430px] xl:max-h-none xl:rounded-[20px] xl:border xl:border-border-tetriary xl:shadow-none xl:translate-y-0 xl:transition-none xl:m-0"
+      class="fixed left-0 right-0 bottom-0 max-w-[393px] mx-auto max-h-[85vh] bg-fill-primary rounded-t-[30px] shadow-[0_4px_40px_oklch(0_0_0/0.2)] translate-y-full transition-transform duration-300 ease-in-out motion-reduce:transition-none z-[11] flex flex-col overflow-hidden host-open:translate-y-0 md:max-xl:max-w-[677px] xl:static xl:max-w-[430px] xl:max-h-none xl:rounded-[20px] xl:border xl:border-border-tetriary xl:shadow-none xl:translate-y-0 xl:transition-none xl:m-0"
       role="dialog"
       [attr.aria-label]="title() || dialogLabel()"
     >
