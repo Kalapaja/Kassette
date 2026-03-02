@@ -431,7 +431,7 @@
       @if (state.currentStep() === 'paid') {
         <!-- Paid success body -->
         <div class="flex flex-col items-center justify-center gap-5 flex-1 p-5 pb-[120px]">
-          <div class="flex items-center gap-[3px] whitespace-nowrap origin-center">
+          <div class="flex items-center gap-[3px] whitespace-nowrap origin-center" #successAmount>
             <span class="text-[40px] font-normal leading-5 tracking-[-2px] text-content-primary text-center">&ndash;{{ state.requiredAmountHuman() }}</span>
             <div class="relative size-9 shrink-0">
               <span class="size-9 shrink-0 [&_img]:size-full [&_img]:rounded-full">

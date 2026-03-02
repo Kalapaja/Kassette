@@ -1,4 +1,5 @@
 import {
+  afterEveryRender,
   Component,
   computed,
   effect,
@@ -126,8 +127,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private recoveryInterval: ReturnType<typeof setInterval> | null = null;
   private walletEffectCleanup: (() => void) | null = null;
 
-  // ── Template view child ──
+  // ── Template view children ──
   searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+  successAmount = viewChild<ElementRef<HTMLElement>>('successAmount');
 
   // ── Computed signals for template ──
   readonly isSheetOpen = computed(() => {
@@ -186,6 +188,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   constructor() {
     // Wallet connection effect — must be created in constructor for injection context
     this.walletEffectCleanup = this.createWalletEffect();
+
+    // Scale success amount text to fit container after each render (like Lit's updated())
+    afterEveryRender(() => this.scaleSuccessAmount());
   }
 
   // ── Lifecycle ──
@@ -384,6 +389,19 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   truncateHash(hash: string): string {
     if (!hash) return '';
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+  }
+
+  private scaleSuccessAmount(): void {
+    const el = this.successAmount()?.nativeElement;
+    if (!el) return;
+    const parent = el.parentElement;
+    if (!parent) return;
+    el.style.transform = 'none';
+    const available = parent.clientWidth;
+    const natural = el.scrollWidth;
+    if (natural > available) {
+      el.style.transform = `scale(${available / natural})`;
+    }
   }
 
   // ── Orchestration methods ──
