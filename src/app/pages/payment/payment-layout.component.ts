@@ -86,16 +86,6 @@ const GAS_BUMP_MULTIPLIER = 1.15;
     BalanceItemComponent,
     BottomSheetComponent,
   ],
-  styles: `
-    :host {
-      display: block;
-      font-family: var(--font-family);
-      width: 100%;
-      min-height: 100vh;
-      min-height: 100dvh;
-      background: var(--fill-primary);
-    }
-  `,
   host: {
     '[attr.data-step]': 'state.currentStep()',
   },
