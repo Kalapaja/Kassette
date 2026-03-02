@@ -1,12 +1,10 @@
-import { inject } from '@angular/core';
-import { type CanActivateFn, Router } from '@angular/router';
+import { type CanActivateFn } from '@angular/router';
 
 export const invoiceGuard: CanActivateFn = (route) => {
-  const router = inject(Router);
-  const invoiceId = route.paramMap.get('invoiceId');
+  const invoiceId = route.queryParamMap.get('invoice_id');
 
   if (!invoiceId) {
-    return router.parseUrl('/pay');
+    return false;
   }
 
   return true;

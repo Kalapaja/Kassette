@@ -5,7 +5,6 @@ import {
   effect,
   ElementRef,
   inject,
-  input,
   OnDestroy,
   OnInit,
   signal,
@@ -92,10 +91,7 @@ const GAS_BUMP_MULTIPLIER = 1.15;
   },
 })
 export class PaymentLayoutComponent implements OnInit, OnDestroy {
-  // ── Inputs (invoiceId bound from route via withComponentInputBinding) ──
-  invoiceId = input<string>('');
-
-  // ── Config signals (not route-bound — read from environment / runtime config) ──
+  // ── Config signals (read from environment / runtime config) ──
   readonly merchantName = signal(environment.merchantName || '');
   readonly merchantLogo = signal(environment.merchantLogoUrl || '');
   readonly projectId = signal(environment.projectId || '');
@@ -215,10 +211,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     });
 
     // Load invoice
-    const params = new URLSearchParams(globalThis.location.search);
-    const effectiveInvoiceId = this.invoiceId() || params.get('invoice_id') || '';
-    if (effectiveInvoiceId) {
-      this.loadInvoice(effectiveInvoiceId);
+    const invoiceId = this.getInvoiceId();
+    if (invoiceId) {
+      this.loadInvoice(invoiceId);
     }
   }
 
@@ -675,7 +670,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
     const invoice = this.state.invoice()!;
     const requiredAmount = this.state.requiredAmount();
-    const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+    const invoiceId = this.getInvoiceId();
 
     const hash = await this.paymentService.submitTransfer(
       selectedTokenAddress,
@@ -718,7 +713,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
     const invoice = this.state.invoice()!;
     const account = this.state.connectedAccount()!;
-    const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+    const invoiceId = this.getInvoiceId();
 
     // Approval for ERC20 (not native) -- approve for maxAmountIn to cover slippage
     if (!uniQuote.isNativeToken) {
@@ -777,7 +772,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
     const invoice = this.state.invoice()!;
     const config = this.appKit.wagmiConfig!;
-    const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+    const invoiceId = this.getInvoiceId();
 
     if (acrossQuote.approvalTxns.length > 0) {
       this.state.transition('approving');
@@ -834,7 +829,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     invoice: Invoice,
     record: PendingTxRecord,
   ): Promise<void> {
-    const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+    const invoiceId = this.getInvoiceId();
     // Populate context from persisted record
     const chain = CHAINS_BY_ID[record.chainId];
     this.state.applyContext({
@@ -922,7 +917,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         );
         if (receipt) {
           this.ngZone.run(() => {
-            const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+            const invoiceId = this.getInvoiceId();
             this.stopRecoveryMonitoring();
             this.invoiceService.registerSwap({
               invoice_id: invoiceId,
@@ -985,7 +980,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const txHash = this.state.txHash();
     const selectedChainId = this.state.selectedChainId()!;
     const config = this.appKit.wagmiConfig!;
-    const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+    const invoiceId = this.getInvoiceId();
 
     try {
       // 1. Verify wallet is connected
@@ -1078,7 +1073,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   onDismissRecovery(): void {
-    const invoiceId = this.invoiceId() || new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
+    const invoiceId = this.getInvoiceId();
     this.stopRecoveryMonitoring();
     this.pendingTxService.remove(invoiceId);
     this.state.transition('token-select', {
@@ -1086,6 +1081,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       pendingTxTimestamp: '',
       errorMessage: '',
     });
+  }
+
+  private getInvoiceId(): string {
+    return new URLSearchParams(globalThis.location.search).get('invoice_id') || '';
   }
 
   private formatAddress(address: string): string {

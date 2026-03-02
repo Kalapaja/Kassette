@@ -4,10 +4,9 @@ import { invoiceGuard } from './pages/payment/guards/invoice.guard';
 
 export const routes: Routes = [
   {
-    path: 'pay/:invoiceId',
+    path: '',
     component: PaymentLayoutComponent,
     canActivate: [invoiceGuard],
   },
-  { path: '', redirectTo: 'pay', pathMatch: 'full' },
-  { path: '**', redirectTo: 'pay' },
+  { path: '**', redirectTo: '' },
 ];
