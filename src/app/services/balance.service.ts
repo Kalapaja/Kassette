@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
 import {
   createPublicClient,
   erc20Abi,
@@ -17,8 +18,10 @@ import {
   unichain,
 } from 'viem/chains';
 
+import { ANKR_API_URL, ANKR_CHAIN_MAP, ANKR_TIMEOUT_MS, UNICHAIN_CHAIN_ID, type AnkrAsset, type AnkrJsonRpcResponse } from '@/app/config/ankr';
 import { SUPPORTED_CHAINS, type ChainConfig } from '@/app/config/chains';
-import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
+import { findToken, getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
+import { firstValueFrom, timeout } from 'rxjs';
 
 const VIEM_CHAINS: Record<number, Chain> = {
   1: mainnet,
@@ -35,6 +38,7 @@ const MAX_CONCURRENCY = 2;
 
 @Injectable({ providedIn: 'root' })
 export class BalanceService {
+  private readonly http = inject(HttpClient);
   private _clients: Map<number, PublicClient> = new Map();
   private _cache: Map<string, bigint> = new Map();
 
@@ -57,8 +61,94 @@ export class BalanceService {
     userAddress: `0x${string}`,
     tokens: TokenConfig[],
   ): Promise<Map<string, bigint>> {
-    const results = await this._fetchAllViaRpc(userAddress, tokens);
+    const results = new Map<string, bigint>();
+
+    // Split tokens: Ankr-supported chains vs Unichain
+    const unichainTokens = tokens.filter(t => t.chainId === UNICHAIN_CHAIN_ID);
+
+    // Run Ankr + Unichain RPC in parallel
+    const [ankrResult, unichainResult] = await Promise.allSettled([
+      this._fetchViaAnkr(userAddress, tokens),
+      this._fetchChainViaRpc(UNICHAIN_CHAIN_ID, userAddress, unichainTokens),
+    ]);
+
+    // Merge Unichain results (always from RPC)
+    if (unichainResult.status === 'fulfilled') {
+      for (const [key, value] of unichainResult.value) {
+        results.set(key, value);
+      }
+    }
+
+    if (ankrResult.status === 'fulfilled') {
+      // Ankr succeeded — merge its results
+      for (const [key, value] of ankrResult.value) {
+        results.set(key, value);
+      }
+    } else {
+      // Ankr failed — fall back to per-chain RPC for all non-Unichain chains
+      console.warn('[BalanceService] Ankr API failed, falling back to per-chain RPC:', ankrResult.reason);
+      const rpcTokens = tokens.filter(t => t.chainId !== UNICHAIN_CHAIN_ID);
+      const fallbackResults = await this._fetchAllViaRpc(userAddress, rpcTokens);
+      for (const [key, value] of fallbackResults) {
+        results.set(key, value);
+      }
+    }
+
     this._cache = new Map(results);
+    return results;
+  }
+
+  private async _fetchViaAnkr(
+    userAddress: string,
+    tokens: TokenConfig[],
+  ): Promise<Map<string, bigint>> {
+    const body = {
+      id: 1,
+      jsonrpc: '2.0',
+      method: 'ankr_getAccountBalance',
+      params: {
+        walletAddress: userAddress,
+        blockchain: Object.keys(ANKR_CHAIN_MAP),
+        onlyWhitelisted: true,
+      },
+    };
+
+    const response = await firstValueFrom(
+      this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(
+        timeout(ANKR_TIMEOUT_MS),
+      ),
+    );
+
+    if (!response?.result?.assets) {
+      throw new Error('Invalid Ankr response: missing result.assets');
+    }
+
+    return this._mapAnkrAssets(response.result.assets, tokens);
+  }
+
+  private _mapAnkrAssets(
+    assets: AnkrAsset[],
+    tokens: TokenConfig[],
+  ): Map<string, bigint> {
+    const results = new Map<string, bigint>();
+
+    for (const asset of assets) {
+      const chainId = ANKR_CHAIN_MAP[asset.blockchain];
+      if (chainId === undefined) continue;
+
+      const isNative = asset.tokenType === 'NATIVE' || !asset.contractAddress;
+      const address = isNative
+        ? NATIVE_TOKEN_ADDRESS
+        : asset.contractAddress as `0x${string}`;
+
+      const token = findToken(chainId, address);
+      if (!token) continue;
+
+      const key = getTokenKey(chainId, address);
+      const balance = BigInt(asset.balanceRawInteger || '0');
+      results.set(key, balance);
+    }
+
     return results;
   }
 
