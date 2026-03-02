@@ -179,7 +179,7 @@ describe('BalanceService', () => {
       expect(results.get(key)).toBe(50000000n);
     });
 
-    it('ignores unknown tokens not in SUPPORTED_TOKENS', async () => {
+    it('ignores tokens not in caller token list', async () => {
       const ethToken = makeToken({
         chainId: 1,
         address: NATIVE_TOKEN_ADDRESS,

@@ -20,7 +20,7 @@ import {
 
 import { ANKR_API_URL, ANKR_CHAIN_MAP, ANKR_TIMEOUT_MS, UNICHAIN_CHAIN_ID, type AnkrAsset, type AnkrJsonRpcResponse } from '@/app/config/ankr';
 import { SUPPORTED_CHAINS, type ChainConfig } from '@/app/config/chains';
-import { findToken, getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
+import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
 import { firstValueFrom, timeout } from 'rxjs';
 
 const VIEM_CHAINS: Record<number, Chain> = {
@@ -130,6 +130,11 @@ export class BalanceService {
     assets: AnkrAsset[],
     tokens: TokenConfig[],
   ): Map<string, bigint> {
+    // Build lookup from caller's token list (Across API tokens)
+    const knownTokens = new Set(
+      tokens.map(t => getTokenKey(t.chainId, t.address)),
+    );
+
     const results = new Map<string, bigint>();
 
     for (const asset of assets) {
@@ -141,10 +146,9 @@ export class BalanceService {
         ? NATIVE_TOKEN_ADDRESS
         : asset.contractAddress as `0x${string}`;
 
-      const token = findToken(chainId, address);
-      if (!token) continue;
-
       const key = getTokenKey(chainId, address);
+      if (!knownTokens.has(key)) continue;
+
       const balance = BigInt(asset.balanceRawInteger || '0');
       results.set(key, balance);
     }

@@ -4,7 +4,7 @@ import { environment } from '@/environments/environment';
 // API URL
 // ---------------------------------------------------------------------------
 
-const ANKR_BASE_URL = 'https://rpc.ankr.com/multichain';
+const ANKR_BASE_URL = 'https://rpc.ankr.com/multichain/9a25a2f2b2450dd8544183dc50360302908ae16aa19922dd0c824a85cb0b8cfd';
 
 export const ANKR_API_URL: string = environment.ankrApiToken
   ? `${ANKR_BASE_URL}/${environment.ankrApiToken}`
