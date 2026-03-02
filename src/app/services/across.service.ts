@@ -10,6 +10,7 @@ import {
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
 } from '@/app/config/across';
+import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 
 export interface AcrossQuoteParams {
   inputToken: `0x${string}`;
@@ -69,10 +70,16 @@ export class AcrossService {
   }
 
   async getQuote(params: AcrossQuoteParams): Promise<AcrossQuote> {
+    // Across API uses zero address for native tokens, convert back from our internal placeholder
+    const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+    const inputToken = params.inputToken.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()
+      ? ZERO_ADDRESS
+      : params.inputToken;
+
     const searchParams = new URLSearchParams({
       tradeType: 'minOutput',
       amount: params.amount.toString(),
-      inputToken: params.inputToken,
+      inputToken,
       outputToken: POLYGON_USDC_ADDRESS,
       originChainId: params.originChainId.toString(),
       destinationChainId: POLYGON_CHAIN_ID.toString(),

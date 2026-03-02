@@ -7,7 +7,7 @@ import {
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
 } from '@/app/config/across';
-import { SUPPORTED_TOKENS, type TokenConfig } from '@/app/config/tokens';
+import { NATIVE_TOKEN_ADDRESS, SUPPORTED_TOKENS, type TokenConfig } from '@/app/config/tokens';
 
 interface AcrossTokenResponse {
   address: string;
@@ -43,14 +43,23 @@ export class TokenService {
         ),
       );
 
-      this._tokens = data.map((t) => ({
-        chainId: t.chainId,
-        address: t.address.toLowerCase() as `0x${string}`,
-        symbol: t.symbol,
-        decimals: t.decimals,
-        logoUrl: t.logoUrl ?? '',
-        priceUsd: t.priceUsd ? parseFloat(t.priceUsd) : undefined,
-      }));
+      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+      this._tokens = data.map((t) => {
+        const raw = t.address.toLowerCase();
+        // Normalize zero address to our native token placeholder so Ankr
+        // balances (which use NATIVE_TOKEN_ADDRESS) match correctly.
+        const address = (raw === ZERO_ADDRESS ? NATIVE_TOKEN_ADDRESS.toLowerCase() : raw) as `0x${string}`;
+
+        return {
+          chainId: t.chainId,
+          address,
+          symbol: t.symbol,
+          decimals: t.decimals,
+          logoUrl: t.logoUrl ?? '',
+          priceUsd: t.priceUsd ? parseFloat(t.priceUsd) : undefined,
+        };
+      });
 
       // Ensure Polygon USDC is always present
       const hasPolygonUsdc = this._tokens.some(
@@ -89,7 +98,11 @@ export class TokenService {
     chainId: number,
     address: `0x${string}`,
   ): TokenConfig | undefined {
-    const key = `${chainId}:${address.toLowerCase()}`;
+    const raw = address.toLowerCase();
+    const normalized = raw === '0x0000000000000000000000000000000000000000'
+      ? NATIVE_TOKEN_ADDRESS.toLowerCase()
+      : raw;
+    const key = `${chainId}:${normalized}`;
     return this._tokens.find(
       (t) => `${t.chainId}:${t.address.toLowerCase()}` === key,
     );
