@@ -1,0 +1,10 @@
+:host(:focus-within) .input-wrapper {
+  border-color: var(--content-primary);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+input::placeholder {
+  color: var(--content-primary);
+  opacity: 0.3;
+}

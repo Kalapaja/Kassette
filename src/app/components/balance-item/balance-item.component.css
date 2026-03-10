@@ -1,0 +1,11 @@
+.icon ::ng-deep * {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.chain-badge ::ng-deep * {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}

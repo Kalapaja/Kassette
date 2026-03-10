@@ -1,0 +1,15 @@
+:host {
+  display: block;
+  font-family: var(--font-family);
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--fill-primary);
+}
+
+/* === Desktop === */
+@media (min-width: 1200px) {
+  :host(:not([data-step="idle"])) .cta {
+    display: none;
+  }
+}

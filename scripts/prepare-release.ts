@@ -11,7 +11,7 @@
  *   VERSION=1.0.0 deno task release:prepare
  */
 
-const DIST_DIR = "./dist";
+const DIST_DIR = "./dist/browser";
 const JS_FILE = "payment-page.js";
 
 /**

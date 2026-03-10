@@ -1,0 +1,15 @@
+:host([disabled]) {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+:host(:hover) .checkbox {
+  border-color: var(--content-primary);
+}
+
+:host(:focus-visible) .checkbox {
+  border-color: var(--content-primary);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
