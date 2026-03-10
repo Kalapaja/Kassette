@@ -25,15 +25,15 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
     name: "Polygon",
     logoUrl: "https://coin-images.coingecko.com/coins/images/4713/large/polygon.png",
     explorerUrl: "https://polygonscan.com",
-    rpcUrl: "https://polygon-rpc.com",
-    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+    rpcUrl: "https://polygon.drpc.org",
+    nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
   },
   {
     chainId: 56,
     name: "BNB Chain",
     logoUrl: "https://coin-images.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
     explorerUrl: "https://bscscan.com",
-    rpcUrl: "https://bsc-dataseed.binance.org",
+    rpcUrl: "https://bsc.drpc.org",
     nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
   },
   {

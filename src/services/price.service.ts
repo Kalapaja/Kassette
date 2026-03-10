@@ -7,6 +7,18 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const MAX_URL_LENGTH = 4000;
 const BASE_URL = "https://coins.llama.fi/prices/current/";
 
+/** Maps chainId → CoinGecko ID used by DefiLlama for native gas tokens. */
+const NATIVE_COINGECKO_IDS: Record<number, string> = {
+  1: "coingecko:ethereum",
+  137: "coingecko:polygon-ecosystem-token",
+  56: "coingecko:binancecoin",
+  42161: "coingecko:ethereum", // Arbitrum uses ETH
+  10: "coingecko:ethereum",   // Optimism uses ETH
+  8453: "coingecko:ethereum",  // Base uses ETH
+  59144: "coingecko:ethereum", // Linea uses ETH
+  130: "coingecko:ethereum",   // Unichain uses ETH
+};
+
 interface TokenRef {
   chainId: number;
   address: string;
@@ -16,17 +28,38 @@ export class PriceService {
   async fetchPrices(tokens: TokenRef[]): Promise<Map<string, number>> {
     const prices = new Map<string, number>();
 
-    // Build DefiLlama coin keys, skipping native placeholders and deduplicating
+    // Build DefiLlama coin keys, handling native tokens via coingecko IDs
     const seen = new Set<string>();
     const coinKeys: string[] = [];
     const keyToTokenKey = new Map<string, string>();
+    // Track native tokens that share a coingecko key (e.g. ETH on multiple chains)
+    const nativeCoinKeyToTokenKeys = new Map<string, string[]>();
 
     for (const token of tokens) {
       const chainName = DEFILLAMA_CHAIN_NAMES[token.chainId];
       if (!chainName) continue;
 
       const addr = token.address.toLowerCase();
-      if (addr === NATIVE_TOKEN_ADDRESS.toLowerCase() || addr === ZERO_ADDRESS) continue;
+      const isNative = addr === NATIVE_TOKEN_ADDRESS.toLowerCase() || addr === ZERO_ADDRESS;
+
+      if (isNative) {
+        const cgKey = NATIVE_COINGECKO_IDS[token.chainId];
+        if (!cgKey) continue;
+
+        const tokenKey = getTokenKey(token.chainId, token.address);
+        const existing = nativeCoinKeyToTokenKeys.get(cgKey);
+        if (existing) {
+          existing.push(tokenKey);
+        } else {
+          nativeCoinKeyToTokenKeys.set(cgKey, [tokenKey]);
+        }
+
+        if (!seen.has(cgKey)) {
+          seen.add(cgKey);
+          coinKeys.push(cgKey);
+        }
+        continue;
+      }
 
       const coinKey = `${chainName}:${token.address}`;
       const coinKeyLower = coinKey.toLowerCase();
@@ -37,12 +70,10 @@ export class PriceService {
       keyToTokenKey.set(coinKeyLower, getTokenKey(token.chainId, token.address));
     }
 
-    console.log(`[PriceService] Fetching prices for ${coinKeys.length} tokens (${seen.size} unique)`);
     if (coinKeys.length === 0) return prices;
 
     // Split into batches that fit under URL length limit
     const batches = this._buildBatches(coinKeys);
-    console.log(`[PriceService] Split into ${batches.length} batches`);
 
     const results = await Promise.allSettled(
       batches.map((batch) => this._fetchBatch(batch)),
@@ -54,16 +85,23 @@ export class PriceService {
         continue;
       }
       for (const [coinKey, price] of result.value) {
+        // Check ERC-20 mapping
         const tokenKey = keyToTokenKey.get(coinKey.toLowerCase());
         if (tokenKey) {
           prices.set(tokenKey, price);
-        } else {
-          console.warn("[PriceService] No tokenKey mapping for coinKey:", coinKey);
+          continue;
+        }
+
+        // Check native token mapping (one coingecko key → multiple chain token keys)
+        const nativeKeys = nativeCoinKeyToTokenKeys.get(coinKey);
+        if (nativeKeys) {
+          for (const nk of nativeKeys) {
+            prices.set(nk, price);
+          }
         }
       }
     }
 
-    console.log(`[PriceService] Resolved ${prices.size} prices`);
     return prices;
   }
 
@@ -90,12 +128,8 @@ export class PriceService {
     const result = new Map<string, number>();
     const url = `${BASE_URL}${keys.join(",")}`;
     try {
-      console.log(`[PriceService] Fetching batch: ${keys.length} keys, URL length: ${url.length}`);
       const res = await fetch(url);
-      console.log(`[PriceService] Batch response status: ${res.status}`);
       const data = await res.json() as { coins: Record<string, { price: number }> };
-      const coinCount = Object.keys(data.coins).length;
-      console.log(`[PriceService] Batch returned ${coinCount} coins`);
       for (const [coinKey, info] of Object.entries(data.coins)) {
         if (info.price > 0) result.set(coinKey, info.price);
       }

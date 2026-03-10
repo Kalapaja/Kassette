@@ -47,8 +47,6 @@ export class BalanceService {
   async getBalances(userAddress: `0x${string}`, tokens: TokenConfig[]): Promise<Map<string, bigint>> {
     const results = new Map<string, bigint>();
 
-    console.log(`[BalanceService] getBalances called with ${tokens.length} tokens, clients for chains:`, [...this._clients.keys()]);
-
     // Group tokens by chainId, only for chains we have clients
     const tokensByChain = new Map<number, TokenConfig[]>();
     for (const token of tokens) {
@@ -58,8 +56,6 @@ export class BalanceService {
       tokensByChain.set(token.chainId, list);
     }
 
-    console.log(`[BalanceService] Tokens grouped into ${tokensByChain.size} chains:`, [...tokensByChain.entries()].map(([id, t]) => `${id}(${t.length})`));
-
     const chainEntries = [...tokensByChain.entries()];
 
     // Process chains in batches to avoid rate limiting
@@ -68,7 +64,6 @@ export class BalanceService {
       const batchPromises = batch.map(([chainId, chainTokens]) =>
         this._getChainBalances(chainId, userAddress, chainTokens)
           .then((chainBalances) => {
-            console.log(`[BalanceService] Chain ${chainId}: got ${chainBalances.size} balances`);
             for (const [key, value] of chainBalances) {
               results.set(key, value);
             }
@@ -101,14 +96,11 @@ export class BalanceService {
     const erc20Tokens = tokens.filter((t) => !isNative(t.address));
     const nativeTokens = tokens.filter((t) => isNative(t.address));
 
-    console.log(`[BalanceService] Chain ${chainId}: ${nativeTokens.length} native, ${erc20Tokens.length} ERC20`);
-
     const balances = new Map<string, bigint>();
 
     // Fetch native balance
     const nativePromise = nativeTokens.length > 0
       ? client.getBalance({ address: userAddress }).then((bal) => {
-          console.log(`[BalanceService] Chain ${chainId} native balance: ${bal}`);
           for (const nt of nativeTokens) {
             balances.set(getTokenKey(chainId, nt.address), bal);
           }
@@ -142,21 +134,14 @@ export class BalanceService {
     }));
 
     try {
-      console.log(`[BalanceService] Chain ${chainId}: multicall for ${contracts.length} tokens`);
       const results = await client.multicall({ contracts });
 
-      let successCount = 0;
-      let failCount = 0;
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         if (result.status === "success" && typeof result.result === "bigint") {
           balances.set(getTokenKey(chainId, tokens[i].address), result.result);
-          successCount++;
-        } else {
-          failCount++;
         }
       }
-      console.log(`[BalanceService] Chain ${chainId}: multicall results — ${successCount} success, ${failCount} failed`);
     } catch (e) {
       console.error(`[BalanceService] Chain ${chainId}: multicall error:`, e);
     }

@@ -11,13 +11,13 @@ import { InvoiceService } from "../services/invoice.service.ts";
 import { BalanceService } from "../services/balance.service.ts";
 import { PaymentService } from "../services/payment.service.ts";
 import { TokenService } from "../services/token.service.ts";
-import { AcrossService } from "../services/across.service.ts";
-import { UniswapService } from "../services/uniswap.service.ts";
+import { SwapService } from "../services/swap.service.ts";
 import {
   type PaymentPath,
   type QuoteResult,
   QuoteService,
 } from "../services/quote.service.ts";
+import { PriceService } from "../services/price.service.ts";
 import { PendingTxService, type PendingTxRecord } from "@/services/pending-tx.service.ts";
 import type { Invoice } from "../types/invoice.types.ts";
 import {
@@ -25,9 +25,15 @@ import {
   isExpiredStatus,
   isFinalStatus,
 } from "../types/invoice.types.ts";
-import { getTokenKey } from "../config/tokens.ts";
+import {
+  isAcrossSwap,
+  isBungeeSwap,
+  type PublicSwap,
+  type AcrossSwapDetails,
+  type BungeeSwapDetails,
+} from "../types/swap.types.ts";
+import { getTokenKey, NATIVE_TOKEN_ADDRESS } from "../config/tokens.ts";
 import { CHAINS_BY_ID } from "../config/chains.ts";
-import { UNISWAP_SWAP_ROUTER_02 } from "../config/uniswap.ts";
 import { createPublicClient, http, formatUnits, parseUnits, type Hash, type TransactionReceipt, type Chain } from "viem";
 import {
   mainnet,
@@ -1404,9 +1410,9 @@ export class PaymentPage extends LitElement {
   private _balanceService: BalanceService | null = null;
   private _paymentService: PaymentService | null = null;
   private _tokenService: TokenService | null = null;
-  private _acrossService: AcrossService | null = null;
-  private _uniswapService: UniswapService | null = null;
+  private _swapService: SwapService | null = null;
   private _quoteService: QuoteService | null = null;
+  private _priceService: PriceService | null = null;
   private _pendingTxService: PendingTxService | null = null;
   private _quoteRequestId = 0;
   private _unsubscribeAccount: (() => void) | null = null;
@@ -1464,9 +1470,7 @@ export class PaymentPage extends LitElement {
     this._invoiceService = new InvoiceService();
     this._balanceService = new BalanceService();
     this._tokenService = new TokenService();
-    this._tokenService.init().catch(() => {
-      // Falls back to SUPPORTED_TOKENS internally
-    });
+    this._tokenService.init();
     this._pendingTxService = new PendingTxService();
     this._initializeWallet();
     const params = new URLSearchParams(globalThis.location.search);
@@ -1488,9 +1492,9 @@ export class PaymentPage extends LitElement {
     this._balanceService?.destroy();
     this._paymentService?.destroy();
     this._tokenService?.destroy();
-    this._acrossService?.destroy();
-    this._uniswapService?.destroy();
+    this._swapService?.destroy();
     this._quoteService?.destroy();
+    this._priceService?.destroy();
     if (this._redirectTimer) {
       clearInterval(this._redirectTimer);
     }
@@ -1697,16 +1701,11 @@ export class PaymentPage extends LitElement {
     const config = this._walletService!.wagmiConfig;
     if (config) {
       this._paymentService?.destroy();
-      this._acrossService?.destroy();
-      this._uniswapService?.destroy();
+      this._swapService?.destroy();
       this._quoteService?.destroy();
       this._paymentService = new PaymentService(config);
-      this._acrossService = new AcrossService(config);
-      this._uniswapService = new UniswapService(config);
-      this._quoteService = new QuoteService(
-        this._acrossService,
-        this._uniswapService,
-      );
+      this._swapService = new SwapService(config);
+      this._quoteService = new QuoteService(this._swapService);
     }
     this._transition("token-select");
     this._loadingTokens = true;
@@ -1717,24 +1716,26 @@ export class PaymentPage extends LitElement {
   private async _loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
     const allTokens = this._tokenService!.getAllTokens();
 
-    // Build prices map from Across API data (already in TokenService)
-    this._prices = new Map();
-    for (const token of allTokens) {
-      if (token.priceUsd && token.priceUsd > 0) {
-        this._prices.set(
-          getTokenKey(token.chainId, token.address),
-          token.priceUsd,
-        );
-      }
+    if (!this._priceService) {
+      this._priceService = new PriceService();
     }
 
-    try {
-      this._balances = await this._balanceService!.getBalances(
-        address,
-        allTokens,
-      );
-    } catch (e) {
-      console.error("[PaymentPage] Balance fetch failed:", e);
+    const [pricesResult, balancesResult] = await Promise.allSettled([
+      this._priceService.fetchPrices(allTokens),
+      this._balanceService!.getBalances(address, allTokens),
+    ]);
+
+    if (pricesResult.status === "fulfilled") {
+      this._prices = pricesResult.value;
+    } else {
+      console.warn("[PaymentPage] Price fetch failed:", pricesResult.reason);
+      this._prices = new Map();
+    }
+
+    if (balancesResult.status === "fulfilled") {
+      this._balances = balancesResult.value;
+    } else {
+      console.error("[PaymentPage] Balance fetch failed:", balancesResult.reason);
     }
   }
 
@@ -1745,6 +1746,9 @@ export class PaymentPage extends LitElement {
 
     const options: TokenOption[] = [];
     for (const token of this._tokenService!.getAllTokens()) {
+      // Skip native tokens — only ERC-20 tokens can be used for payment
+      if (token.address.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) continue;
+
       const key = getTokenKey(token.chainId, token.address);
       const price = this._prices.get(key);
       if (!price || price <= 0) continue;
@@ -1816,8 +1820,7 @@ export class PaymentPage extends LitElement {
           path: "direct",
           userPayAmount: amount,
           userPayAmountHuman: this._context.invoice!.amount,
-          acrossQuote: null,
-          uniswapQuote: null,
+          swap: null,
         },
       });
       return;
@@ -1852,23 +1855,17 @@ export class PaymentPage extends LitElement {
           .address as `0x${string}`,
         recipientAddress: this._context.invoice!
           .payment_address as `0x${string}`,
+        invoiceId: this._context.invoice!.id,
       });
 
       if (requestId !== this._quoteRequestId) return; // stale response
       const fiatValue = parseFloat(quote.userPayAmountHuman) * usdPrice;
 
-      // Extract fees from quote
-      let exchangeFee = "";
-      let gasFee = "";
-      if (quote.acrossQuote) {
-        const f = quote.acrossQuote.fees;
-        exchangeFee = fiatPartsToString(formatFiat(parseFloat(f.totalFeeUsd), this._locale));
-        gasFee = fiatPartsToString(formatFiat(parseFloat(f.originGasFeeUsd), this._locale));
-      } else if (quote.uniswapQuote) {
-        const feePct = quote.uniswapQuote.feeTier / 1_000_000;
-        const feeUsd = fiatValue * feePct;
-        exchangeFee = fiatPartsToString(formatFiat(feeUsd, this._locale));
-      }
+      // Compute exchange fee as difference between what user pays and invoice amount
+      const invoiceAmountUsd = parseFloat(this._context.invoice!.amount);
+      const feeUsd = Math.max(0, fiatValue - invoiceAmountUsd);
+      const exchangeFee = fiatPartsToString(formatFiat(feeUsd, this._locale));
+      const gasFee = "";
 
       this._transition("ready-to-pay", {
         requiredAmount: quote.userPayAmount,
@@ -1911,11 +1908,8 @@ export class PaymentPage extends LitElement {
         case "direct":
           await this._executeDirect();
           break;
-        case "same-chain-swap":
-          await this._executeUniswapSwap();
-          break;
-        case "cross-chain":
-          await this._executeAcrossSwap();
+        case "swap":
+          await this._executeSwap();
           break;
       }
     } catch (err: unknown) {
@@ -1950,7 +1944,7 @@ export class PaymentPage extends LitElement {
       amount: requiredAmount.toString(),
       amountHuman: this._context.requiredAmountHuman,
       invoiceId: this.invoiceId,
-      paymentPath: this._context.paymentPath!,
+      paymentPath: "direct",
       timestamp: new Date().toISOString(),
       invoiceValidTill: invoice!.valid_till,
     });
@@ -1959,7 +1953,7 @@ export class PaymentPage extends LitElement {
 
     this._invoiceService!.registerSwap({
       invoice_id: this.invoiceId,
-      from_amount_units: Number(requiredAmount),
+      from_amount_units: requiredAmount.toString(),
       from_chain_id: this._context.selectedChainId!,
       from_asset_id: selectedTokenAddress!,
       transaction_hash: receipt.transactionHash,
@@ -1969,99 +1963,62 @@ export class PaymentPage extends LitElement {
     this._startPolling();
   }
 
-  private async _executeUniswapSwap(): Promise<void> {
-    const { quote, selectedTokenAddress, invoice } = this._context;
-    const uniQuote = quote!.uniswapQuote!;
-    const account = this._walletService!.getAccount()!;
+  private async _executeSwap(): Promise<void> {
+    const { quote } = this._context;
+    const swap = quote!.swap!;
 
-    // Approval for ERC20 (not native) — approve for maxAmountIn to cover slippage
-    if (!uniQuote.isNativeToken) {
-      const maxAmountIn = (uniQuote.amountIn * 105n) / 100n;
-      const allowance = await this._paymentService!.checkAllowance(
-        selectedTokenAddress!,
-        UNISWAP_SWAP_ROUTER_02,
-        account.address as `0x${string}`,
+    if (isAcrossSwap(swap)) {
+      await this._executeAcrossSwap(swap);
+    } else if (isBungeeSwap(swap)) {
+      await this._executeBungeeSwap(swap);
+    }
+  }
+
+  private async _executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void> {
+    const details = swap.swap_details;
+
+    if (details.raw_transaction.approval_transactions.length > 0) {
+      this._transition("approving");
+      await this._swapService!.executeAcrossApprovals(
+        details.raw_transaction.approval_transactions,
       );
-      if (allowance < maxAmountIn) {
-        this._transition("approving");
-        const approveHash = await this._paymentService!.submitApprove(
-          selectedTokenAddress!,
-          UNISWAP_SWAP_ROUTER_02,
-          maxAmountIn,
-        );
-        await this._paymentService!.waitForReceipt(approveHash);
-      }
     }
 
     this._transition("executing");
-    const swapHash = await this._uniswapService!.submitSwap(uniQuote);
+    const txHash = await this._swapService!.executeAcrossTx(
+      details.raw_transaction.transaction,
+    );
 
-    this._context = { ...this._context, txHash: swapHash };
-    this._pendingTxService!.save({
-      txHash: swapHash,
-      chainId: this._context.selectedChainId!,
-      tokenAddress: selectedTokenAddress!,
-      tokenSymbol: this._context.selectedTokenSymbol,
-      tokenDecimals: this._context.selectedTokenDecimals,
-      amount: this._context.requiredAmount.toString(),
-      amountHuman: this._context.requiredAmountHuman,
-      invoiceId: this.invoiceId,
-      paymentPath: this._context.paymentPath!,
-      timestamp: new Date().toISOString(),
-      invoiceValidTill: invoice!.valid_till,
-    });
+    this._context = { ...this._context, txHash };
 
-    await this._paymentService!.waitForReceipt(swapHash as Hash);
+    await waitForTransactionReceipt(this._walletService!.wagmiConfig!, { hash: txHash as Hash });
 
-    this._invoiceService!.registerSwap({
-      invoice_id: this.invoiceId,
-      from_amount_units: Number(this._context.requiredAmount),
-      from_chain_id: this._context.selectedChainId!,
-      from_asset_id: this._context.selectedTokenAddress!,
-      transaction_hash: swapHash,
-    });
-    this._pendingTxService!.remove(this.invoiceId);
+    await this._swapService!.submitSwapTransaction(swap.id, txHash);
     this._transition("polling");
     this._startPolling();
   }
 
-  private async _executeAcrossSwap(): Promise<void> {
-    const { quote, selectedTokenAddress, invoice } = this._context;
-    const acrossQuote = quote!.acrossQuote!;
+  private async _executeBungeeSwap(swap: PublicSwap & { swap_details: BungeeSwapDetails }): Promise<void> {
+    const details = swap.swap_details;
 
-    if (acrossQuote.approvalTxns.length > 0) {
+    // Token approval for Permit2 if needed
+    if (details.raw_transaction.approval_data) {
       this._transition("approving");
-      await this._acrossService!.executeApprovals(acrossQuote.approvalTxns);
+      await this._swapService!.executeBungeeApprovalIfNeeded(
+        details.raw_transaction.approval_data,
+        this._paymentService!,
+      );
     }
 
+    // EIP-712 signing
     this._transition("executing");
-    const swapHash = await this._acrossService!.submitSwap(acrossQuote.swapTx);
+    const signature = await this._swapService!.signBungeeTypedData(
+      details.raw_transaction.sign_typed_data,
+    );
 
-    this._context = { ...this._context, txHash: swapHash };
-    this._pendingTxService!.save({
-      txHash: swapHash,
-      chainId: this._context.selectedChainId!,
-      tokenAddress: selectedTokenAddress!,
-      tokenSymbol: this._context.selectedTokenSymbol,
-      tokenDecimals: this._context.selectedTokenDecimals,
-      amount: this._context.requiredAmount.toString(),
-      amountHuman: this._context.requiredAmountHuman,
-      invoiceId: this.invoiceId,
-      paymentPath: this._context.paymentPath!,
-      timestamp: new Date().toISOString(),
-      invoiceValidTill: invoice!.valid_till,
-    });
+    // Submit signature to backend — backend submits to Bungee
+    await this._swapService!.submitSwapSignature(swap.id, signature);
 
-    await waitForTransactionReceipt(this._walletService!.wagmiConfig!, { hash: swapHash as Hash });
-
-    this._invoiceService!.registerSwap({
-      invoice_id: this.invoiceId,
-      from_amount_units: Number(this._context.requiredAmount),
-      from_chain_id: this._context.selectedChainId!,
-      from_asset_id: this._context.selectedTokenAddress!,
-      transaction_hash: swapHash,
-    });
-    this._pendingTxService!.remove(this.invoiceId);
     this._transition("polling");
     this._startPolling();
   }
@@ -2084,7 +2041,16 @@ export class PaymentPage extends LitElement {
     invoice: Invoice,
     record: PendingTxRecord,
   ): Promise<void> {
-    // Populate context from persisted record
+    // Swap paths (Across/Bungee) are fully tracked by the backend — no recovery needed.
+    // Remove stale swap records and proceed normally.
+    // New direct records don't have swapExecutor set, so only discard if explicitly non-direct.
+    if (record.swapExecutor && record.swapExecutor !== "direct") {
+      this._pendingTxService!.remove(this.invoiceId);
+      this._transition("idle", { invoice });
+      return;
+    }
+
+    // Direct transfer recovery: check on-chain status
     const chain = CHAINS_BY_ID[record.chainId];
     this._context = {
       ...this._context,
@@ -2101,7 +2067,6 @@ export class PaymentPage extends LitElement {
       selectedTokenLogoUrl: this._resolveTokenLogo(record.chainId, record.tokenAddress),
     };
 
-    // Try to check on-chain status with 5s timeout
     try {
       const receipt = await Promise.race([
         this._getTransactionReceipt(record.txHash as `0x${string}`, record.chainId),
@@ -2109,10 +2074,10 @@ export class PaymentPage extends LitElement {
       ]);
 
       if (receipt) {
-        // Tx already confirmed — go straight to polling
+        // Tx already confirmed — notify backend and go to polling
         this._invoiceService!.registerSwap({
           invoice_id: this.invoiceId,
-          from_amount_units: Number(record.amount),
+          from_amount_units: record.amount,
           from_chain_id: record.chainId,
           from_asset_id: record.tokenAddress,
           transaction_hash: record.txHash,
@@ -2184,7 +2149,7 @@ export class PaymentPage extends LitElement {
           this._stopRecoveryMonitoring();
           this._invoiceService!.registerSwap({
             invoice_id: this.invoiceId,
-            from_amount_units: Number(this._context.requiredAmount),
+            from_amount_units: this._context.requiredAmount.toString(),
             from_chain_id: this._context.selectedChainId!,
             from_asset_id: this._context.selectedTokenAddress!,
             transaction_hash: this._context.txHash,

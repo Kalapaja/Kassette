@@ -1,5 +1,3 @@
-import type { PaymentPath } from "@/services/quote.service.ts";
-
 const KEY_PREFIX = "kp-pending-tx:";
 
 export interface PendingTxRecord {
@@ -11,9 +9,12 @@ export interface PendingTxRecord {
   amount: string;
   amountHuman: string;
   invoiceId: string;
-  paymentPath: PaymentPath;
+  paymentPath: "direct";
   timestamp: string;
   invoiceValidTill: string;
+  // Legacy field — kept for backwards-compat with stale records from swap paths.
+  // Recovery flow discards any record where swapExecutor !== "direct".
+  swapExecutor?: string;
 }
 
 export class PendingTxService {
