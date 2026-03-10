@@ -3,9 +3,11 @@ import { AppComponent } from './app/app.component';
 import { appConfig } from './app/app.config';
 
 async function bootstrap() {
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  if (!import.meta.env.PROD) {
     const { worker } = await import('./mocks/browser');
-    await worker.start({ onUnhandledRequest: 'bypass' });
+    await worker.start({ onUnhandledRequest: 'bypass' }).catch(() => {
+      console.warn('[MSW] Failed to start mock service worker, continuing without mocks');
+    });
   }
 
   await bootstrapApplication(AppComponent, appConfig);

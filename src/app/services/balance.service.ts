@@ -4,35 +4,15 @@ import {
   createPublicClient,
   erc20Abi,
   http,
-  type Chain,
   type PublicClient,
 } from 'viem';
-import {
-  arbitrum,
-  base,
-  bsc,
-  linea,
-  mainnet,
-  optimism,
-  polygon,
-  unichain,
-} from 'viem/chains';
 
+import { isNativeAddress } from '@/app/config/address.utils';
 import { ANKR_API_URL, ANKR_CHAIN_MAP, ANKR_TIMEOUT_MS, UNICHAIN_CHAIN_ID, type AnkrAsset, type AnkrJsonRpcResponse } from '@/app/config/ankr';
 import { SUPPORTED_CHAINS, type ChainConfig } from '@/app/config/chains';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
-import { firstValueFrom, timeout } from 'rxjs';
-
-const VIEM_CHAINS: Record<number, Chain> = {
-  1: mainnet,
-  137: polygon,
-  56: bsc,
-  42161: arbitrum,
-  10: optimism,
-  8453: base,
-  59144: linea,
-  130: unichain,
-};
+import { VIEM_CHAINS } from '@/app/config/viem-chains';
+import { firstValueFrom, TimeoutError, timeout } from 'rxjs';
 
 const MAX_CONCURRENCY = 2;
 
@@ -113,11 +93,19 @@ export class BalanceService {
       },
     };
 
-    const response = await firstValueFrom(
-      this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(
-        timeout(ANKR_TIMEOUT_MS),
-      ),
-    );
+    let response: AnkrJsonRpcResponse;
+    try {
+      response = await firstValueFrom(
+        this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(
+          timeout(ANKR_TIMEOUT_MS),
+        ),
+      );
+    } catch (err) {
+      if (err instanceof TimeoutError) {
+        throw new Error(`Ankr API timed out after ${ANKR_TIMEOUT_MS}ms`);
+      }
+      throw err;
+    }
 
     if (!response?.result?.assets) {
       throw new Error('Invalid Ankr response: missing result.assets');
@@ -201,18 +189,8 @@ export class BalanceService {
     const client = this._clients.get(chainId);
     if (!client) return new Map();
 
-    const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-    const nativeAddr = NATIVE_TOKEN_ADDRESS.toLowerCase();
-    const isNative = (addr: string) => {
-      const a = addr.toLowerCase();
-      return a === nativeAddr || a === ZERO_ADDRESS;
-    };
-    const erc20Tokens = tokens.filter((t) => !isNative(t.address));
-    const nativeTokens = tokens.filter((t) => isNative(t.address));
-
-    console.log(
-      `[BalanceService] Chain ${chainId}: ${nativeTokens.length} native, ${erc20Tokens.length} ERC20`,
-    );
+    const erc20Tokens = tokens.filter((t) => !isNativeAddress(t.address));
+    const nativeTokens = tokens.filter((t) => isNativeAddress(t.address));
 
     const balances = new Map<string, bigint>();
 
@@ -222,9 +200,6 @@ export class BalanceService {
         ? client
             .getBalance({ address: userAddress })
             .then((bal) => {
-              console.log(
-                `[BalanceService] Chain ${chainId} native balance: ${bal}`,
-              );
               for (const nt of nativeTokens) {
                 balances.set(getTokenKey(chainId, nt.address), bal);
               }
@@ -269,13 +244,8 @@ export class BalanceService {
     }));
 
     try {
-      console.log(
-        `[BalanceService] Chain ${chainId}: multicall for ${contracts.length} tokens`,
-      );
       const results = await client.multicall({ contracts });
 
-      let successCount = 0;
-      let failCount = 0;
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         if (
@@ -286,14 +256,8 @@ export class BalanceService {
             getTokenKey(chainId, tokens[i].address),
             result.result,
           );
-          successCount++;
-        } else {
-          failCount++;
         }
       }
-      console.log(
-        `[BalanceService] Chain ${chainId}: multicall results — ${successCount} success, ${failCount} failed`,
-      );
     } catch (e) {
       console.error(
         `[BalanceService] Chain ${chainId}: multicall error:`,

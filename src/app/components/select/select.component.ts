@@ -132,13 +132,17 @@ export class SelectComponent implements OnInit, OnDestroy {
       (trigger as HTMLElement)?.focus();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
+      // Skip the divider element between options
       const next = (e.target as HTMLElement).nextElementSibling
-        ?.nextElementSibling as HTMLElement;
-      next?.focus();
+        ?.nextElementSibling as HTMLElement | null;
+      if (next?.classList.contains('option')) {
+        next.focus();
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
+      // Skip the divider element between options
       const prev = (e.target as HTMLElement).previousElementSibling
-        ?.previousElementSibling as HTMLElement;
+        ?.previousElementSibling as HTMLElement | null;
       if (prev?.classList.contains('option')) {
         prev.focus();
       }

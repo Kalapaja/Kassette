@@ -18,20 +18,9 @@ import {
   formatUnits,
   http,
   parseUnits,
-  type Chain,
   type Hash,
   type TransactionReceipt,
 } from 'viem';
-import {
-  mainnet,
-  polygon,
-  bsc,
-  arbitrum,
-  optimism,
-  base,
-  linea,
-  unichain,
-} from 'viem/chains';
 import { sendTransaction, switchChain, waitForTransactionReceipt } from '@wagmi/core';
 
 import { ButtonComponent } from '@/app/components/button/button.component';
@@ -57,21 +46,11 @@ import { isActiveStatus, isExpiredStatus, isFinalStatus } from '@/app/types/invo
 import type { PaymentStep, TokenOption, OrderItem } from '@/app/types/payment-step.types';
 import { CHAINS_BY_ID } from '@/app/config/chains';
 import { getTokenKey } from '@/app/config/tokens';
+import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { UNISWAP_SWAP_ROUTER_02 } from '@/app/config/uniswap';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
 import { environment } from '@/environments/environment';
-
-const VIEM_CHAINS: Record<number, Chain> = {
-  1: mainnet,
-  137: polygon,
-  56: bsc,
-  42161: arbitrum,
-  10: optimism,
-  8453: base,
-  59144: linea,
-  130: unichain,
-};
 
 const GAS_BUMP_MULTIPLIER = 1.15;
 

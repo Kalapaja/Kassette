@@ -17,8 +17,6 @@ declare global {
  * Values that look like unresolved placeholders (%...%) are treated as empty.
  */
 function fromAppConfig<K extends keyof AppConfig>(key: K): string {
-  console.log(window.__APP_CONFIG__);
-
   const value = window.__APP_CONFIG__?.[key];
   if (typeof value === "string" && value && !value.startsWith("%")) {
     return value;

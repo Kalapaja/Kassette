@@ -7,6 +7,7 @@ import {
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
 } from '@/app/config/across';
+import { normalizeAddress } from '@/app/config/address.utils';
 import { NATIVE_TOKEN_ADDRESS, SUPPORTED_TOKENS, type TokenConfig } from '@/app/config/tokens';
 
 interface AcrossTokenResponse {
@@ -31,7 +32,7 @@ export class TokenService {
   }
 
   async init(): Promise<void> {
-    this._ready = this._doInit();
+    this._ready ??= this._doInit();
     return this._ready;
   }
 
@@ -43,13 +44,8 @@ export class TokenService {
         ),
       );
 
-      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
       this._tokens = data.map((t) => {
-        const raw = t.address.toLowerCase();
-        // Normalize zero address to our native token placeholder so Ankr
-        // balances (which use NATIVE_TOKEN_ADDRESS) match correctly.
-        const address = (raw === ZERO_ADDRESS ? NATIVE_TOKEN_ADDRESS.toLowerCase() : raw) as `0x${string}`;
+        const address = normalizeAddress(t.address);
 
         return {
           chainId: t.chainId,
@@ -98,10 +94,7 @@ export class TokenService {
     chainId: number,
     address: `0x${string}`,
   ): TokenConfig | undefined {
-    const raw = address.toLowerCase();
-    const normalized = raw === '0x0000000000000000000000000000000000000000'
-      ? NATIVE_TOKEN_ADDRESS.toLowerCase()
-      : raw;
+    const normalized = normalizeAddress(address).toLowerCase();
     const key = `${chainId}:${normalized}`;
     return this._tokens.find(
       (t) => `${t.chainId}:${t.address.toLowerCase()}` === key,

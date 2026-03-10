@@ -15,7 +15,7 @@ export class WalletStateService implements OnDestroy {
   readonly chainId = signal<number | undefined>(undefined);
 
   /** Raw connection status string from wagmi. */
-  readonly status = signal<string>('disconnected');
+  readonly status = signal<'disconnected' | 'connecting' | 'reconnecting' | 'connected'>('disconnected');
 
   /** Convenience computed — true only when wagmi reports "connected". */
   readonly isConnected = computed(() => this.status() === 'connected');
@@ -34,7 +34,7 @@ export class WalletStateService implements OnDestroy {
     this.unwatchAccount = watchAccount(config, {
       onChange: (account: GetAccountReturnType) => {
         this.address.set(account.address);
-        this.status.set(account.status);
+        this.status.set(account.status as 'disconnected' | 'connecting' | 'reconnecting' | 'connected');
       },
     });
 
