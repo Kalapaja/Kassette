@@ -1,3 +1,5 @@
+export const ACROSS_API_BASE_URL = 'https://app.across.to/api';
+
 export const POLYGON_CHAIN_ID = 137;
 
 export const POLYGON_USDC_ADDRESS: `0x${string}` =

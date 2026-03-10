@@ -189,8 +189,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Init token service
-    this.tokenService.init();
+    // Init token service (fetches from Across API, falls back to hardcoded list)
+    this.tokenService.init().catch(() => {
+      // Falls back to SUPPORTED_TOKENS internally
+    });
 
     // Load invoice
     const invoiceId = this.getInvoiceId();
@@ -436,6 +438,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private async loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
+    await this.tokenService.ready;
     const allTokens = this.tokenService.getAllTokens();
 
     const [pricesResult, balancesResult] = await Promise.allSettled([
