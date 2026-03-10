@@ -26,7 +26,6 @@ pnpm lint              # Lint with ESLint (via ng lint)
 - **Types:** `src/app/types/` — invoice, payment, payment-step types
 - **i18n:** `src/app/i18n/` — custom signal-based translation system (en/es locales)
 - **Mocks:** `src/mocks/` — MSW handlers for dev environment
-- **Reference:** `_reference/lit-src/` — frozen copy of original Lit source for comparison (NEVER modify)
 
 ## State Management
 
