@@ -19,6 +19,7 @@ const LOGOS: Record<string, string> = {
   fUSDT: "https://coin-images.coingecko.com/coins/images/325/large/Tether.png",
   DAI: "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png",
   WBTC: "https://coin-images.coingecko.com/coins/images/7598/large/WBTCLOGO.png",
+  POL: "https://coin-images.coingecko.com/coins/images/4713/large/polygon.png",
   MATIC: "https://coin-images.coingecko.com/coins/images/4713/large/polygon.png",
   WMATIC: "https://coin-images.coingecko.com/coins/images/4713/large/polygon.png",
   LINK: "https://coin-images.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png",
@@ -74,6 +75,7 @@ const LOGOS: Record<string, string> = {
   AGVE: "https://coin-images.coingecko.com/coins/images/14146/large/agve.png",
   COMP: "https://coin-images.coingecko.com/coins/images/10775/large/COMP.png",
   BAL: "https://coin-images.coingecko.com/coins/images/11683/large/Balancer.png",
+  EURC: "https://coin-images.coingecko.com/coins/images/26045/large/euro-coin.png",
   EURS: "https://coin-images.coingecko.com/coins/images/5164/large/EURS_300x300.png",
   QI: "https://coin-images.coingecko.com/coins/images/16362/large/GergDDN3_400x400.jpg",
   TUSD: "https://coin-images.coingecko.com/coins/images/3449/large/tusd.png",
@@ -144,7 +146,7 @@ const ETHEREUM_TOKENS: TokenConfig[] = [
 
 // --- Polygon (137) ---
 const POLYGON_TOKENS: TokenConfig[] = [
-  { chainId: 137, address: NATIVE_TOKEN_ADDRESS, symbol: "MATIC", decimals: 18, logoUrl: logo("MATIC") },
+  { chainId: 137, address: NATIVE_TOKEN_ADDRESS, symbol: "POL", decimals: 18, logoUrl: logo("POL") },
   { chainId: 137, address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", symbol: "USDC", decimals: 6, logoUrl: logo("USDC") },
   { chainId: 137, address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", symbol: "USDC.e", decimals: 6, logoUrl: logo("USDC.e") },
   { chainId: 137, address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", symbol: "USDT", decimals: 6, logoUrl: logo("USDT") },
@@ -208,7 +210,7 @@ const ARBITRUM_TOKENS: TokenConfig[] = [
   { chainId: 42161, address: "0x539bdE0d7Dbd336b79148AA742883198BBF60342", symbol: "MAGIC", decimals: 18, logoUrl: logo("MAGIC") },
   { chainId: 42161, address: "0x17FC002b466eEc40DaE837Fc4bE5c67993ddBd6F", symbol: "FRAX", decimals: 18, logoUrl: logo("FRAX") },
   { chainId: 42161, address: "0x3F56e0c36d275367b8C502090EDF38289b3dEa0d", symbol: "MAI", decimals: 18, logoUrl: logo("MAI") },
-  { chainId: 42161, address: "0x5979D7b546E38E9aB8f53019DCda36A58f5dCf40", symbol: "wstETH", decimals: 18, logoUrl: logo("wstETH") },
+  { chainId: 42161, address: "0x5979D7b546e38e9aB8f53019dcDA36A58F5dCf40", symbol: "wstETH", decimals: 18, logoUrl: logo("wstETH") },
   { chainId: 42161, address: "0xEC70Dcb4A1EFa46b8F2D97C310C9c4790ba5ffA8", symbol: "rETH", decimals: 18, logoUrl: logo("rETH") },
   { chainId: 42161, address: "0x13Ad51ed4F1B7e9Dc168d8a00cB3f4dDD85EfA60", symbol: "LDO", decimals: 18, logoUrl: logo("LDO") },
   { chainId: 42161, address: "0x2297aEbD383787A160DD0d9F71508148769342E3", symbol: "BTC.b", decimals: 8, logoUrl: logo("BTC.b") },
@@ -250,7 +252,7 @@ const BASE_TOKENS: TokenConfig[] = [
   { chainId: 8453, address: "0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c", symbol: "rETH", decimals: 18, logoUrl: logo("rETH") },
   { chainId: 8453, address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", symbol: "AERO", decimals: 18, logoUrl: logo("AERO") },
   { chainId: 8453, address: "0x3bB4445D30AC020a84c1b5A8A2C6248ebC9779D0", symbol: "EXTRA", decimals: 18, logoUrl: logo("EXTRA") },
-  { chainId: 8453, address: "0xfA980cEd6895AC314E7dE34Ef1bFAE90a5AdD29b", symbol: "PRIME", decimals: 18, logoUrl: logo("PRIME") },
+  { chainId: 8453, address: "0xFA980CEd6895aC314e7dE34eF1bfae90A5ADD29B", symbol: "PRIME", decimals: 18, logoUrl: logo("PRIME") },
   { chainId: 8453, address: "0x236aa50979D5f3De3Bd1Eeb40E81137F22ab794b", symbol: "tBTC", decimals: 18, logoUrl: logo("tBTC") },
   { chainId: 8453, address: "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A", symbol: "weETH", decimals: 18, logoUrl: logo("weETH") },
   { chainId: 8453, address: "0xCfA3Ef56d303AE4fAabA0592388F19d7C3399FB4", symbol: "eUSD", decimals: 18, logoUrl: logo("eUSD") },
@@ -260,6 +262,7 @@ const BASE_TOKENS: TokenConfig[] = [
   { chainId: 8453, address: "0xA88594D404727625A9437C3f886C7643872296AE", symbol: "WELL", decimals: 18, logoUrl: logo("WELL") },
   { chainId: 8453, address: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", symbol: "cbBTC", decimals: 8, logoUrl: logo("cbBTC") },
   { chainId: 8453, address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2", symbol: "USDT", decimals: 6, logoUrl: logo("USDT") },
+  { chainId: 8453, address: "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42", symbol: "EURC", decimals: 6, logoUrl: logo("EURC") },
 ];
 
 // --- Linea (59144) ---
@@ -279,11 +282,11 @@ const LINEA_TOKENS: TokenConfig[] = [
   { chainId: 59144, address: "0x5B16228B94b68C7cE33AF2ACc5663eBdE4dCFA2d", symbol: "LINK", decimals: 18, logoUrl: logo("LINK") },
   { chainId: 59144, address: "0x333D8b480BDB25eA7Be4Dd87EEB359988CE1b30D", symbol: "APE", decimals: 18, logoUrl: logo("APE") },
   { chainId: 59144, address: "0x7d43AABC515C356145049227CeE54B608342c0ad", symbol: "BUSD", decimals: 18, logoUrl: logo("BUSD") },
-  { chainId: 59144, address: "0xf669C3C03D9FdaEc7691D707626a44b5D8f3B46E", symbol: "PEPE", decimals: 18, logoUrl: logo("PEPE") },
+  { chainId: 59144, address: "0xF669c3C03d9fdaec7691d707626A44b5D8f3b46e", symbol: "PEPE", decimals: 18, logoUrl: logo("PEPE") },
   { chainId: 59144, address: "0x0D1E753a25eBda689453309112904807625bEFBe", symbol: "CAKE", decimals: 18, logoUrl: logo("CAKE") },
-  { chainId: 59144, address: "0x93F4d0ab6a3c94a6cBaB002577e1e89b5EB2f4D0", symbol: "nETH", decimals: 18, logoUrl: logo("nETH") },
-  { chainId: 59144, address: "0x0a3BB08b3a15A19b4De82F8AcFc862606FB69A2D", symbol: "iZi", decimals: 18, logoUrl: logo("iZi") },
-  { chainId: 59144, address: "0xAAA6c1E32C55A7Bfa8066A6FAE9b42650F262418", symbol: "RAM", decimals: 18, logoUrl: logo("RAM") },
+  { chainId: 59144, address: "0x93F4d0ab6a3c94A6cbab002577e1E89b5eb2F4D0", symbol: "nETH", decimals: 18, logoUrl: logo("nETH") },
+  { chainId: 59144, address: "0x0A3BB08b3a15A19b4De82F8AcFc862606FB69A2D", symbol: "iZi", decimals: 18, logoUrl: logo("iZi") },
+  { chainId: 59144, address: "0xAAA6C1E32C55A7Bfa8066A6FAE9b42650F262418", symbol: "RAM", decimals: 18, logoUrl: logo("RAM") },
 ];
 
 // --- Unichain (130) ---
@@ -292,22 +295,7 @@ const UNICHAIN_TOKENS: TokenConfig[] = [
   { chainId: 130, address: "0x078D782b760474a361dDA0AF3839290b0EF57AD6", symbol: "USDC", decimals: 6, logoUrl: logo("USDC") },
   { chainId: 130, address: "0x588CE4F028D8e7B53B687865d6A67b3A54C75518", symbol: "USDT", decimals: 6, logoUrl: logo("USDT") },
   { chainId: 130, address: "0x4200000000000000000000000000000000000006", symbol: "WETH", decimals: 18, logoUrl: logo("WETH") },
-  { chainId: 130, address: "0xC7aB00EEB247b058CAeF719d1B4BBDd25d8455bC9", symbol: "DAI", decimals: 18, logoUrl: logo("DAI") },
-  { chainId: 130, address: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984", symbol: "UNI", decimals: 18, logoUrl: logo("UNI") },
-  { chainId: 130, address: "0xB3552F48e9C1B2b98637c9fB6Df62a3E0E9cD85A", symbol: "WBTC", decimals: 8, logoUrl: logo("WBTC") },
-  { chainId: 130, address: "0x2bA64E11739E0E423aC9C0D22223dd0E18BeB390", symbol: "LINK", decimals: 18, logoUrl: logo("LINK") },
-  { chainId: 130, address: "0x8f187Aa05619a017077f5308904739877dBf50E4", symbol: "AAVE", decimals: 18, logoUrl: logo("AAVE") },
-  { chainId: 130, address: "0x5E45c82E44DB874Bd3921d12034B0EFBD23bCe69", symbol: "wstETH", decimals: 18, logoUrl: logo("wstETH") },
-  { chainId: 130, address: "0x729b7eC0Be1dEcE69f7298AF2E0CA4B0127e4dE2", symbol: "cbETH", decimals: 18, logoUrl: logo("cbETH") },
-  { chainId: 130, address: "0xA10c8BDD60C1Cd3Fe9e85e47AAF1b0Fe28f5F8Ab", symbol: "rETH", decimals: 18, logoUrl: logo("rETH") },
-  { chainId: 130, address: "0xEed3F1F62e854f570DCF6EE1eE4b7dbce77fDc42", symbol: "FRAX", decimals: 18, logoUrl: logo("FRAX") },
-  { chainId: 130, address: "0x4C2B9d2Cd9d058efa29C3328d3A3D40d94E12dC3", symbol: "CRV", decimals: 18, logoUrl: logo("CRV") },
-  { chainId: 130, address: "0xa817fA6C788287dB06DD7Af87f7fAC9E4eDfBC7d", symbol: "SNX", decimals: 18, logoUrl: logo("SNX") },
-  { chainId: 130, address: "0x7A0c53DBC0aD243583DEB3C7dd4A09f3989B7BE9", symbol: "LDO", decimals: 18, logoUrl: logo("LDO") },
-  { chainId: 130, address: "0x5eC2a0e99dA1aFc0c0cCB0B6eA26361b2be9BE90", symbol: "MKR", decimals: 18, logoUrl: logo("MKR") },
-  { chainId: 130, address: "0x9B5B0e7e67dc3345e5a30E6B85d08D17FEC1fD2e", symbol: "COMP", decimals: 18, logoUrl: logo("COMP") },
-  { chainId: 130, address: "0x6D1f5e1c0b48c9Fc6B99C2e74c932E81B3eEa4f4", symbol: "GRT", decimals: 18, logoUrl: logo("GRT") },
-  { chainId: 130, address: "0x3B8DC3e14dBC1Bf3a29De7c7fCb5bb13F2b0DC06", symbol: "BAL", decimals: 18, logoUrl: logo("BAL") },
+  { chainId: 130, address: "0x20CAb320A855b39F724131C69424240519573f81", symbol: "DAI", decimals: 18, logoUrl: logo("DAI") },
 ];
 
 // --- All tokens combined ---

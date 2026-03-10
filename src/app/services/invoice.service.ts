@@ -74,7 +74,7 @@ export class InvoiceService implements OnDestroy {
 
   async registerSwap(params: {
     invoice_id: string;
-    from_amount_units: number;
+    from_amount_units: string;
     from_chain_id: number;
     from_asset_id: string;
     transaction_hash: string;

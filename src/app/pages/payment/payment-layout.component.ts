@@ -36,18 +36,24 @@ import { InvoiceService } from '@/app/services/invoice.service';
 import { TokenService } from '@/app/services/token.service';
 import { BalanceService } from '@/app/services/balance.service';
 import { PaymentService } from '@/app/services/payment.service';
-import { UniswapService } from '@/app/services/uniswap.service';
-import { AcrossService } from '@/app/services/across.service';
+import { PriceService } from '@/app/services/price.service';
+import { SwapService } from '@/app/services/swap.service';
 import { QuoteService } from '@/app/services/quote.service';
 import { PendingTxService, type PendingTxRecord } from '@/app/services/pending-tx.service';
 
 import type { Invoice } from '@/app/types/invoice.types';
 import { isActiveStatus, isExpiredStatus, isFinalStatus } from '@/app/types/invoice.types';
 import type { PaymentStep, TokenOption, OrderItem } from '@/app/types/payment-step.types';
+import {
+  isAcrossSwap,
+  isBungeeSwap,
+  type PublicSwap,
+  type AcrossSwapDetails,
+  type BungeeSwapDetails,
+} from '@/app/types/swap.types';
 import { CHAINS_BY_ID } from '@/app/config/chains';
-import { getTokenKey } from '@/app/config/tokens';
+import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
-import { UNISWAP_SWAP_ROUTER_02 } from '@/app/config/uniswap';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
 import { environment } from '@/environments/environment';
@@ -86,8 +92,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private readonly tokenService = inject(TokenService);
   private readonly balanceService = inject(BalanceService);
   private readonly paymentService = inject(PaymentService);
-  private readonly uniswapService = inject(UniswapService);
-  private readonly acrossService = inject(AcrossService);
+  private readonly priceService = inject(PriceService);
+  private readonly swapService = inject(SwapService);
   private readonly quoteService = inject(QuoteService);
   private readonly pendingTxService = inject(PendingTxService);
   private readonly ngZone = inject(NgZone);
@@ -179,15 +185,12 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       if (config) {
         this.walletState.init(config);
         this.paymentService.setConfig(config);
-        this.uniswapService.setConfig(config);
-        this.acrossService.setConfig(config);
+        this.swapService.setConfig(config);
       }
     }
 
     // Init token service
-    this.tokenService.init().catch(() => {
-      // Falls back to SUPPORTED_TOKENS internally
-    });
+    this.tokenService.init();
 
     // Load invoice
     const invoiceId = this.getInvoiceId();
@@ -424,8 +427,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const config = this.appKit.wagmiConfig;
     if (config) {
       this.paymentService.setConfig(config);
-      this.uniswapService.setConfig(config);
-      this.acrossService.setConfig(config);
+      this.swapService.setConfig(config);
     }
     this.state.transition('token-select');
     this.state.isLoadingTokens.set(true);
@@ -434,23 +436,24 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private async loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
-    await this.tokenService.ready;
     const allTokens = this.tokenService.getAllTokens();
 
-    // Build prices map from Across API data (already in TokenService)
-    const prices = new Map<string, number>();
-    for (const token of allTokens) {
-      if (token.priceUsd && token.priceUsd > 0) {
-        prices.set(getTokenKey(token.chainId, token.address), token.priceUsd);
-      }
-    }
-    this.state.prices.set(prices);
+    const [pricesResult, balancesResult] = await Promise.allSettled([
+      this.priceService.fetchPrices(allTokens),
+      this.balanceService.getBalances(address, allTokens),
+    ]);
 
-    try {
-      const balances = await this.balanceService.getBalances(address, allTokens);
-      this.state.balances.set(balances);
-    } catch (e) {
-      console.error('[PaymentLayout] Balance fetch failed:', e);
+    if (pricesResult.status === 'fulfilled') {
+      this.state.prices.set(pricesResult.value);
+    } else {
+      console.warn('[PaymentLayout] Price fetch failed:', pricesResult.reason);
+      this.state.prices.set(new Map());
+    }
+
+    if (balancesResult.status === 'fulfilled') {
+      this.state.balances.set(balancesResult.value);
+    } else {
+      console.error('[PaymentLayout] Balance fetch failed:', balancesResult.reason);
     }
   }
 
@@ -461,6 +464,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
+      // Skip native tokens — only ERC-20 tokens can be used for payment
+      if (token.address.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) continue;
+
       const key = getTokenKey(token.chainId, token.address);
       const price = this.state.prices().get(key);
       if (!price || price <= 0) continue;
@@ -530,14 +536,13 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           path: 'direct',
           userPayAmount: amount,
           userPayAmountHuman: invoice.amount,
-          acrossQuote: null,
-          uniswapQuote: null,
+          swap: null,
         },
       });
       return;
     }
 
-    // Fetch quote for swap/bridge paths
+    // Fetch quote for swap paths
     const requestId = ++this.quoteRequestId;
     const usdPrice = option.usdPrice;
     this.state.transition('quoting', {
@@ -566,23 +571,17 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         recipientAmount: parseUnits(invoice.amount, 6),
         depositorAddress: account.address as `0x${string}`,
         recipientAddress: invoice.payment_address as `0x${string}`,
+        invoiceId: invoice.id,
       });
 
       if (requestId !== this.quoteRequestId) return; // stale response
       const fiatValue = parseFloat(quote.userPayAmountHuman) * usdPrice;
 
-      // Extract fees from quote
-      let exchangeFee = '';
-      let gasFee = '';
-      if (quote.acrossQuote) {
-        const f = quote.acrossQuote.fees;
-        exchangeFee = fiatPartsToString(formatFiat(parseFloat(f.totalFeeUsd), this.ts.locale()));
-        gasFee = fiatPartsToString(formatFiat(parseFloat(f.originGasFeeUsd), this.ts.locale()));
-      } else if (quote.uniswapQuote) {
-        const feePct = quote.uniswapQuote.feeTier / 1_000_000;
-        const feeUsd = fiatValue * feePct;
-        exchangeFee = fiatPartsToString(formatFiat(feeUsd, this.ts.locale()));
-      }
+      // Compute exchange fee as difference between what user pays and invoice amount
+      const invoiceAmountUsd = parseFloat(invoice.amount);
+      const feeUsd = Math.max(0, fiatValue - invoiceAmountUsd);
+      const exchangeFee = fiatPartsToString(formatFiat(feeUsd, this.ts.locale()));
+      const gasFee = '';
 
       this.state.transition('ready-to-pay', {
         requiredAmount: quote.userPayAmount,
@@ -625,11 +624,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         case 'direct':
           await this.executeDirect();
           break;
-        case 'same-chain-swap':
-          await this.executeUniswapSwap();
-          break;
-        case 'cross-chain':
-          await this.executeAcrossSwap();
+        case 'swap':
+          await this.executeSwap();
           break;
       }
     } catch (err: unknown) {
@@ -667,7 +663,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       amount: requiredAmount.toString(),
       amountHuman: this.state.requiredAmountHuman(),
       invoiceId,
-      paymentPath: this.state.paymentPath()!,
+      paymentPath: 'direct',
       timestamp: new Date().toISOString(),
       invoiceValidTill: invoice.valid_till,
     });
@@ -676,7 +672,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     this.invoiceService.registerSwap({
       invoice_id: invoiceId,
-      from_amount_units: Number(requiredAmount),
+      from_amount_units: requiredAmount.toString(),
       from_chain_id: this.state.selectedChainId()!,
       from_asset_id: selectedTokenAddress,
       transaction_hash: receipt.transactionHash,
@@ -686,106 +682,64 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.startPolling(invoiceId);
   }
 
-  private async executeUniswapSwap(): Promise<void> {
+  private async executeSwap(): Promise<void> {
     const quote = this.state.quote()!;
-    const uniQuote = quote.uniswapQuote!;
-    const selectedTokenAddress = this.state.selectedTokenAddress()!;
-    const invoice = this.state.invoice()!;
-    const account = this.state.connectedAccount()!;
+    const swap = quote.swap!;
+
+    if (isAcrossSwap(swap)) {
+      await this.executeAcrossSwap(swap);
+    } else if (isBungeeSwap(swap)) {
+      await this.executeBungeeSwap(swap);
+    }
+  }
+
+  private async executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void> {
+    const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
 
-    // Approval for ERC20 (not native) -- approve for maxAmountIn to cover slippage
-    if (!uniQuote.isNativeToken) {
-      const maxAmountIn = (uniQuote.amountIn * 105n) / 100n;
-      const allowance = await this.paymentService.checkAllowance(
-        selectedTokenAddress,
-        UNISWAP_SWAP_ROUTER_02,
-        account.address as `0x${string}`,
+    if (details.raw_transaction.approval_transactions.length > 0) {
+      this.state.transition('approving');
+      await this.swapService.executeAcrossApprovals(
+        details.raw_transaction.approval_transactions,
       );
-      if (allowance < maxAmountIn) {
-        this.state.transition('approving');
-        const approveHash = await this.paymentService.submitApprove(
-          selectedTokenAddress,
-          UNISWAP_SWAP_ROUTER_02,
-          maxAmountIn,
-        );
-        await this.paymentService.waitForReceipt(approveHash);
-      }
     }
 
     this.state.transition('executing');
-    const swapHash = await this.uniswapService.submitSwap(uniQuote);
+    const txHash = await this.swapService.executeAcrossTx(
+      details.raw_transaction.transaction,
+    );
 
-    this.state.txHash.set(swapHash);
-    this.pendingTxService.save({
-      txHash: swapHash,
-      chainId: this.state.selectedChainId()!,
-      tokenAddress: selectedTokenAddress,
-      tokenSymbol: this.state.selectedTokenSymbol(),
-      tokenDecimals: this.state.selectedTokenDecimals(),
-      amount: this.state.requiredAmount().toString(),
-      amountHuman: this.state.requiredAmountHuman(),
-      invoiceId,
-      paymentPath: this.state.paymentPath()!,
-      timestamp: new Date().toISOString(),
-      invoiceValidTill: invoice.valid_till,
-    });
+    this.state.txHash.set(txHash);
 
-    await this.paymentService.waitForReceipt(swapHash as Hash);
+    await waitForTransactionReceipt(this.appKit.wagmiConfig!, { hash: txHash as Hash });
 
-    this.invoiceService.registerSwap({
-      invoice_id: invoiceId,
-      from_amount_units: Number(this.state.requiredAmount()),
-      from_chain_id: this.state.selectedChainId()!,
-      from_asset_id: selectedTokenAddress,
-      transaction_hash: swapHash,
-    });
-    this.pendingTxService.remove(invoiceId);
+    await this.swapService.submitSwapTransaction(swap.id, txHash);
     this.state.transition('polling');
     this.startPolling(invoiceId);
   }
 
-  private async executeAcrossSwap(): Promise<void> {
-    const quote = this.state.quote()!;
-    const acrossQuote = quote.acrossQuote!;
-    const selectedTokenAddress = this.state.selectedTokenAddress()!;
-    const invoice = this.state.invoice()!;
-    const config = this.appKit.wagmiConfig!;
+  private async executeBungeeSwap(swap: PublicSwap & { swap_details: BungeeSwapDetails }): Promise<void> {
+    const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
 
-    if (acrossQuote.approvalTxns.length > 0) {
+    // Token approval for Permit2 if needed
+    if (details.raw_transaction.approval_data) {
       this.state.transition('approving');
-      await this.acrossService.executeApprovals(acrossQuote.approvalTxns);
+      await this.swapService.executeBungeeApprovalIfNeeded(
+        details.raw_transaction.approval_data,
+        this.paymentService,
+      );
     }
 
+    // EIP-712 signing
     this.state.transition('executing');
-    const swapHash = await this.acrossService.submitSwap(acrossQuote.swapTx);
+    const signature = await this.swapService.signBungeeTypedData(
+      details.raw_transaction.sign_typed_data,
+    );
 
-    this.state.txHash.set(swapHash);
-    this.pendingTxService.save({
-      txHash: swapHash,
-      chainId: this.state.selectedChainId()!,
-      tokenAddress: selectedTokenAddress,
-      tokenSymbol: this.state.selectedTokenSymbol(),
-      tokenDecimals: this.state.selectedTokenDecimals(),
-      amount: this.state.requiredAmount().toString(),
-      amountHuman: this.state.requiredAmountHuman(),
-      invoiceId,
-      paymentPath: this.state.paymentPath()!,
-      timestamp: new Date().toISOString(),
-      invoiceValidTill: invoice.valid_till,
-    });
+    // Submit signature to backend — backend submits to Bungee
+    await this.swapService.submitSwapSignature(swap.id, signature);
 
-    await waitForTransactionReceipt(config, { hash: swapHash as Hash });
-
-    this.invoiceService.registerSwap({
-      invoice_id: invoiceId,
-      from_amount_units: Number(this.state.requiredAmount()),
-      from_chain_id: this.state.selectedChainId()!,
-      from_asset_id: selectedTokenAddress,
-      transaction_hash: swapHash,
-    });
-    this.pendingTxService.remove(invoiceId);
     this.state.transition('polling');
     this.startPolling(invoiceId);
   }
@@ -809,7 +763,17 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     record: PendingTxRecord,
   ): Promise<void> {
     const invoiceId = this.getInvoiceId();
-    // Populate context from persisted record
+
+    // Swap paths (Across/Bungee) are fully tracked by the backend — no recovery needed.
+    // Remove stale swap records and proceed normally.
+    // New direct records don't have swapExecutor set, so only discard if explicitly non-direct.
+    if (record.swapExecutor && record.swapExecutor !== 'direct') {
+      this.pendingTxService.remove(invoiceId);
+      this.state.transition('idle', { invoice });
+      return;
+    }
+
+    // Direct transfer recovery: check on-chain status
     const chain = CHAINS_BY_ID[record.chainId];
     this.state.applyContext({
       invoice,
@@ -825,7 +789,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       selectedTokenLogoUrl: this.resolveTokenLogo(record.chainId, record.tokenAddress),
     });
 
-    // Try to check on-chain status with 5s timeout
     try {
       const receipt = await Promise.race([
         this.getTransactionReceipt(record.txHash as `0x${string}`, record.chainId),
@@ -833,10 +796,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       ]);
 
       if (receipt) {
-        // Tx already confirmed -- go straight to polling
+        // Tx already confirmed — notify backend and go to polling
         this.invoiceService.registerSwap({
           invoice_id: invoiceId,
-          from_amount_units: Number(record.amount),
+          from_amount_units: record.amount,
           from_chain_id: record.chainId,
           from_asset_id: record.tokenAddress,
           transaction_hash: record.txHash,
@@ -900,7 +863,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
             this.stopRecoveryMonitoring();
             this.invoiceService.registerSwap({
               invoice_id: invoiceId,
-              from_amount_units: Number(this.state.requiredAmount()),
+              from_amount_units: this.state.requiredAmount().toString(),
               from_chain_id: this.state.selectedChainId()!,
               from_asset_id: this.state.selectedTokenAddress()!,
               transaction_hash: this.state.txHash(),

@@ -1,47 +1,9 @@
 import type { Invoice } from './invoice.types';
+import type { PublicSwap } from './swap.types';
 
 // ─── Payment Path ───
 
-export type PaymentPath = "direct" | "same-chain-swap" | "cross-chain";
-
-// ─── Across Types ───
-
-export interface AcrossFees {
-  totalFeeUsd: string;
-  bridgeFeeUsd: string;
-  swapFeeUsd: string;
-  originGasFeeUsd: string;
-}
-
-export interface TransactionData {
-  to: `0x${string}`;
-  data: `0x${string}`;
-  value: bigint;
-}
-
-export interface AcrossQuote {
-  expectedOutputAmount: bigint;
-  minOutputAmount: bigint;
-  inputAmount: bigint;
-  expectedFillTime: number; // seconds
-  fees: AcrossFees;
-  swapTx: TransactionData;
-  approvalTxns: TransactionData[];
-  originChainId: number;
-  destinationChainId: number;
-}
-
-// ─── Uniswap Types ───
-
-export interface UniswapQuote {
-  amountIn: bigint; // Required input amount (best tier)
-  amountOut: bigint; // Guaranteed output
-  feeTier: number; // Selected fee tier (100/500/3000/10000)
-  tokenIn: `0x${string}`;
-  tokenOut: `0x${string}`; // POLYGON_USDC_ADDRESS
-  recipient: `0x${string}`;
-  isNativeToken: boolean; // true if paying with MATIC
-}
+export type PaymentPath = "direct" | "swap";
 
 // ─── Quote Result ───
 
@@ -49,8 +11,7 @@ export interface QuoteResult {
   path: PaymentPath;
   userPayAmount: bigint; // Amount user pays in source token units
   userPayAmountHuman: string; // Formatted for display
-  acrossQuote: AcrossQuote | null;
-  uniswapQuote: UniswapQuote | null;
+  swap: PublicSwap | null;
 }
 
 // ─── Payment Step State Machine ───

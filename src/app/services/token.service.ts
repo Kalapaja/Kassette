@@ -1,80 +1,33 @@
-import { HttpClient } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from '@angular/core';
 
 import {
-  ACROSS_API_BASE_URL,
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
-} from '@/app/config/across';
-import { normalizeAddress } from '@/app/config/address.utils';
-import { NATIVE_TOKEN_ADDRESS, SUPPORTED_TOKENS, type TokenConfig } from '@/app/config/tokens';
-
-interface AcrossTokenResponse {
-  address: string;
-  chainId: number;
-  symbol: string;
-  name: string;
-  decimals: number;
-  logoUrl?: string;
-  priceUsd?: string;
-}
+} from '@/app/config/payment';
+import { SUPPORTED_TOKENS, type TokenConfig } from '@/app/config/tokens';
 
 @Injectable({ providedIn: 'root' })
 export class TokenService {
-  private readonly http = inject(HttpClient);
   private _tokens: TokenConfig[] = [];
-  private _ready: Promise<void> | null = null;
 
-  /** Wait for token list to be loaded */
-  get ready(): Promise<void> {
-    return this._ready ?? Promise.resolve();
-  }
+  init(): void {
+    // Use hardcoded token list. Prices are fetched separately via PriceService.
+    this._tokens = [...SUPPORTED_TOKENS];
 
-  async init(): Promise<void> {
-    this._ready ??= this._doInit();
-    return this._ready;
-  }
-
-  private async _doInit(): Promise<void> {
-    try {
-      const data = await firstValueFrom(
-        this.http.get<AcrossTokenResponse[]>(
-          `${ACROSS_API_BASE_URL}/swap/tokens`,
-        ),
-      );
-
-      this._tokens = data.map((t) => {
-        const address = normalizeAddress(t.address);
-
-        return {
-          chainId: t.chainId,
-          address,
-          symbol: t.symbol,
-          decimals: t.decimals,
-          logoUrl: t.logoUrl ?? '',
-          priceUsd: t.priceUsd ? parseFloat(t.priceUsd) : undefined,
-        };
+    // Ensure Polygon USDC is always present
+    const hasPolygonUsdc = this._tokens.some(
+      (t) =>
+        t.chainId === POLYGON_CHAIN_ID &&
+        t.address.toLowerCase() === POLYGON_USDC_ADDRESS.toLowerCase(),
+    );
+    if (!hasPolygonUsdc) {
+      this._tokens.push({
+        chainId: POLYGON_CHAIN_ID,
+        address: POLYGON_USDC_ADDRESS,
+        symbol: 'USDC',
+        decimals: 6,
+        logoUrl: '',
       });
-
-      // Ensure Polygon USDC is always present
-      const hasPolygonUsdc = this._tokens.some(
-        (t) =>
-          t.chainId === POLYGON_CHAIN_ID &&
-          t.address.toLowerCase() === POLYGON_USDC_ADDRESS.toLowerCase(),
-      );
-      if (!hasPolygonUsdc) {
-        this._tokens.push({
-          chainId: POLYGON_CHAIN_ID,
-          address: POLYGON_USDC_ADDRESS,
-          symbol: 'USDC',
-          decimals: 6,
-          logoUrl: '',
-        });
-      }
-    } catch {
-      // Fallback to hardcoded list
-      this._tokens = [...SUPPORTED_TOKENS];
     }
   }
 
@@ -94,7 +47,7 @@ export class TokenService {
     chainId: number,
     address: `0x${string}`,
   ): TokenConfig | undefined {
-    const normalized = normalizeAddress(address).toLowerCase();
+    const normalized = address.toLowerCase();
     const key = `${chainId}:${normalized}`;
     return this._tokens.find(
       (t) => `${t.chainId}:${t.address.toLowerCase()}` === key,
