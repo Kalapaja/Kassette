@@ -189,10 +189,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Init token service (fetches from Across API, falls back to hardcoded list)
-    this.tokenService.init().catch(() => {
-      // Falls back to SUPPORTED_TOKENS internally
-    });
+    // Init token service (fetches from Across API)
+    this.tokenService.init();
 
     // Load invoice
     const invoiceId = this.getInvoiceId();

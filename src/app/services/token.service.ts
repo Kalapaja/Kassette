@@ -8,7 +8,7 @@ import {
   POLYGON_USDC_ADDRESS,
 } from '@/app/config/payment';
 import { normalizeAddress } from '@/app/config/address.utils';
-import { SUPPORTED_TOKENS, type TokenConfig } from '@/app/config/tokens';
+import type { TokenConfig } from '@/app/config/tokens';
 
 interface AcrossTokenResponse {
   address: string;
@@ -72,9 +72,8 @@ export class TokenService {
           logoUrl: '',
         });
       }
-    } catch {
-      // Fallback to hardcoded list
-      this._tokens = [...SUPPORTED_TOKENS];
+    } catch (err) {
+      console.error('[TokenService] Failed to fetch tokens from Across API:', err);
     }
   }
 
