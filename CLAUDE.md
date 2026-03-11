@@ -4,43 +4,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Lit-based Web Component payment page library that builds to a self-contained UMD bundle for embedding in any web page via `<script>` tag. Uses Deno as the runtime/package manager with Node.js compatibility.
+An Angular 21 SPA payment page application with signal-based state management, zoneless change detection, and Reown AppKit/wagmi wallet integration. Uses pnpm as the package manager.
 
 ## Commands
 
 ```bash
-deno task dev          # Dev server on port 3001 with hot reload
-deno task build        # Production UMD bundle (minified, source maps)
-deno task build:dev    # Development UMD bundle (no minification)
-deno task preview      # Preview production build on port 4174
-deno task lint         # Lint src/ with Deno linter
-deno task test         # Run tests (--no-check, -A permissions)
-deno task typecheck    # Type-check src/ with Deno
+pnpm start             # Dev server on port 3001 with hot reload + MSW mocks
+pnpm build             # Production build (esbuild, source maps)
+pnpm test              # Run tests with Vitest
+pnpm lint              # Lint with ESLint (via ng lint)
 ```
 
 ## Architecture
 
-- **Entry point:** `src/index.ts` — exports `PaymentPage` and all child components
-- **Components:** `src/components/` — Lit web components using decorators, prefixed with `kp-` (e.g., `kp-button`, `kp-input`)
-- **Services:** `src/services/` — Business logic (e.g., `WalletService` for Reown AppKit/wagmi wallet integration)
-- **Build output:** `dist/payment-page.js` — UMD bundle with all dependencies inlined
-- **Dev template:** `index.html` — mounts `<payment-page>` custom element with sample data
+- **Entry point:** `src/main.ts` — bootstraps Angular app, conditionally starts MSW
+- **Root component:** `src/app/app.component.ts` — shell with `<router-outlet>`
+- **Main page:** `src/app/pages/payment/payment-layout.component.ts` — THE main component with all step rendering via `@switch`
+- **Components:** `src/app/components/` — 10 standalone Angular components, prefixed with `kp-` (e.g., `kp-button`, `kp-input`)
+- **Services:** `src/app/services/` — 14 injectable services (AppKit, WalletState, PaymentState, Invoice, Balance, Payment, Price, Token, Quote, Uniswap, Across, PendingTx, Translation, Layout)
+- **Config:** `src/app/config/` — chains, tokens, uniswap, across (plain TypeScript modules)
+- **Types:** `src/app/types/` — invoice, payment, payment-step types
+- **i18n:** `src/app/i18n/` — custom signal-based translation system (en/es locales)
+- **Mocks:** `src/mocks/` — MSW handlers for dev environment
 
-The project builds as a **library** (not an app). Vite library mode produces a UMD file that exposes `PaymentPage` on `window.PaymentPage`.
+## State Management
+
+`PaymentStateService` is the central state machine with `VALID_TRANSITIONS` map and signal-based context. 12 payment steps, 19 context signals, 6 computed signals. State drives rendering via `@switch(state.currentStep())` in `PaymentLayoutComponent`.
 
 ## Theme System
 
-`src/styles/theme.css.ts` defines design tokens as CSS custom properties on `:host`, exported as a Lit `css` tagged template. Components compose styles via `static styles = [theme, componentStyles]`.
+`src/styles/theme.css` defines design tokens as CSS custom properties on `:root`. `src/styles/font.css` contains the Alaska font `@font-face` with base64 WOFF2 blob. Both are global styles registered in `angular.json`.
 
-- **Color space:** OKLCH throughout — brand colors from Figma, semantic tokens following shadcn/ui naming (`--primary`, `--secondary`, `--destructive`, `--accent`, etc.)
-- **Pattern:** Brand color primitives (`--royal-blue`, `--deep-navy`, etc.) mapped to semantic tokens (`--primary: var(--royal-blue)`)
-- **Font:** Alaska (self-hosted, base64-inlined variable WOFF2) is the **only** typeface in the project. Never use any other font-family — always reference `var(--font-family)` which resolves to `"Alaska", sans-serif`. No exceptions. The `@font-face` declaration lives in `src/styles/font.css.ts`.
-- **Light mode only** currently — dark mode variables not yet implemented
+- **Color space:** OKLCH throughout — brand colors from Figma, semantic tokens following shadcn/ui naming
+- **Font:** Alaska is the **only** typeface. Always reference `var(--font-family)` which resolves to `"Alaska", sans-serif`. No exceptions.
+- **Light mode only** currently
 
 ## Key Conventions
 
-- **Lit components:** Use `@customElement("tag-name")` decorator, override `render()`, use `css` tagged template for scoped styles. All styles are scoped via Shadow DOM.
+- **Angular components:** Standalone (default), signal-based inputs (`input()`), outputs (`output()`), new control flow (`@if`, `@for`, `@switch`)
+- **Zoneless:** No Zone.js — change detection driven by signals. Timer callbacks use `NgZone.run()`.
 - **Import alias:** `@/` maps to `./src/`
-- **Dependencies:** Declared as `npm:package@version` in `deno.json`, auto-installed to `node_modules/`
-- **Build:** Vite library mode, UMD format. All dependencies (including Lit) are inlined into the bundle. Production build drops console/debugger statements via Terser.
-- **TypeScript:** Strict mode, ES2020 target, DOM + Deno lib types. Config lives in `deno.json` (no separate tsconfig.json).
+- **CSS:** ViewEncapsulation.Emulated (Angular default). Component CSS copied verbatim from Lit source with `:host` attribute reflection.
+- **Host attributes:** Components reflect signal inputs as host attributes for CSS variant selectors (e.g., `host: { '[attr.weight]': 'weight()' }`)
+- **HTTP:** Angular `HttpClient` with `withFetch()` for all HTTP requests
+- **Blockchain:** wagmi/core actions + viem for contract interactions, Reown AppKit for wallet modal
+- **Tests:** Vitest with `describe`/`it`/`expect` (no Angular TestBed for pure logic services)
+- **TypeScript:** Strict mode, ES2022 target. Config in `tsconfig.json`.
