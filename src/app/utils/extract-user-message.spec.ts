@@ -2,16 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { extractUserMessage } from './extract-user-message';
 
-/** Mimics Angular HttpErrorResponse shape without importing @angular/common/http. */
+/**
+ * Mimics Angular HttpErrorResponse shape without importing @angular/common/http.
+ * Real HttpErrorResponse does NOT extend Error — it's a plain object with a .name property.
+ */
 function createHttpErrorResponse(opts: { error: unknown; status: number }) {
-  const err = new Error(`Http failure response: ${opts.status}`) as Error & {
-    error: unknown;
-    status: number;
+  return {
+    name: 'HttpErrorResponse' as const,
+    message: `Http failure response: ${opts.status}`,
+    error: opts.error,
+    status: opts.status,
+    ok: false,
+    statusText: 'Bad Request',
+    url: 'http://localhost/test',
   };
-  err.name = 'HttpErrorResponse';
-  err.error = opts.error;
-  err.status = opts.status;
-  return err;
 }
 
 describe('extractUserMessage', () => {
@@ -21,7 +25,7 @@ describe('extractUserMessage', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  it('extracts message from HttpErrorResponse with structured body', () => {
+  it('extracts message from HttpErrorResponse with { error: { message } } body', () => {
     const err = createHttpErrorResponse({
       error: {
         error: {
@@ -37,9 +41,53 @@ describe('extractUserMessage', () => {
     expect(extractUserMessage(err, fallback)).toBe('Not enough liquidity for this swap');
   });
 
-  it('returns fallback for HttpErrorResponse without structured body', () => {
+  it('extracts message from HttpErrorResponse with flat { error: { message } } body (no wrapper)', () => {
+    // Backend returns { error: { message } } and HttpClient parses it as err.error
+    const err = createHttpErrorResponse({
+      error: {
+        category: 'SWAP_ERROR',
+        code: 'INSUFFICIENT_LIQUIDITY',
+        message: 'Not enough liquidity for this swap',
+        details: {},
+      },
+      status: 400,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe('Not enough liquidity for this swap');
+  });
+
+  it('extracts message from HttpErrorResponse with { message } body', () => {
+    const err = createHttpErrorResponse({
+      error: { message: 'Rate limit exceeded' },
+      status: 429,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe('Rate limit exceeded');
+  });
+
+  it('extracts message from HttpErrorResponse with unparsed JSON string body', () => {
+    const err = createHttpErrorResponse({
+      error: JSON.stringify({
+        error: { category: 'SWAP_ERROR', code: 'X', message: 'Parsed from string' },
+      }),
+      status: 400,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe('Parsed from string');
+  });
+
+  it('passes through clean string body from HttpErrorResponse', () => {
     const err = createHttpErrorResponse({
       error: 'Internal Server Error',
+      status: 500,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe('Internal Server Error');
+  });
+
+  it('returns fallback for HttpErrorResponse with technical string body', () => {
+    const err = createHttpErrorResponse({
+      error: 'Error 0xdeadbeef: revert at call frame',
       status: 500,
     });
 

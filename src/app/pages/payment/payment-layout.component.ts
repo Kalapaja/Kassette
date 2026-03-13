@@ -52,6 +52,7 @@ import {
   type BungeeSwapDetails,
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
+import { POLYGON_CHAIN_ID } from '@/app/config/payment';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
@@ -470,8 +471,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
-      // Skip native tokens — only ERC-20 tokens can be used for payment
-      if (token.address.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) continue;
+      // Skip native token on Polygon (MATIC cannot be bridged as payment)
+      if (token.chainId === POLYGON_CHAIN_ID && token.address.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) continue;
 
       const key = getTokenKey(token.chainId, token.address);
       const price = this.state.prices().get(key);
