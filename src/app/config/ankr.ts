@@ -43,7 +43,7 @@ export const ANKR_SUPPORTED_CHAIN_IDS: Set<number> = new Set(
 export const UNICHAIN_CHAIN_ID = 130;
 
 /** Request timeout for Ankr JSON-RPC calls (ms) */
-export const ANKR_TIMEOUT_MS = 10_000;
+export const ANKR_TIMEOUT_MS = 30_000;
 
 // ---------------------------------------------------------------------------
 // Response types

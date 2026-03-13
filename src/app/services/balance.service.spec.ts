@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { of, throwError } from 'rxjs';
 
 import { BalanceService } from './balance.service';
+import { ChainService } from './chain.service';
 import { ANKR_API_URL, ANKR_CHAIN_MAP } from '@/app/config/ankr';
 import {
   NATIVE_TOKEN_ADDRESS,
@@ -67,10 +68,30 @@ describe('BalanceService', () => {
     httpPostSpy = vi.fn();
     const mockHttpClient = { post: httpPostSpy } as unknown as HttpClient;
 
-    // Create the service inside an injection context so `inject(HttpClient)` works
+    // Create a mock ChainService that returns chain configs for known chains
+    const mockChainService = {
+      getChain: (chainId: number) => {
+        const chains: Record<number, { chainId: number; rpcUrl: string }> = {
+          1: { chainId: 1, rpcUrl: 'https://eth.example.com' },
+          137: { chainId: 137, rpcUrl: 'https://polygon.example.com' },
+          56: { chainId: 56, rpcUrl: 'https://bsc.example.com' },
+          42161: { chainId: 42161, rpcUrl: 'https://arb.example.com' },
+          10: { chainId: 10, rpcUrl: 'https://opt.example.com' },
+          8453: { chainId: 8453, rpcUrl: 'https://base.example.com' },
+          59144: { chainId: 59144, rpcUrl: 'https://linea.example.com' },
+          130: { chainId: 130, rpcUrl: 'https://unichain.example.com' },
+        };
+        return chains[chainId];
+      },
+      getAllChains: () => [],
+      ready: Promise.resolve(),
+    } as unknown as ChainService;
+
+    // Create the service inside an injection context so `inject(...)` works
     const parentInjector = Injector.create({
       providers: [
         { provide: HttpClient, useValue: mockHttpClient },
+        { provide: ChainService, useValue: mockChainService },
       ],
     });
     const envInjector = createEnvironmentInjector([], parentInjector as EnvironmentInjector);

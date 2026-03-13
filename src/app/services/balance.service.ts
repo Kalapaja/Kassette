@@ -9,9 +9,10 @@ import {
 
 import { isNativeAddress } from '@/app/config/address.utils';
 import { ANKR_API_URL, ANKR_CHAIN_MAP, ANKR_TIMEOUT_MS, UNICHAIN_CHAIN_ID, type AnkrAsset, type AnkrJsonRpcResponse } from '@/app/config/ankr';
-import { SUPPORTED_CHAINS, type ChainConfig } from '@/app/config/chains';
+import type { ChainConfig } from '@/app/config/chains';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
+import { ChainService } from '@/app/services/chain.service';
 import { firstValueFrom, TimeoutError, timeout } from 'rxjs';
 
 const MAX_CONCURRENCY = 2;
@@ -19,13 +20,20 @@ const MAX_CONCURRENCY = 2;
 @Injectable({ providedIn: 'root' })
 export class BalanceService {
   private readonly http = inject(HttpClient);
+  private readonly chainService = inject(ChainService);
   private _clients: Map<number, PublicClient> = new Map();
   private _cache: Map<string, bigint> = new Map();
 
-  constructor() {
-    for (const chain of SUPPORTED_CHAINS) {
-      this._clients.set(chain.chainId, this._createClient(chain));
-    }
+  private _getOrCreateClient(chainId: number): PublicClient | undefined {
+    let client = this._clients.get(chainId);
+    if (client) return client;
+
+    const chainConfig = this.chainService.getChain(chainId);
+    if (!chainConfig) return undefined;
+
+    client = this._createClient(chainConfig);
+    this._clients.set(chainId, client);
+    return client;
   }
 
   private _createClient(chainConfig: ChainConfig): PublicClient {
@@ -153,7 +161,7 @@ export class BalanceService {
     // Group tokens by chainId, only for chains we have clients
     const tokensByChain = new Map<number, TokenConfig[]>();
     for (const token of tokens) {
-      if (!this._clients.has(token.chainId)) continue;
+      if (!this._getOrCreateClient(token.chainId)) continue;
       const list = tokensByChain.get(token.chainId) ?? [];
       list.push(token);
       tokensByChain.set(token.chainId, list);
@@ -186,7 +194,7 @@ export class BalanceService {
     userAddress: `0x${string}`,
     tokens: TokenConfig[],
   ): Promise<Map<string, bigint>> {
-    const client = this._clients.get(chainId);
+    const client = this._getOrCreateClient(chainId);
     if (!client) return new Map();
 
     const erc20Tokens = tokens.filter((t) => !isNativeAddress(t.address));

@@ -51,7 +51,7 @@ import {
   type AcrossSwapDetails,
   type BungeeSwapDetails,
 } from '@/app/types/swap.types';
-import { CHAINS_BY_ID } from '@/app/config/chains';
+import { ChainService } from '@/app/services/chain.service';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
@@ -97,6 +97,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private readonly swapService = inject(SwapService);
   private readonly quoteService = inject(QuoteService);
   private readonly pendingTxService = inject(PendingTxService);
+  private readonly chainService = inject(ChainService);
   private readonly ngZone = inject(NgZone);
 
   // ── Local state ──
@@ -156,7 +157,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   readonly txExplorerUrl = computed(() => {
     const chainId = this.state.selectedChainId();
-    const chain = chainId ? CHAINS_BY_ID[chainId] : null;
+    const chain = chainId ? this.chainService.getChain(chainId) : null;
     const explorerUrl = chain?.explorerUrl ?? 'https://etherscan.io';
     const txHash = this.state.txHash();
     return txHash ? `${explorerUrl}/tx/${txHash}` : '#';
@@ -164,7 +165,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   readonly explorerName = computed(() => {
     const chainId = this.state.selectedChainId();
-    const chain = chainId ? CHAINS_BY_ID[chainId] : null;
+    const chain = chainId ? this.chainService.getChain(chainId) : null;
     const explorerUrl = chain?.explorerUrl ?? 'https://etherscan.io';
     return this.getExplorerName(explorerUrl);
   });
@@ -192,7 +193,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Init token service (fetches from Across API)
+    // Init chain & token services (fetch from Across API)
+    this.chainService.init();
     this.tokenService.init();
 
     // Load invoice
@@ -439,7 +441,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private async loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
-    await this.tokenService.ready;
+    await Promise.all([this.tokenService.ready, this.chainService.ready]);
     const allTokens = this.tokenService.getAllTokens();
 
     const [pricesResult, balancesResult] = await Promise.allSettled([
@@ -475,7 +477,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       const price = this.state.prices().get(key);
       if (!price || price <= 0) continue;
 
-      const chain = CHAINS_BY_ID[token.chainId];
+      const chain = this.chainService.getChain(token.chainId);
       if (!chain) continue;
 
       const balance = this.state.balances().get(key) ?? 0n;
@@ -779,7 +781,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
 
     // Direct transfer recovery: check on-chain status
-    const chain = CHAINS_BY_ID[record.chainId];
+    const chain = this.chainService.getChain(record.chainId);
     this.state.applyContext({
       invoice,
       txHash: record.txHash,
@@ -832,7 +834,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     hash: `0x${string}`,
     chainId: number,
   ): Promise<TransactionReceipt | null> {
-    const chain = CHAINS_BY_ID[chainId];
+    const chain = this.chainService.getChain(chainId);
     if (!chain) return null;
     const viemChain = VIEM_CHAINS[chainId];
     const client = createPublicClient({
@@ -938,7 +940,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
 
       // 2. Get original tx details
-      const chain = CHAINS_BY_ID[selectedChainId];
+      const chain = this.chainService.getChain(selectedChainId);
+      if (!chain) return;
       const viemChain = VIEM_CHAINS[selectedChainId];
       const client = createPublicClient({
         chain: viemChain,
