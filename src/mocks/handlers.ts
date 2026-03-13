@@ -35,11 +35,32 @@ const MOCK_INVOICE = {
 };
 
 /**
+ * Read initial mock scenario from the page URL query params.
+ * Usage: http://localhost:3001/?invoice_id=...&mock_status=PartiallyPaid&mock_received=0.30
+ */
+function getInitialMockState(): { status: string; received: string } {
+  try {
+    const params = new URLSearchParams(globalThis.location?.search ?? '');
+    const status = params.get('mock_status') ?? 'Waiting';
+    const received =
+      status === 'PartiallyPaid'
+        ? params.get('mock_received') ?? (parseFloat(MOCK_INVOICE.invoice.amount) / 2).toFixed(2)
+        : '0';
+    return { status, received };
+  } catch {
+    return { status: 'Waiting', received: '0' };
+  }
+}
+
+const initialMock = getInitialMockState();
+
+/**
  * Mutable invoice status — can be changed at runtime via the
  * `/__mock/invoice-status?status=<value>` control endpoint,
- * exactly like the Vite mock plugin did.
+ * or set on page load via `?mock_status=PartiallyPaid&mock_received=0.30`.
  */
-let mockInvoiceStatus = 'Waiting';
+let mockInvoiceStatus = initialMock.status;
+let mockTotalReceivedAmount = initialMock.received;
 
 export const handlers = [
   /**
@@ -49,7 +70,14 @@ export const handlers = [
   http.all('/__mock/invoice-status', ({ request }) => {
     const url = new URL(request.url);
     mockInvoiceStatus = url.searchParams.get('status') ?? 'Waiting';
-    return HttpResponse.json({ status: mockInvoiceStatus });
+    // For PartiallyPaid, set received to half the invoice amount by default
+    if (mockInvoiceStatus === 'PartiallyPaid') {
+      const amount = parseFloat(MOCK_INVOICE.invoice.amount);
+      mockTotalReceivedAmount = url.searchParams.get('received') ?? (amount / 2).toFixed(2);
+    } else {
+      mockTotalReceivedAmount = '0';
+    }
+    return HttpResponse.json({ status: mockInvoiceStatus, total_received_amount: mockTotalReceivedAmount });
   }),
 
   /**
@@ -60,6 +88,7 @@ export const handlers = [
     return HttpResponse.json({
       ...MOCK_INVOICE,
       invoice: { ...MOCK_INVOICE.invoice, status: mockInvoiceStatus },
+      total_received_amount: mockTotalReceivedAmount,
     });
   }),
 

@@ -4,10 +4,9 @@ import { SwapService } from '@/app/services/swap.service';
 import {
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
+  USDC_DECIMALS,
 } from '@/app/config/payment';
 import type { PublicSwap } from '@/app/types/swap.types';
-
-const USDC_DECIMALS = 6;
 
 export type PaymentPath = 'direct' | 'swap';
 

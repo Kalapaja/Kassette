@@ -44,6 +44,9 @@ export const es: Record<keyof typeof en, string> = {
   "error.partialPayment":
     "Pago parcial recibido. Por favor, contacte soporte.",
 
+  "order.remainingTotal": "Restante",
+  "order.partialNotice": "Pago parcial de {received} recibido. Pague el saldo restante.",
+
   "aria.disconnectWallet": "Desconectar billetera",
   "aria.searchTokens": "Buscar tokens",
   "aria.clearSearch": "Limpiar busqueda",
