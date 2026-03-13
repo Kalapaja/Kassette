@@ -56,6 +56,7 @@ import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
+import { extractUserMessage } from '@/app/utils/extract-user-message';
 import { environment } from '@/environments/environment';
 
 const GAS_BUMP_MULTIPLIER = 1.15;
@@ -598,7 +599,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     } catch (err) {
       if (requestId !== this.quoteRequestId) return; // stale error
       this.state.quoteError.set(
-        err instanceof Error ? err.message : this.ts.t('error.getQuote'),
+        extractUserMessage(err, this.ts.t('error.getQuote')),
       );
       this.state.transition('token-select');
     }
@@ -638,7 +639,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         return;
       }
       this.state.transition('error', {
-        errorMessage: err instanceof Error ? err.message : this.ts.t('error.paymentFailed'),
+        errorMessage: extractUserMessage(err, this.ts.t('error.paymentFailed')),
         errorRetryStep: 'ready-to-pay',
       });
     }

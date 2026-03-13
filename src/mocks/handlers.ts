@@ -38,6 +38,40 @@ const MOCK_INVOICE = {
  * Read initial mock scenario from the page URL query params.
  * Usage: http://localhost:3001/?invoice_id=...&mock_status=PartiallyPaid&mock_received=0.30
  */
+/** Predefined error scenarios for mock_error param. */
+const MOCK_ERRORS: Record<string, { category: string; code: string; message: string; status: number }> = {
+  liquidity: {
+    category: 'SWAP_ERROR',
+    code: 'INSUFFICIENT_LIQUIDITY',
+    message: 'Not enough liquidity for this swap. Try a smaller amount.',
+    status: 400,
+  },
+  expired: {
+    category: 'INVOICE_ERROR',
+    code: 'INVOICE_EXPIRED',
+    message: 'This invoice has expired. Please request a new one.',
+    status: 400,
+  },
+  limit: {
+    category: 'SWAP_ERROR',
+    code: 'AMOUNT_BELOW_MINIMUM',
+    message: 'Amount is below the minimum swap limit.',
+    status: 400,
+  },
+  unavailable: {
+    category: 'SWAP_ERROR',
+    code: 'ROUTE_UNAVAILABLE',
+    message: 'No swap route available for this token pair.',
+    status: 400,
+  },
+  server: {
+    category: 'INTERNAL_ERROR',
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'Something went wrong on our end. Please try again later.',
+    status: 500,
+  },
+};
+
 function getInitialMockState(): { status: string; received: string } {
   try {
     const params = new URLSearchParams(globalThis.location?.search ?? '');
@@ -103,6 +137,23 @@ export const handlers = [
    * POST /public/swap/create — returns a mock Across swap response.
    */
   http.post('/public/swap/create', () => {
+    // Read mock_error from page URL (e.g. ?mock_error=liquidity)
+    const pageParams = new URLSearchParams(globalThis.location?.search ?? '');
+    const mockError = pageParams.get('mock_error');
+    if (mockError) {
+      const scenario = MOCK_ERRORS[mockError];
+      if (scenario) {
+        return HttpResponse.json(
+          { error: { category: scenario.category, code: scenario.code, message: scenario.message, details: {} } },
+          { status: scenario.status },
+        );
+      }
+      // Unknown scenario — use the param value as message
+      return HttpResponse.json(
+        { error: { category: 'UNKNOWN', code: 'MOCK_ERROR', message: mockError, details: {} } },
+        { status: 400 },
+      );
+    }
     return HttpResponse.json({
       result: {
         id: '00000000-0000-0000-0000-000000000001',

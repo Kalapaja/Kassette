@@ -40,9 +40,8 @@ export class SwapService {
     );
 
     if (data.error) {
-      throw new Error(
-        `Swap create error: ${data.error.message} (${data.error.code})`,
-      );
+      console.error('[SwapService] createSwap:', data.error);
+      throw new Error(data.error.message);
     }
 
     if (!data.result) {
