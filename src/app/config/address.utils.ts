@@ -1,6 +1,6 @@
 import { NATIVE_TOKEN_ADDRESS } from './tokens';
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as `0x${string}`;
 
 /** Check if an address represents a native token (ETH, MATIC, BNB, etc.). */
 export function isNativeAddress(address: string): boolean {

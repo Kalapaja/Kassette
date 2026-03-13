@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { formatUnits } from 'viem';
+import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { SwapService } from '@/app/services/swap.service';
 import {
   POLYGON_CHAIN_ID,
@@ -71,7 +72,9 @@ export class QuoteService {
     const swap = await this._swapService.createSwap({
       invoice_id: params.invoiceId,
       from_chain_id: params.sourceChainId,
-      from_asset_id: params.sourceToken,
+      from_asset_id: isNativeAddress(params.sourceToken)
+        ? ZERO_ADDRESS
+        : params.sourceToken,
       from_address: params.depositorAddress,
       from_amount_units: params.recipientAmount.toString(),
     });
