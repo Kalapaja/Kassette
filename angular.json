@@ -23,8 +23,7 @@
               }
             ],
             "styles": ["src/styles/font.css", "src/styles/tailwind.css"],
-            "scripts": [],
-            "externalDependencies": ["crypto"]
+            "scripts": []
           },
           "configurations": {
             "production": {

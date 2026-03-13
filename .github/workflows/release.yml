@@ -14,10 +14,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          deno-version: v2.x
+          node-version: 24
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Extract version from tag
         id: version
@@ -26,16 +32,14 @@ jobs:
           VERSION="${VERSION#v}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Install dependencies
-        run: deno install
-
       - name: Build production bundle
-        run: deno task build
+        run: pnpm build
 
-      - name: Prepare release
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: deno task release:prepare
+      - name: Prepare release archive
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cd dist/browser
+          zip -r "../../payment-page-v${VERSION}.zip" .
 
       - name: Upload release archive
         env:
