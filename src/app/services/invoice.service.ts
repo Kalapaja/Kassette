@@ -10,7 +10,6 @@ export class InvoiceService implements OnDestroy {
   private readonly http = inject(HttpClient);
 
   private _pollingInterval: ReturnType<typeof setInterval> | null = null;
-  private _pollingTimeout: ReturnType<typeof setTimeout> | null = null;
   private _lastKnownInvoice: Invoice | null = null;
 
   async fetchInvoice(invoiceId: string): Promise<Invoice> {
@@ -57,18 +56,12 @@ export class InvoiceService implements OnDestroy {
     };
 
     this._pollingInterval = setInterval(poll, intervalMs);
-
-    this._pollingTimeout = setTimeout(() => this.stopPolling(), 5 * 60 * 1000);
   }
 
   stopPolling(): void {
     if (this._pollingInterval) {
       clearInterval(this._pollingInterval);
       this._pollingInterval = null;
-    }
-    if (this._pollingTimeout) {
-      clearTimeout(this._pollingTimeout);
-      this._pollingTimeout = null;
     }
   }
 
