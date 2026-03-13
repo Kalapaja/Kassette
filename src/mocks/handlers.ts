@@ -136,7 +136,7 @@ export const handlers = [
   /**
    * POST /public/swap/create — returns a mock Across swap response.
    */
-  http.post('/public/swap/create', () => {
+  http.post('/public/swap/create', async ({ request }) => {
     // Read mock_error from page URL (e.g. ?mock_error=liquidity)
     const pageParams = new URLSearchParams(globalThis.location?.search ?? '');
     const mockError = pageParams.get('mock_error');
@@ -154,6 +154,41 @@ export const handlers = [
         { status: 400 },
       );
     }
+
+    const body = (await request.json()) as {
+      from_chain_id?: number;
+      from_asset_id?: string;
+      from_address?: string;
+      from_amount_units?: string;
+    };
+
+    // Simulate realistic from_amount_units based on source token.
+    // The real API returns the amount in source-token units.
+    // Invoice amount is in USDC (6 decimals); mock prices approximate real rates.
+    const invoiceUnits = BigInt(body.from_amount_units ?? '1000000');
+    const NATIVE = '0x0000000000000000000000000000000000000000';
+    const isNative =
+      !body.from_asset_id ||
+      body.from_asset_id.toLowerCase() === NATIVE ||
+      body.from_asset_id.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+    let fromAmountUnits: string;
+    if (isNative) {
+      // Native tokens have 18 decimals — scale from 6-decimal USDC units.
+      // Mock price: ~2000 USD/ETH for ETH chains, ~600 USD/BNB for BSC.
+      const isBsc = body.from_chain_id === 56;
+      const mockPrice = isBsc ? 600 : 2000;
+      // invoiceUnits is USDC with 6 decimals → real USD = invoiceUnits / 1e6
+      // source amount = USD / price, in 18-decimal units
+      // = invoiceUnits * 1e18 / (mockPrice * 1e6) = invoiceUnits * 1e12 / mockPrice
+      const sourceAmount = (invoiceUnits * 1_000_000_000_000n) / BigInt(mockPrice);
+      // Add ~3% buffer like the real API
+      fromAmountUnits = ((sourceAmount * 103n) / 100n).toString();
+    } else {
+      // ERC-20 (likely stablecoin with 6 decimals) — echo with small markup
+      fromAmountUnits = ((invoiceUnits * 103n) / 100n).toString();
+    }
+
     return HttpResponse.json({
       result: {
         id: '00000000-0000-0000-0000-000000000001',
@@ -161,22 +196,22 @@ export const handlers = [
         swap_executor: 'Across',
         from_chain: 'Base',
         to_chain: 'Polygon',
-        from_token_address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        from_token_address: body.from_asset_id ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
         to_token_address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-        from_amount_units: '26000000',
-        expected_to_amount_units: '25500000',
-        from_address: '0x0000000000000000000000000000000000000000',
+        from_amount_units: fromAmountUnits,
+        expected_to_amount_units: invoiceUnits.toString(),
+        from_address: body.from_address ?? NATIVE,
         to_address: MOCK_INVOICE.invoice.payment_address,
         direction: 'Incoming',
-        from_chain_id: 8453,
+        from_chain_id: body.from_chain_id ?? 8453,
         to_chain_id: 137,
         status: 'Created',
-        estimated_to_amount: '25.50',
+        estimated_to_amount: (Number(invoiceUnits) / 1e6).toFixed(2),
         swap_details: {
           id: 'mock-across-quote',
           raw_transaction: {
             transaction: {
-              chain_id: 8453,
+              chain_id: body.from_chain_id ?? 8453,
               contract_address: '0x0000000000000000000000000000000000000000',
               data: '0x',
               gas: '200000',

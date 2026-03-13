@@ -80,11 +80,14 @@ export class QuoteService {
     });
 
     const userPayAmount = BigInt(swap.from_amount_units);
+    const precision = Math.min(params.sourceDecimals, 6);
+    const raw = formatUnits(userPayAmount, params.sourceDecimals);
+    const userPayAmountHuman = parseFloat(raw).toFixed(precision);
 
     return {
       path: 'swap',
       userPayAmount,
-      userPayAmountHuman: formatUnits(userPayAmount, params.sourceDecimals),
+      userPayAmountHuman,
       swap,
     };
   }
