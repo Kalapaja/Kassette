@@ -16,6 +16,7 @@ export interface SwapTransaction {
   chain_id: number;
   contract_address: string;
   data: string;
+  value: string; // u128 serialized as string
   gas: string; // u128 serialized as string
   max_fee_per_gas: string; // u128 serialized as string
   max_priority_fee_per_gas: string; // u128 serialized as string
