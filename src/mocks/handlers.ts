@@ -214,6 +214,7 @@ export const handlers = [
               chain_id: body.from_chain_id ?? 8453,
               contract_address: '0x0000000000000000000000000000000000000000',
               data: '0x',
+              value: isNative ? fromAmountUnits : '0',
               gas: '200000',
               max_fee_per_gas: '1000000000',
               max_priority_fee_per_gas: '100000000',
