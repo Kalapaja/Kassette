@@ -105,6 +105,7 @@ export class SwapService {
     return await sendTransaction(this._config, {
       to: swapTx.contract_address as `0x${string}`,
       data: swapTx.data as `0x${string}`,
+      value: BigInt(swapTx.value),
       gas: BigInt(swapTx.gas),
       maxFeePerGas: BigInt(swapTx.max_fee_per_gas),
       maxPriorityFeePerGas: BigInt(swapTx.max_priority_fee_per_gas),
