@@ -15,7 +15,7 @@ import { ZERO_ADDRESS } from '@/app/config/address.utils';
 import type { PublicSwap } from '@/app/types/swap.types';
 
 // Minimal mock swap for tests
-function makeMockSwap(fromAmountUnits: string): PublicSwap {
+function makeMockSwap(fromAmountUnits: string, txValue?: string): PublicSwap {
   return {
     id: 'swap-1',
     invoice_id: 'inv-1',
@@ -33,7 +33,22 @@ function makeMockSwap(fromAmountUnits: string): PublicSwap {
     to_chain_id: POLYGON_CHAIN_ID,
     status: 'Created',
     estimated_to_amount: '1.00',
-    swap_details: {} as PublicSwap['swap_details'],
+    swap_details: {
+      id: 'details-1',
+      raw_transaction: {
+        transaction: {
+          chain_id: 1,
+          contract_address: '0xcontract',
+          data: '0x',
+          value: txValue ?? fromAmountUnits,
+          gas: '21000',
+          max_fee_per_gas: '1000000000',
+          max_priority_fee_per_gas: '1000000',
+        },
+        approval_transactions: [],
+      },
+      transaction_hash: null,
+    },
     created_at: '2026-01-01T00:00:00Z',
     valid_till: '2026-01-01T00:10:00Z',
   };
@@ -136,9 +151,10 @@ describe('QuoteService', () => {
 
     // ─── Swap quotes: precision truncation ───
 
-    it('truncates 18-decimal token to 6 decimal places', async () => {
-      // Simulate ETH: API returns 500000000000000 wei = 0.0005 ETH
-      mockCreateSwap.mockResolvedValue(makeMockSwap('500000000000000'));
+    it('uses transaction value for native token Across swaps', async () => {
+      // Backend returns from_amount_units in USDC terms (1000000 = $1),
+      // but the real ETH amount is in the transaction value field.
+      mockCreateSwap.mockResolvedValue(makeMockSwap('1000000', '500000000000000'));
 
       const result = await service.calculateQuote(makeParams({ sourceDecimals: 18 }));
 
@@ -147,9 +163,9 @@ describe('QuoteService', () => {
       expect(result.userPayAmountHuman).toBe('0.000500');
     });
 
-    it('truncates 18-decimal token with many significant digits', async () => {
-      // 123456789012345678 wei = 0.123456789012345678 ETH → truncated to 6 decimals
-      mockCreateSwap.mockResolvedValue(makeMockSwap('123456789012345678'));
+    it('truncates 18-decimal native token with many significant digits', async () => {
+      // tx value 123456789012345678 wei = 0.123456789012345678 ETH → truncated to 6 decimals
+      mockCreateSwap.mockResolvedValue(makeMockSwap('1000000', '123456789012345678'));
 
       const result = await service.calculateQuote(makeParams({ sourceDecimals: 18 }));
 
@@ -183,7 +199,7 @@ describe('QuoteService', () => {
     // ─── Native token address handling ───
 
     it('sends zero address for native tokens in swap request', async () => {
-      mockCreateSwap.mockResolvedValue(makeMockSwap('500000000000000'));
+      mockCreateSwap.mockResolvedValue(makeMockSwap('1000000', '500000000000000'));
 
       await service.calculateQuote(makeParams({
         sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,

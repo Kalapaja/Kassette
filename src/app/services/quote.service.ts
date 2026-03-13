@@ -8,6 +8,7 @@ import {
   USDC_DECIMALS,
 } from '@/app/config/payment';
 import type { PublicSwap } from '@/app/types/swap.types';
+import { isAcrossSwap } from '@/app/types/swap.types';
 
 export type PaymentPath = 'direct' | 'swap';
 
@@ -79,7 +80,14 @@ export class QuoteService {
       from_amount_units: params.recipientAmount.toString(),
     });
 
-    const userPayAmount = BigInt(swap.from_amount_units);
+    // For native token Across swaps, the real amount is in the transaction's
+    // value field (wei), not from_amount_units (which holds the invoice USDC amount).
+    let userPayAmount: bigint;
+    if (isNativeAddress(params.sourceToken) && isAcrossSwap(swap)) {
+      userPayAmount = BigInt(swap.swap_details.raw_transaction.transaction.value);
+    } else {
+      userPayAmount = BigInt(swap.from_amount_units);
+    }
     const precision = Math.min(params.sourceDecimals, 6);
     const raw = formatUnits(userPayAmount, params.sourceDecimals);
     const userPayAmountHuman = parseFloat(raw).toFixed(precision);
