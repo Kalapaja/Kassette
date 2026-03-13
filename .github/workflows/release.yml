@@ -38,8 +38,9 @@ jobs:
       - name: Prepare release archive
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          cd dist/browser
-          zip -r "../../payment-page-v${VERSION}.zip" .
+          mv dist/browser dist/dist
+          cd dist
+          zip -r "../payment-page-v${VERSION}.zip" dist
 
       - name: Upload release archive
         env:
