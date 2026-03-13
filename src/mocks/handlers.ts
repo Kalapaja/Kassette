@@ -40,6 +40,7 @@ const MOCK_INVOICE = {
  * exactly like the Vite mock plugin did.
  */
 let mockInvoiceStatus = 'Waiting';
+let mockTotalReceivedAmount = '0';
 
 export const handlers = [
   /**
@@ -49,7 +50,14 @@ export const handlers = [
   http.all('/__mock/invoice-status', ({ request }) => {
     const url = new URL(request.url);
     mockInvoiceStatus = url.searchParams.get('status') ?? 'Waiting';
-    return HttpResponse.json({ status: mockInvoiceStatus });
+    // For PartiallyPaid, set received to half the invoice amount by default
+    if (mockInvoiceStatus === 'PartiallyPaid') {
+      const amount = parseFloat(MOCK_INVOICE.invoice.amount);
+      mockTotalReceivedAmount = url.searchParams.get('received') ?? (amount / 2).toFixed(2);
+    } else {
+      mockTotalReceivedAmount = '0';
+    }
+    return HttpResponse.json({ status: mockInvoiceStatus, total_received_amount: mockTotalReceivedAmount });
   }),
 
   /**
@@ -60,6 +68,7 @@ export const handlers = [
     return HttpResponse.json({
       ...MOCK_INVOICE,
       invoice: { ...MOCK_INVOICE.invoice, status: mockInvoiceStatus },
+      total_received_amount: mockTotalReceivedAmount,
     });
   }),
 

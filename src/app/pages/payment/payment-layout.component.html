@@ -209,7 +209,7 @@
 
       @if (totalAmount()) {
         <div class="total flex items-center justify-between py-[5px] border-t border-content-primary mt-5 md:max-xl:sticky md:max-xl:bottom-[90px] md:max-xl:bg-fill-primary md:max-xl:pt-2.5 md:max-xl:z-4">
-          <span class="text-[20px] font-[421] leading-5 text-content-primary">{{ ts.t('order.total') }}</span>
+          <span class="text-[20px] font-[421] leading-5 text-content-primary">{{ isPartiallyPaid() ? ts.t('order.remainingTotal') : ts.t('order.total') }}</span>
           <div class="flex items-end text-content-primary">
             @if (totalFiatParts(); as parts) {
               <span class="text-base font-[421] leading-5">{{ parts.currency }}</span>
@@ -217,6 +217,12 @@
               <span class="text-base font-normal leading-5">{{ parts.decimal }}</span>
             }
           </div>
+        </div>
+      }
+
+      @if (isPartiallyPaid()) {
+        <div class="mt-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm">
+          {{ ts.t('order.partialNotice', { received: state.invoice()!.total_received_amount }) }}
         </div>
       }
 

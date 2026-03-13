@@ -52,6 +52,10 @@ export const en = {
   "error.partialPayment":
     "Partial payment received. Please contact support.",
 
+  // -- Partial payment --
+  "order.remainingTotal": "Remaining",
+  "order.partialNotice": "Partial payment of {received} received. Pay the remaining balance.",
+
   // -- Aria labels --
   "aria.disconnectWallet": "Disconnect wallet",
   "aria.searchTokens": "Search tokens",

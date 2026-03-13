@@ -46,7 +46,7 @@ export const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
   "quoting": ["ready-to-pay", "token-select", "quoting", "error"],
   "approving": ["executing", "error", "ready-to-pay"],
   "executing": ["polling", "error", "ready-to-pay"],
-  "polling": ["paid", "error"],
+  "polling": ["paid", "error", "token-select"],
   "recovering": ["polling", "token-select", "recovering", "error", "paid"],
   "paid": [],
   "error": ["ready-to-pay", "token-select"],

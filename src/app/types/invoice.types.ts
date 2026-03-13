@@ -59,3 +59,13 @@ export function isExpiredStatus(s: InvoiceStatus): boolean {
 export function isCanceledStatus(s: InvoiceStatus): boolean {
   return s === "AdminCanceled" || s === "CustomerCanceled";
 }
+
+import { parseUnits, formatUnits } from 'viem';
+import { USDC_DECIMALS } from '@/app/config/payment';
+
+export function getRemainingAmount(invoice: Invoice): string {
+  const total = parseUnits(invoice.amount, USDC_DECIMALS);
+  const received = parseUnits(invoice.total_received_amount || '0', USDC_DECIMALS);
+  const remaining = total > received ? total - received : 0n;
+  return formatUnits(remaining, USDC_DECIMALS);
+}

@@ -42,7 +42,7 @@ import { QuoteService } from '@/app/services/quote.service';
 import { PendingTxService, type PendingTxRecord } from '@/app/services/pending-tx.service';
 
 import type { Invoice } from '@/app/types/invoice.types';
-import { isActiveStatus, isExpiredStatus, isFinalStatus } from '@/app/types/invoice.types';
+import { isActiveStatus, isExpiredStatus, isFinalStatus, getRemainingAmount } from '@/app/types/invoice.types';
 import type { PaymentStep, TokenOption, OrderItem } from '@/app/types/payment-step.types';
 import {
   isAcrossSwap,
@@ -113,6 +113,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   successAmount = viewChild<ElementRef<HTMLElement>>('successAmount');
 
   // ── Computed signals for template ──
+  readonly isPartiallyPaid = computed(() => this.state.invoice()?.status === 'PartiallyPaid');
+
   readonly isSheetOpen = computed(() => {
     const step = this.state.currentStep();
     return step !== 'loading' && step !== 'invoice-error' && step !== 'idle';
@@ -394,8 +396,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         });
         return;
       }
-      // Update total from invoice
-      this.totalAmount.set(parseFloat(invoice.amount));
+      // Update total from invoice (remaining amount for partial payments)
+      this.totalAmount.set(parseFloat(getRemainingAmount(invoice)));
       // Update items from invoice cart
       this.items = invoice.cart.items.map((item) => ({
         name: item.name,
@@ -461,7 +463,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private computeTokenOptions(): TokenOption[] {
     const invoice = this.state.invoice();
     if (!invoice) return [];
-    const usdAmount = parseFloat(invoice.amount);
+    const usdAmount = parseFloat(getRemainingAmount(invoice));
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
@@ -519,7 +521,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (path === 'direct') {
       // No quote needed -- go straight to ready-to-pay
       const invoice = this.state.invoice()!;
-      const amount = parseUnits(invoice.amount, 6);
+      const remainingAmount = getRemainingAmount(invoice);
+      const amount = parseUnits(remainingAmount, 6);
       this.state.transition('ready-to-pay', {
         selectedChainId: option.chainId,
         selectedTokenAddress: option.tokenAddress,
@@ -529,14 +532,14 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         selectedTokenDecimals: option.decimals,
         paymentPath: path,
         requiredAmount: amount,
-        requiredAmountHuman: invoice.amount,
-        requiredFiatHuman: fiatPartsToString(formatFiat(parseFloat(invoice.amount), this.ts.locale())),
+        requiredAmountHuman: remainingAmount,
+        requiredFiatHuman: fiatPartsToString(formatFiat(parseFloat(remainingAmount), this.ts.locale())),
         exchangeFee: fiatPartsToString(formatFiat(0, this.ts.locale())),
         gasFee: '',
         quote: {
           path: 'direct',
           userPayAmount: amount,
-          userPayAmountHuman: invoice.amount,
+          userPayAmountHuman: remainingAmount,
           swap: null,
         },
       });
@@ -569,7 +572,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         sourceToken: option.tokenAddress,
         sourceChainId: option.chainId,
         sourceDecimals: option.decimals,
-        recipientAmount: parseUnits(invoice.amount, 6),
+        recipientAmount: parseUnits(getRemainingAmount(invoice), 6),
         depositorAddress: account.address as `0x${string}`,
         recipientAddress: invoice.payment_address as `0x${string}`,
         invoiceId: invoice.id,
@@ -578,8 +581,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       if (requestId !== this.quoteRequestId) return; // stale response
       const fiatValue = parseFloat(quote.userPayAmountHuman) * usdPrice;
 
-      // Compute exchange fee as difference between what user pays and invoice amount
-      const invoiceAmountUsd = parseFloat(invoice.amount);
+      // Compute exchange fee as difference between what user pays and remaining amount
+      const invoiceAmountUsd = parseFloat(getRemainingAmount(invoice));
       const feeUsd = Math.max(0, fiatValue - invoiceAmountUsd);
       const exchangeFee = fiatPartsToString(formatFiat(feeUsd, this.ts.locale()));
       const gasFee = '';
@@ -899,10 +902,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         errorRetryStep: null,
       });
     } else if (invoice.status === 'PartiallyPaid') {
-      this.state.transition('error', {
-        errorMessage: this.ts.t('error.partialPayment'),
-        errorRetryStep: null,
-      });
+      this.state.applyContext({ invoice });
+      this.totalAmount.set(parseFloat(getRemainingAmount(invoice)));
+      this.invoiceService.stopPolling();
+      this.state.transition('token-select');
     }
   }
 
