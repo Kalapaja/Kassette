@@ -11,7 +11,7 @@ export interface PendingTxRecord {
   amount: string;
   amountHuman: string;
   invoiceId: string;
-  paymentPath: 'direct';
+  paymentPath: 'direct' | 'same-chain-swap';
   timestamp: string;
   invoiceValidTill: string;
   // Legacy field — kept for backwards-compat with stale records from swap paths.

@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { formatUnits } from 'viem';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { SwapService } from '@/app/services/swap.service';
+import { UniswapService, type UniswapQuote } from '@/app/services/uniswap.service';
 import {
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
@@ -10,7 +11,7 @@ import {
 import type { PublicSwap } from '@/app/types/swap.types';
 import { isAcrossSwap } from '@/app/types/swap.types';
 
-export type PaymentPath = 'direct' | 'swap';
+export type PaymentPath = 'direct' | 'same-chain-swap' | 'swap';
 
 export interface QuoteParams {
   sourceToken: `0x${string}`;
@@ -27,11 +28,13 @@ export interface QuoteResult {
   userPayAmount: bigint; // Amount user pays in source token units
   userPayAmountHuman: string; // Formatted for display
   swap: PublicSwap | null;
+  uniswapQuote: UniswapQuote | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class QuoteService {
   private readonly _swapService = inject(SwapService);
+  private readonly _uniswapService = inject(UniswapService);
 
   destroy(): void {}
 
@@ -47,17 +50,21 @@ export class QuoteService {
 
   detectPath(chainId: number, tokenAddress: `0x${string}`): PaymentPath {
     if (QuoteService.isDirectTransfer(chainId, tokenAddress)) return 'direct';
+    if (UniswapService.isSameChainSwap(chainId, tokenAddress)) return 'same-chain-swap';
     return 'swap';
   }
 
   async calculateQuote(params: QuoteParams): Promise<QuoteResult> {
     const path = this.detectPath(params.sourceChainId, params.sourceToken);
 
-    if (path === 'direct') {
-      return this._directQuote(params);
+    switch (path) {
+      case 'direct':
+        return this._directQuote(params);
+      case 'same-chain-swap':
+        return await this._uniswapQuote(params);
+      case 'swap':
+        return await this._swapQuote(params);
     }
-
-    return await this._swapQuote(params);
   }
 
   private _directQuote(params: QuoteParams): QuoteResult {
@@ -66,6 +73,23 @@ export class QuoteService {
       userPayAmount: params.recipientAmount,
       userPayAmountHuman: formatUnits(params.recipientAmount, USDC_DECIMALS),
       swap: null,
+      uniswapQuote: null,
+    };
+  }
+
+  private async _uniswapQuote(params: QuoteParams): Promise<QuoteResult> {
+    const quote = await this._uniswapService.getQuote({
+      tokenIn: params.sourceToken,
+      tokenInDecimals: params.sourceDecimals,
+      amountOut: params.recipientAmount,
+      recipient: params.recipientAddress,
+    });
+    return {
+      path: 'same-chain-swap',
+      userPayAmount: quote.amountIn,
+      userPayAmountHuman: formatUnits(quote.amountIn, params.sourceDecimals),
+      swap: null,
+      uniswapQuote: quote,
     };
   }
 
@@ -97,6 +121,7 @@ export class QuoteService {
       userPayAmount,
       userPayAmountHuman,
       swap,
+      uniswapQuote: null,
     };
   }
 }
