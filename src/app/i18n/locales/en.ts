@@ -47,6 +47,7 @@ export const en = {
   "error.loadInvoice": "Failed to load invoice",
   "error.switchNetwork": "Failed to switch network",
   "error.paymentFailed": "Payment failed",
+  "error.transactionReverted": "Transaction failed on-chain",
   "error.getQuote": "Failed to get quote",
   "error.invoiceExpired": "Invoice has expired",
   "error.partialPayment":

@@ -678,6 +678,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     const receipt = await this.paymentService.waitForReceipt(hash);
 
+    if (receipt.status === 'reverted') {
+      this.pendingTxService.remove(invoiceId);
+      throw new Error(this.ts.t('error.transactionReverted'));
+    }
+
     this.invoiceService.registerSwap({
       invoice_id: invoiceId,
       from_amount_units: requiredAmount.toString(),
@@ -719,7 +724,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     this.state.txHash.set(txHash);
 
-    await waitForTransactionReceipt(this.appKit.wagmiConfig!, { hash: txHash as Hash });
+    const receipt = await waitForTransactionReceipt(this.appKit.wagmiConfig!, { hash: txHash as Hash });
+
+    if (receipt.status === 'reverted') {
+      throw new Error(this.ts.t('error.transactionReverted'));
+    }
 
     await this.swapService.submitSwapTransaction(swap.id, txHash);
     this.state.transition('polling');

@@ -39,6 +39,7 @@ export const es: Record<keyof typeof en, string> = {
   "error.loadInvoice": "Error al cargar la factura",
   "error.switchNetwork": "Error al cambiar de red",
   "error.paymentFailed": "El pago fallo",
+  "error.transactionReverted": "La transaccion fallo en la cadena",
   "error.getQuote": "Error al obtener cotizacion",
   "error.invoiceExpired": "La factura ha expirado",
   "error.partialPayment":
