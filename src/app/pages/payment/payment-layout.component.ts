@@ -869,6 +869,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       selectedTokenAddress: record.tokenAddress as `0x${string}`,
       selectedTokenSymbol: record.tokenSymbol,
       selectedTokenDecimals: record.tokenDecimals,
+      requiredAmount: BigInt(record.amount),
       requiredAmountHuman: record.amountHuman,
       paymentPath: record.paymentPath,
       pendingTxTimestamp: record.timestamp,
@@ -883,6 +884,15 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       ]);
 
       if (receipt) {
+        if (receipt.status === 'reverted') {
+          this.pendingTxService.remove(invoiceId);
+          this.state.transition('recovering');
+          this.state.transition('error', {
+            errorMessage: this.ts.t('error.transactionReverted'),
+            errorRetryStep: 'token-select' as PaymentStep,
+          });
+          return;
+        }
         // Tx already confirmed — notify backend and go to polling
         this.invoiceService.registerSwap({
           invoice_id: invoiceId,
@@ -948,6 +958,14 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           this.ngZone.run(() => {
             const invoiceId = this.getInvoiceId();
             this.stopRecoveryMonitoring();
+            if (receipt.status === 'reverted') {
+              this.pendingTxService.remove(invoiceId);
+              this.state.transition('error', {
+                errorMessage: this.ts.t('error.transactionReverted'),
+                errorRetryStep: 'token-select' as PaymentStep,
+              });
+              return;
+            }
             this.invoiceService.registerSwap({
               invoice_id: invoiceId,
               from_amount_units: this.state.requiredAmount().toString(),
@@ -1034,9 +1052,31 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Already confirmed? Jump to polling.
+      // Already confirmed? Check status, register, then poll.
       if (originalTx.blockNumber !== null) {
         this.stopRecoveryMonitoring();
+
+        const receipt = await this.getTransactionReceipt(
+          txHash as `0x${string}`,
+          selectedChainId,
+        );
+
+        if (receipt?.status === 'reverted') {
+          this.pendingTxService.remove(invoiceId);
+          this.state.transition('error', {
+            errorMessage: this.ts.t('error.transactionReverted'),
+            errorRetryStep: 'token-select' as PaymentStep,
+          });
+          return;
+        }
+
+        this.invoiceService.registerSwap({
+          invoice_id: invoiceId,
+          from_amount_units: this.state.requiredAmount().toString(),
+          from_chain_id: selectedChainId,
+          from_asset_id: this.state.selectedTokenAddress()!,
+          transaction_hash: txHash,
+        });
         this.pendingTxService.remove(invoiceId);
         this.state.transition('polling');
         this.startPolling(invoiceId);
