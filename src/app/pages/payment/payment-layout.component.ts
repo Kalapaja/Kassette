@@ -53,7 +53,6 @@ import {
   type BungeeSwapDetails,
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
-import { POLYGON_CHAIN_ID } from '@/app/config/payment';
 import { getTokenKey } from '@/app/config/tokens';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { UNISWAP_SWAP_ROUTER_02 } from '@/app/config/uniswap';
@@ -658,6 +657,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private async executeDirect(): Promise<void> {
     this.state.transition('executing');
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
+    const selectedChainId = this.state.selectedChainId()!;
     const invoice = this.state.invoice()!;
     const requiredAmount = this.state.requiredAmount();
     const invoiceId = this.getInvoiceId();
@@ -666,13 +666,13 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       selectedTokenAddress,
       invoice.payment_address as `0x${string}`,
       requiredAmount,
-      POLYGON_CHAIN_ID,
+      selectedChainId,
     );
 
     this.state.txHash.set(hash);
     this.pendingTxService.save({
       txHash: hash,
-      chainId: this.state.selectedChainId()!,
+      chainId: selectedChainId,
       tokenAddress: selectedTokenAddress,
       tokenSymbol: this.state.selectedTokenSymbol(),
       tokenDecimals: this.state.selectedTokenDecimals(),
@@ -684,7 +684,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoiceValidTill: invoice.valid_till,
     });
 
-    const receipt = await this.paymentService.waitForReceipt(hash, POLYGON_CHAIN_ID);
+    const receipt = await this.paymentService.waitForReceipt(hash, selectedChainId);
 
     if (receipt.status === 'reverted') {
       this.pendingTxService.remove(invoiceId);
@@ -694,7 +694,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.invoiceService.registerSwap({
       invoice_id: invoiceId,
       from_amount_units: requiredAmount.toString(),
-      from_chain_id: this.state.selectedChainId()!,
+      from_chain_id: selectedChainId,
       from_asset_id: this.toBackendAssetId(selectedTokenAddress),
       transaction_hash: receipt.transactionHash,
     });
@@ -707,6 +707,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const quote = this.state.quote()!;
     const uniQuote = quote.uniswapQuote!;
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
+    const selectedChainId = this.state.selectedChainId()!;
     const invoice = this.state.invoice()!;
     const account = this.state.connectedAccount()!;
     const invoiceId = this.getInvoiceId();
@@ -718,7 +719,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         selectedTokenAddress,
         UNISWAP_SWAP_ROUTER_02,
         account.address as `0x${string}`,
-        POLYGON_CHAIN_ID,
+        selectedChainId,
       );
       if (allowance < maxAmountIn) {
         this.state.transition('approving');
@@ -726,9 +727,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           selectedTokenAddress,
           UNISWAP_SWAP_ROUTER_02,
           maxAmountIn,
-          POLYGON_CHAIN_ID,
+          selectedChainId,
         );
-        await this.paymentService.waitForReceipt(approveHash, POLYGON_CHAIN_ID);
+        await this.paymentService.waitForReceipt(approveHash, selectedChainId);
       }
     }
 
@@ -738,7 +739,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.state.txHash.set(swapHash);
     this.pendingTxService.save({
       txHash: swapHash,
-      chainId: this.state.selectedChainId()!,
+      chainId: selectedChainId,
       tokenAddress: selectedTokenAddress,
       tokenSymbol: this.state.selectedTokenSymbol(),
       tokenDecimals: this.state.selectedTokenDecimals(),
@@ -750,7 +751,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoiceValidTill: invoice.valid_till,
     });
 
-    const receipt = await this.paymentService.waitForReceipt(swapHash as Hash, POLYGON_CHAIN_ID);
+    const receipt = await this.paymentService.waitForReceipt(swapHash as Hash, selectedChainId);
 
     if (receipt.status === 'reverted') {
       this.pendingTxService.remove(invoiceId);
@@ -760,7 +761,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.invoiceService.registerSwap({
       invoice_id: invoiceId,
       from_amount_units: this.state.requiredAmount().toString(),
-      from_chain_id: this.state.selectedChainId()!,
+      from_chain_id: selectedChainId,
       from_asset_id: this.toBackendAssetId(selectedTokenAddress),
       transaction_hash: receipt.transactionHash,
     });
@@ -823,7 +824,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       await this.swapService.executeBungeeApprovalIfNeeded(
         details.raw_transaction.approval_data,
         this.paymentService,
-        this.state.selectedChainId(),
+        this.state.selectedChainId() ?? undefined,
       );
     }
 
