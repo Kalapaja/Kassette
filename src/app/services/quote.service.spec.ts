@@ -104,6 +104,18 @@ describe('QuoteService', () => {
       expect(service.detectPath(POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS)).toBe('direct');
     });
 
+    it('returns "same-chain-swap" for non-USDC token on Polygon', () => {
+      expect(
+        service.detectPath(POLYGON_CHAIN_ID, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619' as `0x${string}`),
+      ).toBe('same-chain-swap');
+    });
+
+    it('returns "same-chain-swap" for native token on Polygon', () => {
+      expect(
+        service.detectPath(POLYGON_CHAIN_ID, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`),
+      ).toBe('same-chain-swap');
+    });
+
     it('returns "swap" for ETH on mainnet', () => {
       expect(
         service.detectPath(1, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`),
@@ -128,6 +140,42 @@ describe('QuoteService', () => {
       (service as unknown as { _swapService: { createSwap: typeof mockCreateSwap } })._swapService = {
         createSwap: mockCreateSwap,
       };
+    });
+
+    // ─── Same-chain swap quotes ───
+
+    it('delegates to UniswapService for Polygon non-USDC tokens', async () => {
+      const mockGetQuote = vi.fn().mockResolvedValue({
+        amountIn: 500_000_000_000_000n,
+        amountOut: 1_000_000n,
+        feeTier: 500,
+        tokenIn: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270' as `0x${string}`,
+        tokenOut: POLYGON_USDC_ADDRESS,
+        recipient: '0xrecipient' as `0x${string}`,
+        isNativeToken: true,
+      });
+      (service as unknown as { _uniswapService: { getQuote: typeof mockGetQuote } })._uniswapService = {
+        getQuote: mockGetQuote,
+      };
+
+      const params = makeParams({
+        sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
+        sourceChainId: POLYGON_CHAIN_ID,
+        sourceDecimals: 18,
+      });
+
+      const result = await service.calculateQuote(params);
+
+      expect(mockGetQuote).toHaveBeenCalledWith({
+        tokenIn: params.sourceToken,
+        amountOut: params.recipientAmount,
+        recipient: params.recipientAddress,
+      });
+      expect(result.path).toBe('same-chain-swap');
+      expect(result.userPayAmount).toBe(500_000_000_000_000n);
+      expect(result.swap).toBeNull();
+      expect(result.uniswapQuote).not.toBeNull();
+      expect(result.uniswapQuote!.feeTier).toBe(500);
     });
 
     // ─── Direct quotes ───
