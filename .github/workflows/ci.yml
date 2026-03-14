@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable Angular build cache for CI
+        run: pnpm exec ng config cli.cache.environment ci
+
+      - name: Cache Angular build
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**', 'angular.json', 'tsconfig*.json') }}
+          restore-keys: |
+            angular-cache-${{ hashFiles('pnpm-lock.yaml') }}-
+            angular-cache-
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit -p tsconfig.app.json
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
