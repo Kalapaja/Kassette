@@ -666,6 +666,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       selectedTokenAddress,
       invoice.payment_address as `0x${string}`,
       requiredAmount,
+      POLYGON_CHAIN_ID,
     );
 
     this.state.txHash.set(hash);
@@ -683,7 +684,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoiceValidTill: invoice.valid_till,
     });
 
-    const receipt = await this.paymentService.waitForReceipt(hash);
+    const receipt = await this.paymentService.waitForReceipt(hash, POLYGON_CHAIN_ID);
 
     if (receipt.status === 'reverted') {
       this.pendingTxService.remove(invoiceId);
@@ -717,6 +718,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         selectedTokenAddress,
         UNISWAP_SWAP_ROUTER_02,
         account.address as `0x${string}`,
+        POLYGON_CHAIN_ID,
       );
       if (allowance < maxAmountIn) {
         this.state.transition('approving');
@@ -724,8 +726,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           selectedTokenAddress,
           UNISWAP_SWAP_ROUTER_02,
           maxAmountIn,
+          POLYGON_CHAIN_ID,
         );
-        await this.paymentService.waitForReceipt(approveHash);
+        await this.paymentService.waitForReceipt(approveHash, POLYGON_CHAIN_ID);
       }
     }
 
@@ -747,7 +750,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoiceValidTill: invoice.valid_till,
     });
 
-    const receipt = await this.paymentService.waitForReceipt(swapHash as Hash);
+    const receipt = await this.paymentService.waitForReceipt(swapHash as Hash, POLYGON_CHAIN_ID);
 
     if (receipt.status === 'reverted') {
       this.pendingTxService.remove(invoiceId);
@@ -795,7 +798,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     this.state.txHash.set(txHash);
 
-    const receipt = await waitForTransactionReceipt(this.appKit.wagmiConfig!, { hash: txHash as Hash });
+    const selectedChainId = this.state.selectedChainId()!;
+    const receipt = await waitForTransactionReceipt(this.appKit.wagmiConfig!, {
+      hash: txHash as Hash,
+      chainId: selectedChainId,
+    });
 
     if (receipt.status === 'reverted') {
       throw new Error(this.ts.t('error.transactionReverted'));
@@ -816,6 +823,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       await this.swapService.executeBungeeApprovalIfNeeded(
         details.raw_transaction.approval_data,
         this.paymentService,
+        this.state.selectedChainId(),
       );
     }
 

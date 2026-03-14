@@ -19,11 +19,13 @@ export class PaymentService implements OnDestroy {
     tokenAddress: `0x${string}`,
     spender: `0x${string}`,
     owner: `0x${string}`,
+    chainId?: number,
   ): Promise<bigint> {
     if (!this._config) {
       throw new Error('PaymentService: wagmi Config not set. Call setConfig() first.');
     }
     return await readContract(this._config, {
+      ...(chainId != null && { chainId }),
       abi: erc20Abi,
       address: tokenAddress,
       functionName: 'allowance',
@@ -35,11 +37,13 @@ export class PaymentService implements OnDestroy {
     tokenAddress: `0x${string}`,
     spender: `0x${string}`,
     amount: bigint,
+    chainId?: number,
   ): Promise<Hash> {
     if (!this._config) {
       throw new Error('PaymentService: wagmi Config not set. Call setConfig() first.');
     }
     return writeContract(this._config, {
+      ...(chainId != null && { chainId }),
       abi: erc20Abi,
       address: tokenAddress,
       functionName: 'approve',
@@ -51,11 +55,13 @@ export class PaymentService implements OnDestroy {
     tokenAddress: `0x${string}`,
     to: `0x${string}`,
     amount: bigint,
+    chainId?: number,
   ): Promise<Hash> {
     if (!this._config) {
       throw new Error('PaymentService: wagmi Config not set. Call setConfig() first.');
     }
     return writeContract(this._config, {
+      ...(chainId != null && { chainId }),
       abi: erc20Abi,
       address: tokenAddress,
       functionName: 'transfer',
@@ -63,11 +69,14 @@ export class PaymentService implements OnDestroy {
     });
   }
 
-  waitForReceipt(hash: Hash): Promise<TransactionReceipt> {
+  waitForReceipt(hash: Hash, chainId?: number): Promise<TransactionReceipt> {
     if (!this._config) {
       throw new Error('PaymentService: wagmi Config not set. Call setConfig() first.');
     }
-    return waitForTransactionReceipt(this._config, { hash });
+    return waitForTransactionReceipt(this._config, {
+      hash,
+      ...(chainId != null && { chainId }),
+    });
   }
 
   destroy(): void {
