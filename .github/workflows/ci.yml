@@ -28,6 +28,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Enable Angular build cache for CI
+        run: pnpm exec ng config cli.cache.environment ci
+
+      - name: Cache Angular build
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-cache-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**', 'angular.json', 'tsconfig*.json') }}
+          restore-keys: |
+            angular-cache-${{ hashFiles('pnpm-lock.yaml') }}-
+            angular-cache-
+
       - name: Type check
         run: pnpm exec tsc --noEmit -p tsconfig.app.json
 
