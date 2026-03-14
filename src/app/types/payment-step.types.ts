@@ -1,6 +1,6 @@
 import type { Invoice } from './invoice.types';
 import type { PublicSwap } from './swap.types';
-import type { UniswapQuote } from '@/app/services/uniswap.service';
+import type { UniswapQuote } from './uniswap.types';
 
 // ─── Payment Path ───
 

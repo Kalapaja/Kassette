@@ -15,23 +15,9 @@ import {
   QUOTER_V2_ABI,
   SWAP_ROUTER_ABI,
 } from '@/app/config/uniswap';
+import type { UniswapQuote, UniswapQuoteParams } from '@/app/types/uniswap.types';
 
-export interface UniswapQuoteParams {
-  tokenIn: `0x${string}`; // Source token (or NATIVE_TOKEN_ADDRESS for native)
-  tokenInDecimals: number;
-  amountOut: bigint; // Desired USDC output (invoice amount)
-  recipient: `0x${string}`; // invoice.payment_address
-}
-
-export interface UniswapQuote {
-  amountIn: bigint; // Required input amount (best tier)
-  amountOut: bigint; // Guaranteed output
-  feeTier: number; // Selected fee tier (100/500/3000/10000)
-  tokenIn: `0x${string}`;
-  tokenOut: `0x${string}`; // POLYGON_USDC_ADDRESS
-  recipient: `0x${string}`;
-  isNativeToken: boolean; // true if paying with MATIC
-}
+export type { UniswapQuote, UniswapQuoteParams };
 
 @Injectable({ providedIn: 'root' })
 export class UniswapService {
@@ -43,6 +29,10 @@ export class UniswapService {
 
   destroy(): void {
     this._config = null;
+  }
+
+  static maxAmountWithSlippage(amount: bigint): bigint {
+    return (amount * 105n) / 100n;
   }
 
   static isSameChainSwap(
@@ -118,8 +108,7 @@ export class UniswapService {
       throw new Error('UniswapService: wagmi Config not set. Call setConfig() first.');
     }
 
-    // 5% slippage cap on input
-    const maxAmountIn = (quote.amountIn * 105n) / 100n;
+    const maxAmountIn = UniswapService.maxAmountWithSlippage(quote.amountIn);
 
     if (quote.isNativeToken) {
       // Native token (MATIC): use multicall with [exactOutputSingle, refundETH]

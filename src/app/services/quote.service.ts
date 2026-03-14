@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { formatUnits } from 'viem';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { SwapService } from '@/app/services/swap.service';
-import { UniswapService, type UniswapQuote } from '@/app/services/uniswap.service';
+import { UniswapService } from '@/app/services/uniswap.service';
 import {
   POLYGON_CHAIN_ID,
   POLYGON_USDC_ADDRESS,
@@ -10,8 +10,9 @@ import {
 } from '@/app/config/payment';
 import type { PublicSwap } from '@/app/types/swap.types';
 import { isAcrossSwap } from '@/app/types/swap.types';
+import type { PaymentPath, QuoteResult } from '@/app/types/payment-step.types';
 
-export type PaymentPath = 'direct' | 'same-chain-swap' | 'swap';
+export type { PaymentPath, QuoteResult };
 
 export interface QuoteParams {
   sourceToken: `0x${string}`;
@@ -21,14 +22,6 @@ export interface QuoteParams {
   depositorAddress: `0x${string}`;
   recipientAddress: `0x${string}`; // invoice.payment_address
   invoiceId: string;
-}
-
-export interface QuoteResult {
-  path: PaymentPath;
-  userPayAmount: bigint; // Amount user pays in source token units
-  userPayAmountHuman: string; // Formatted for display
-  swap: PublicSwap | null;
-  uniswapQuote: UniswapQuote | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -80,7 +73,6 @@ export class QuoteService {
   private async _uniswapQuote(params: QuoteParams): Promise<QuoteResult> {
     const quote = await this._uniswapService.getQuote({
       tokenIn: params.sourceToken,
-      tokenInDecimals: params.sourceDecimals,
       amountOut: params.recipientAmount,
       recipient: params.recipientAddress,
     });

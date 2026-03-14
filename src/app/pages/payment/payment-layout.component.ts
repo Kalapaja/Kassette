@@ -712,7 +712,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     // ERC20 approval (not needed for native token)
     if (!uniQuote.isNativeToken) {
-      const maxAmountIn = (uniQuote.amountIn * 105n) / 100n;
+      const maxAmountIn = UniswapService.maxAmountWithSlippage(uniQuote.amountIn);
       const allowance = await this.paymentService.checkAllowance(
         selectedTokenAddress,
         UNISWAP_SWAP_ROUTER_02,
@@ -861,7 +861,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Direct transfer recovery: check on-chain status
+    // Direct transfer / same-chain swap recovery: check on-chain status
     const chain = this.chainService.getChain(record.chainId);
     this.state.applyContext({
       invoice,
