@@ -90,10 +90,14 @@ export class SwapService {
 
     for (const tx of approvalTxns) {
       const hash = await sendTransaction(this._config, {
+        chainId: tx.chain_id,
         to: tx.to as `0x${string}`,
         data: tx.data as `0x${string}`,
       });
-      await waitForTransactionReceipt(this._config, { hash });
+      await waitForTransactionReceipt(this._config, {
+        hash,
+        chainId: tx.chain_id,
+      });
     }
   }
 
@@ -103,6 +107,7 @@ export class SwapService {
     }
 
     return await sendTransaction(this._config, {
+      chainId: swapTx.chain_id,
       to: swapTx.contract_address as `0x${string}`,
       data: swapTx.data as `0x${string}`,
       value: BigInt(swapTx.value),
@@ -151,16 +156,20 @@ export class SwapService {
         token: `0x${string}`,
         spender: `0x${string}`,
         owner: `0x${string}`,
+        chainId?: number,
       ) => Promise<bigint>;
       submitApprove: (
         token: `0x${string}`,
         spender: `0x${string}`,
         amount: bigint,
+        chainId?: number,
       ) => Promise<`0x${string}`>;
       waitForReceipt: (
         hash: `0x${string}`,
+        chainId?: number,
       ) => Promise<unknown>;
     },
+    chainId?: number,
   ): Promise<void> {
     const spender = approvalData.spenderAddress as `0x${string}`;
     const token = approvalData.tokenAddress as `0x${string}`;
@@ -171,6 +180,7 @@ export class SwapService {
       token,
       spender,
       owner,
+      chainId,
     );
 
     if (currentAllowance < requiredAmount) {
@@ -178,8 +188,9 @@ export class SwapService {
         token,
         spender,
         requiredAmount,
+        chainId,
       );
-      await paymentService.waitForReceipt(approveHash);
+      await paymentService.waitForReceipt(approveHash, chainId);
     }
   }
 }
