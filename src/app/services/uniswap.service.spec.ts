@@ -121,6 +121,21 @@ describe('UniswapService', () => {
       expect(mockReadContract.mock.calls[0][1].args[0].tokenIn).toBe(WMATIC_ADDRESS);
     });
 
+    it('quotes against Polygon chain regardless of wallet chain', async () => {
+      mockReadContract.mockResolvedValue([1_000_000n, 0n, 0, 0n]);
+
+      await service.getQuote({
+        tokenIn: WETH_POLYGON,
+        amountOut: 1_000_000n,
+        recipient: RECIPIENT,
+      });
+
+      // Every readContract call (one per fee tier) must target Polygon
+      for (const call of mockReadContract.mock.calls) {
+        expect(call[1]).toEqual(expect.objectContaining({ chainId: POLYGON_CHAIN_ID }));
+      }
+    });
+
     it('throws when no pool found (all tiers fail)', async () => {
       mockReadContract.mockRejectedValue(new Error('No pool'));
 
@@ -167,6 +182,17 @@ describe('UniswapService', () => {
       expect(call[1].value).toBeUndefined();
     });
 
+    it('targets Polygon chain for ERC20 swaps', async () => {
+      mockWriteContract.mockResolvedValue('0xtxhash');
+
+      await service.submitSwap(baseQuote);
+
+      expect(mockWriteContract).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ chainId: POLYGON_CHAIN_ID }),
+      );
+    });
+
     it('uses multicall with refundETH for native token swaps', async () => {
       mockWriteContract.mockResolvedValue('0xtxhash');
 
@@ -187,6 +213,23 @@ describe('UniswapService', () => {
       );
       // multicall args should be array of two calldata entries
       expect(call[1].args[0]).toHaveLength(2);
+    });
+
+    it('targets Polygon chain for native token swaps', async () => {
+      mockWriteContract.mockResolvedValue('0xtxhash');
+
+      const nativeQuote: UniswapQuote = {
+        ...baseQuote,
+        tokenIn: WMATIC_ADDRESS,
+        isNativeToken: true,
+      };
+
+      await service.submitSwap(nativeQuote);
+
+      expect(mockWriteContract).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ chainId: POLYGON_CHAIN_ID }),
+      );
     });
   });
 });

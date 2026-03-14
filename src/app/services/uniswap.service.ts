@@ -58,6 +58,7 @@ export class UniswapService {
     const results = await Promise.allSettled(
       UNISWAP_FEE_TIERS.map(async (fee) => {
         const result = await readContract(this._config!, {
+          chainId: POLYGON_CHAIN_ID,
           address: UNISWAP_QUOTER_V2,
           abi: QUOTER_V2_ABI,
           functionName: 'quoteExactOutputSingle',
@@ -135,6 +136,7 @@ export class UniswapService {
       });
 
       return writeContract(this._config, {
+        chainId: POLYGON_CHAIN_ID,
         address: UNISWAP_SWAP_ROUTER_02,
         abi: SWAP_ROUTER_ABI,
         functionName: 'multicall',
@@ -145,6 +147,7 @@ export class UniswapService {
 
     // ERC20 token: direct exactOutputSingle
     return writeContract(this._config, {
+      chainId: POLYGON_CHAIN_ID,
       address: UNISWAP_SWAP_ROUTER_02,
       abi: SWAP_ROUTER_ABI,
       functionName: 'exactOutputSingle',
