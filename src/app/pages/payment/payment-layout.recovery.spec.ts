@@ -1,4 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach, type Mock } from 'vitest';
+import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
+import { ZERO_ADDRESS } from '@/app/config/address.utils';
 
 // ─── Hoisted mocks ───
 
@@ -310,6 +312,90 @@ describe('PaymentLayoutComponent — recovery', () => {
       expect(invoiceService.registerSwap).toHaveBeenCalledWith(
         expect.objectContaining({
           from_amount_units: '7500000',
+        }),
+      );
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // Native asset normalization: backend should receive ZERO_ADDRESS
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('native asset normalization for backend registration', () => {
+    it('should send ZERO_ADDRESS in fast-path recovery registerSwap for native token records', async () => {
+      const { component, invoiceService } = createTestHarness();
+      vi.spyOn(component, 'getTransactionReceipt').mockResolvedValue({
+        status: 'success',
+        transactionHash: '0xabc123',
+      });
+
+      await component.handlePendingTxRecovery(
+        makeInvoice(),
+        makeRecord({ tokenAddress: NATIVE_TOKEN_ADDRESS }),
+      );
+
+      expect(invoiceService.registerSwap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from_asset_id: ZERO_ADDRESS,
+        }),
+      );
+    });
+
+    it('should send ZERO_ADDRESS when recovery monitoring confirms native token tx', async () => {
+      vi.useFakeTimers();
+      try {
+        const { component, state, invoiceService } = createTestHarness();
+        state.transition('recovering');
+        state.txHash.set('0xabc123');
+        state.selectedChainId.set(137);
+        state.selectedTokenAddress.set(NATIVE_TOKEN_ADDRESS);
+        state.requiredAmount.set(5000000n);
+        state.invoice.set(makeInvoice());
+
+        vi.spyOn(component, 'getTransactionReceipt').mockResolvedValue({
+          status: 'success',
+          transactionHash: '0xabc123',
+        });
+
+        component.startRecoveryMonitoring();
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(invoiceService.registerSwap).toHaveBeenCalledWith(
+          expect.objectContaining({
+            from_asset_id: ZERO_ADDRESS,
+          }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should send ZERO_ADDRESS in speed-up already-confirmed path for native token', async () => {
+      const { component, state, invoiceService } = createTestHarness();
+      state.transition('recovering');
+      state.txHash.set('0xabc123');
+      state.selectedChainId.set(137);
+      state.selectedTokenAddress.set(NATIVE_TOKEN_ADDRESS);
+      state.requiredAmount.set(123n);
+      state.connectedAccount.set({ address: '0xfrom', chainId: 137 });
+
+      const mockedClient = {
+        getTransaction: vi.fn().mockResolvedValue({
+          blockNumber: 1n,
+          from: '0xfrom',
+        }),
+        getTransactionReceipt: vi.fn().mockResolvedValue({
+          status: 'success',
+          transactionHash: '0xabc123',
+        }),
+      };
+      mockCreatePublicClient.mockReturnValue(mockedClient as any);
+
+      await component.onSpeedUp();
+
+      expect(invoiceService.registerSwap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from_asset_id: ZERO_ADDRESS,
         }),
       );
     });

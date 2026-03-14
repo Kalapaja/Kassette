@@ -54,7 +54,8 @@ import {
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
 import { POLYGON_CHAIN_ID } from '@/app/config/payment';
-import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
+import { getTokenKey } from '@/app/config/tokens';
+import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { UNISWAP_SWAP_ROUTER_02 } from '@/app/config/uniswap';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
@@ -693,7 +694,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoice_id: invoiceId,
       from_amount_units: requiredAmount.toString(),
       from_chain_id: this.state.selectedChainId()!,
-      from_asset_id: selectedTokenAddress,
+      from_asset_id: this.toBackendAssetId(selectedTokenAddress),
       transaction_hash: receipt.transactionHash,
     });
     this.pendingTxService.remove(invoiceId);
@@ -757,7 +758,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoice_id: invoiceId,
       from_amount_units: this.state.requiredAmount().toString(),
       from_chain_id: this.state.selectedChainId()!,
-      from_asset_id: selectedTokenAddress,
+      from_asset_id: this.toBackendAssetId(selectedTokenAddress),
       transaction_hash: receipt.transactionHash,
     });
     this.pendingTxService.remove(invoiceId);
@@ -898,7 +899,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           invoice_id: invoiceId,
           from_amount_units: record.amount,
           from_chain_id: record.chainId,
-          from_asset_id: record.tokenAddress,
+          from_asset_id: this.toBackendAssetId(record.tokenAddress as `0x${string}`),
           transaction_hash: record.txHash,
         });
         this.pendingTxService.remove(invoiceId);
@@ -970,7 +971,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
               invoice_id: invoiceId,
               from_amount_units: this.state.requiredAmount().toString(),
               from_chain_id: this.state.selectedChainId()!,
-              from_asset_id: this.state.selectedTokenAddress()!,
+              from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()!),
               transaction_hash: this.state.txHash(),
             });
             this.pendingTxService.remove(invoiceId);
@@ -1074,7 +1075,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           invoice_id: invoiceId,
           from_amount_units: this.state.requiredAmount().toString(),
           from_chain_id: selectedChainId,
-          from_asset_id: this.state.selectedTokenAddress()!,
+          from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()!),
           transaction_hash: txHash,
         });
         this.pendingTxService.remove(invoiceId);
@@ -1169,6 +1170,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     } catch {
       return 'Explorer';
     }
+  }
+
+  private toBackendAssetId(address: `0x${string}`): `0x${string}` {
+    return isNativeAddress(address) ? ZERO_ADDRESS : address;
   }
 
   private getNativeSymbol(chainId: number): string {
