@@ -1,6 +1,6 @@
 // Types matching Kalatori backend PublicSwap API response
 
-export type SwapExecutorType = 'Across' | 'Bungee';
+export type SwapExecutorType = 'Across' | 'Bungee' | 'ZeroEx';
 
 export type SwapStatus =
   | 'Created'
@@ -111,6 +111,28 @@ export interface BungeeSwapDetails {
   transaction_hash: string | null;
 }
 
+// --- ZeroEx types ---
+
+export interface ZeroExRawTransactionData {
+  to: string;
+  data: string;
+  gas: string;
+  gas_price: string;
+  value: string;
+}
+
+export interface ZeroExRawTransaction {
+  allowance_target: string;
+  raw_transaction: ZeroExRawTransactionData;
+}
+
+export interface ZeroExSwapDetails {
+  id: string;
+  raw_transaction: ZeroExRawTransaction;
+  signature: string | null;
+  transaction_hash: string | null;
+}
+
 // --- PublicSwap (unified response) ---
 
 // swap_details is #[serde(untagged)] in Rust — discriminate via swap_executor
@@ -133,7 +155,7 @@ export interface PublicSwap {
   to_chain_id: number;
   status: SwapStatus;
   estimated_to_amount: string; // Decimal serialized as string
-  swap_details: AcrossSwapDetails | BungeeSwapDetails;
+  swap_details: AcrossSwapDetails | BungeeSwapDetails | ZeroExSwapDetails;
   created_at: string;
   valid_till: string;
 }
@@ -173,4 +195,10 @@ export function isBungeeSwap(
   swap: PublicSwap,
 ): swap is PublicSwap & { swap_details: BungeeSwapDetails } {
   return swap.swap_executor === 'Bungee';
+}
+
+export function isZeroExSwap(
+  swap: PublicSwap,
+): swap is PublicSwap & { swap_details: ZeroExSwapDetails } {
+  return swap.swap_executor === 'ZeroEx';
 }

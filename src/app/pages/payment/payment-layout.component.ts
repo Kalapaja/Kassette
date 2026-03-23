@@ -38,7 +38,6 @@ import { BalanceService } from '@/app/services/balance.service';
 import { PaymentService } from '@/app/services/payment.service';
 import { PriceService } from '@/app/services/price.service';
 import { SwapService } from '@/app/services/swap.service';
-import { UniswapService } from '@/app/services/uniswap.service';
 import { QuoteService } from '@/app/services/quote.service';
 import { PendingTxService, type PendingTxRecord } from '@/app/services/pending-tx.service';
 
@@ -48,14 +47,15 @@ import type { PaymentStep, TokenOption, OrderItem } from '@/app/types/payment-st
 import {
   isAcrossSwap,
   isBungeeSwap,
+  isZeroExSwap,
   type PublicSwap,
   type AcrossSwapDetails,
   type BungeeSwapDetails,
+  type ZeroExSwapDetails,
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
 import { getTokenKey } from '@/app/config/tokens';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
-import { UNISWAP_SWAP_ROUTER_02 } from '@/app/config/uniswap';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
@@ -98,7 +98,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private readonly paymentService = inject(PaymentService);
   private readonly priceService = inject(PriceService);
   private readonly swapService = inject(SwapService);
-  private readonly uniswapService = inject(UniswapService);
   private readonly quoteService = inject(QuoteService);
   private readonly pendingTxService = inject(PendingTxService);
   private readonly chainService = inject(ChainService);
@@ -194,7 +193,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         this.walletState.init(config);
         this.paymentService.setConfig(config);
         this.swapService.setConfig(config);
-        this.uniswapService.setConfig(config);
       }
     }
 
@@ -438,7 +436,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (config) {
       this.paymentService.setConfig(config);
       this.swapService.setConfig(config);
-      this.uniswapService.setConfig(config);
     }
     this.state.transition('token-select');
     this.state.isLoadingTokens.set(true);
@@ -547,7 +544,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           userPayAmount: amount,
           userPayAmountHuman: remainingAmount,
           swap: null,
-          uniswapQuote: null,
         },
       });
       return;
@@ -635,9 +631,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         case 'direct':
           await this.executeDirect();
           break;
-        case 'same-chain-swap':
-          await this.executeUniswapSwap();
-          break;
         case 'swap':
           await this.executeSwap();
           break;
@@ -703,82 +696,96 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.startPolling(invoiceId);
   }
 
-  private async executeUniswapSwap(): Promise<void> {
-    const quote = this.state.quote()!;
-    const uniQuote = quote.uniswapQuote!;
-    const selectedTokenAddress = this.state.selectedTokenAddress()!;
-    const selectedChainId = this.state.selectedChainId()!;
-    const invoice = this.state.invoice()!;
-    const account = this.state.connectedAccount()!;
-    const invoiceId = this.getInvoiceId();
-
-    // ERC20 approval (not needed for native token)
-    if (!uniQuote.isNativeToken) {
-      const maxAmountIn = UniswapService.maxAmountWithSlippage(uniQuote.amountIn);
-      const allowance = await this.paymentService.checkAllowance(
-        selectedTokenAddress,
-        UNISWAP_SWAP_ROUTER_02,
-        account.address as `0x${string}`,
-        selectedChainId,
-      );
-      if (allowance < maxAmountIn) {
-        this.state.transition('approving');
-        const approveHash = await this.paymentService.submitApprove(
-          selectedTokenAddress,
-          UNISWAP_SWAP_ROUTER_02,
-          maxAmountIn,
-          selectedChainId,
-        );
-        await this.paymentService.waitForReceipt(approveHash, selectedChainId);
-      }
-    }
-
-    this.state.transition('executing');
-    const swapHash = await this.uniswapService.submitSwap(uniQuote);
-
-    this.state.txHash.set(swapHash);
-    this.pendingTxService.save({
-      txHash: swapHash,
-      chainId: selectedChainId,
-      tokenAddress: selectedTokenAddress,
-      tokenSymbol: this.state.selectedTokenSymbol(),
-      tokenDecimals: this.state.selectedTokenDecimals(),
-      amount: this.state.requiredAmount().toString(),
-      amountHuman: this.state.requiredAmountHuman(),
-      invoiceId,
-      paymentPath: 'same-chain-swap',
-      timestamp: new Date().toISOString(),
-      invoiceValidTill: invoice.valid_till,
-    });
-
-    const receipt = await this.paymentService.waitForReceipt(swapHash as Hash, selectedChainId);
-
-    if (receipt.status === 'reverted') {
-      this.pendingTxService.remove(invoiceId);
-      throw new Error(this.ts.t('error.transactionReverted'));
-    }
-
-    this.invoiceService.registerSwap({
-      invoice_id: invoiceId,
-      from_amount_units: this.state.requiredAmount().toString(),
-      from_chain_id: selectedChainId,
-      from_asset_id: this.toBackendAssetId(selectedTokenAddress),
-      transaction_hash: receipt.transactionHash,
-    });
-    this.pendingTxService.remove(invoiceId);
-    this.state.transition('polling');
-    this.startPolling(invoiceId);
-  }
-
   private async executeSwap(): Promise<void> {
     const quote = this.state.quote()!;
     const swap = quote.swap!;
 
-    if (isAcrossSwap(swap)) {
+    if (isZeroExSwap(swap)) {
+      await this.executeZeroExSwap(swap);
+    } else if (isAcrossSwap(swap)) {
       await this.executeAcrossSwap(swap);
     } else if (isBungeeSwap(swap)) {
       await this.executeBungeeSwap(swap);
     }
+  }
+
+  private async executeZeroExSwap(swap: PublicSwap & { swap_details: ZeroExSwapDetails }): Promise<void> {
+    const details = swap.swap_details;
+    const invoiceId = this.getInvoiceId();
+    const selectedChainId = this.state.selectedChainId()!;
+    const selectedTokenAddress = this.state.selectedTokenAddress()!;
+    const isNative = isNativeAddress(selectedTokenAddress);
+    const allowanceTarget = details.raw_transaction.allowance_target as `0x${string}`;
+    const requiredAmount = BigInt(swap.from_amount_units);
+
+    // Check if approval is needed for ERC20 tokens
+    let needsApproval = false;
+    if (!isNative && allowanceTarget) {
+      const account = this.state.connectedAccount()!;
+      const currentAllowance = await this.paymentService.checkAllowance(
+        selectedTokenAddress,
+        allowanceTarget,
+        account.address as `0x${string}`,
+        selectedChainId,
+      );
+      needsApproval = currentAllowance < requiredAmount;
+    }
+
+    // Try EIP-5792 batched calls (approve + swap in one popup) if approval needed
+    if (needsApproval && await this.swapService.supportsBatchCalls(selectedChainId)) {
+      this.state.transition('executing');
+      const txHash = await this.swapService.executeZeroExBatched(
+        selectedTokenAddress,
+        allowanceTarget,
+        requiredAmount,
+        details.raw_transaction.raw_transaction,
+        selectedChainId,
+        true,
+      );
+      this.state.txHash.set(txHash);
+      await this.swapService.submitSwapTransaction(swap.id, txHash, 'ZeroEx');
+      this.state.transition('polling');
+      this.startPolling(invoiceId);
+      return;
+    }
+
+    // Fallback: sequential approve → send tx
+    if (needsApproval) {
+      this.state.transition('approving');
+      await this.swapService.executeZeroExApprovalIfNeeded(
+        selectedTokenAddress,
+        allowanceTarget,
+        requiredAmount,
+        this.state.connectedAccount()!.address as `0x${string}`,
+        this.paymentService,
+        selectedChainId,
+      );
+    }
+
+    // Send the raw transaction on-chain
+    this.state.transition('executing');
+    const txHash = await this.swapService.executeZeroExTx(
+      details.raw_transaction.raw_transaction,
+      selectedChainId,
+    );
+
+    this.state.txHash.set(txHash);
+
+    // Wait for receipt
+    const receipt = await waitForTransactionReceipt(this.appKit.wagmiConfig!, {
+      hash: txHash as Hash,
+      chainId: selectedChainId,
+    });
+
+    if (receipt.status === 'reverted') {
+      throw new Error(this.ts.t('error.transactionReverted'));
+    }
+
+    // Notify backend
+    await this.swapService.submitSwapTransaction(swap.id, txHash, 'ZeroEx');
+
+    this.state.transition('polling');
+    this.startPolling(invoiceId);
   }
 
   private async executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void> {
@@ -861,10 +868,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   ): Promise<void> {
     const invoiceId = this.getInvoiceId();
 
-    // Swap paths (Across/Bungee) are fully tracked by the backend — no recovery needed.
+    // Swap paths (Across/Bungee/ZeroEx) are fully tracked by the backend — no recovery needed.
     // Remove stale swap records and proceed normally.
-    // New direct records don't have swapExecutor set, so only discard if explicitly non-direct.
-    if (record.swapExecutor && record.swapExecutor !== 'direct') {
+    // Also discard legacy 'same-chain-swap' records from the old Uniswap flow.
+    if ((record.swapExecutor && record.swapExecutor !== 'direct') ||
+        (record as { paymentPath: string }).paymentPath === 'same-chain-swap') {
       this.pendingTxService.remove(invoiceId);
       this.state.transition('idle', { invoice });
       return;

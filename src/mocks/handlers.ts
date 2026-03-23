@@ -189,29 +189,33 @@ export const handlers = [
       fromAmountUnits = ((invoiceUnits * 103n) / 100n).toString();
     }
 
-    return HttpResponse.json({
-      result: {
-        id: '00000000-0000-0000-0000-000000000001',
-        invoice_id: MOCK_INVOICE.invoice.id,
-        swap_executor: 'Across',
-        from_chain: 'Base',
-        to_chain: 'Polygon',
-        from_token_address: body.from_asset_id ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-        to_token_address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-        from_amount_units: fromAmountUnits,
-        expected_to_amount_units: invoiceUnits.toString(),
-        from_address: body.from_address ?? NATIVE,
-        to_address: MOCK_INVOICE.invoice.payment_address,
-        direction: 'Incoming',
-        from_chain_id: body.from_chain_id ?? 8453,
-        to_chain_id: 137,
-        status: 'Created',
-        estimated_to_amount: (Number(invoiceUnits) / 1e6).toFixed(2),
-        swap_details: {
+    // Same-chain (Polygon) → ZeroEx, cross-chain → Across
+    const isSameChain = body.from_chain_id === 137;
+    const swapExecutor = isSameChain ? 'ZeroEx' : 'Across';
+    const fromChain = isSameChain ? 'Polygon' : 'Base';
+    const fromChainId = body.from_chain_id ?? 8453;
+
+    const swapDetails = isSameChain
+      ? {
+          id: 'mock-zeroex-quote',
+          raw_transaction: {
+            allowance_target: '0x0000000000000000000000000000000000000000',
+            raw_transaction: {
+              to: '0x0000000000000000000000000000000000000000',
+              data: '0x',
+              gas: '200000',
+              gas_price: '1000000000',
+              value: isNative ? fromAmountUnits : '0',
+            },
+          },
+          signature: null,
+          transaction_hash: null,
+        }
+      : {
           id: 'mock-across-quote',
           raw_transaction: {
             transaction: {
-              chain_id: body.from_chain_id ?? 8453,
+              chain_id: fromChainId,
               contract_address: '0x0000000000000000000000000000000000000000',
               data: '0x',
               value: isNative ? fromAmountUnits : '0',
@@ -222,7 +226,27 @@ export const handlers = [
             approval_transactions: [],
           },
           transaction_hash: null,
-        },
+        };
+
+    return HttpResponse.json({
+      result: {
+        id: '00000000-0000-0000-0000-000000000001',
+        invoice_id: MOCK_INVOICE.invoice.id,
+        swap_executor: swapExecutor,
+        from_chain: fromChain,
+        to_chain: 'Polygon',
+        from_token_address: body.from_asset_id ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        to_token_address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+        from_amount_units: fromAmountUnits,
+        expected_to_amount_units: invoiceUnits.toString(),
+        from_address: body.from_address ?? NATIVE,
+        to_address: MOCK_INVOICE.invoice.payment_address,
+        direction: 'Incoming',
+        from_chain_id: fromChainId,
+        to_chain_id: 137,
+        status: 'Created',
+        estimated_to_amount: (Number(invoiceUnits) / 1e6).toFixed(2),
+        swap_details: swapDetails,
         created_at: new Date().toISOString(),
         valid_till: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       },

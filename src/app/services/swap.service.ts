@@ -3,10 +3,14 @@ import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import type { Config } from '@wagmi/core';
 import {
+  getCapabilities,
+  getCallsStatus,
+  sendCalls,
   sendTransaction,
   signTypedData,
   waitForTransactionReceipt,
 } from '@wagmi/core';
+import { encodeFunctionData, erc20Abi } from 'viem';
 
 import type {
   ApiResultStructured,
@@ -15,7 +19,9 @@ import type {
   BungeeSignTypedData,
   CreateSwapParams,
   PublicSwap,
+  SwapExecutorType,
   SwapTransaction,
+  ZeroExRawTransactionData,
 } from '@/app/types/swap.types';
 
 @Injectable({ providedIn: 'root' })
@@ -54,12 +60,13 @@ export class SwapService {
   async submitSwapTransaction(
     swapId: string,
     transactionHash: string,
+    swapExecutor: SwapExecutorType = 'Across',
   ): Promise<void> {
     try {
       await firstValueFrom(
         this.http.post('/public/swap/submitted', {
           swap_id: swapId,
-          swap_executor: 'Across',
+          swap_executor: swapExecutor,
           transaction_hash: transactionHash,
         }),
       );
@@ -147,6 +154,166 @@ export class SwapService {
       primaryType: 'PermitWitnessTransferFrom',
       message: typedData.values as unknown as Record<string, unknown>,
     });
+  }
+
+  async executeZeroExTx(
+    rawTx: ZeroExRawTransactionData,
+    chainId: number,
+  ): Promise<`0x${string}`> {
+    if (!this._config) {
+      throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
+    }
+
+    return await sendTransaction(this._config, {
+      chainId,
+      to: rawTx.to as `0x${string}`,
+      data: rawTx.data as `0x${string}`,
+      value: BigInt(rawTx.value),
+      gas: BigInt(rawTx.gas),
+      gasPrice: BigInt(rawTx.gas_price),
+    });
+  }
+
+  async executeZeroExApprovalIfNeeded(
+    tokenAddress: `0x${string}`,
+    allowanceTarget: `0x${string}`,
+    amount: bigint,
+    ownerAddress: `0x${string}`,
+    paymentService: {
+      checkAllowance: (
+        token: `0x${string}`,
+        spender: `0x${string}`,
+        owner: `0x${string}`,
+        chainId?: number,
+      ) => Promise<bigint>;
+      submitApprove: (
+        token: `0x${string}`,
+        spender: `0x${string}`,
+        amount: bigint,
+        chainId?: number,
+      ) => Promise<`0x${string}`>;
+      waitForReceipt: (
+        hash: `0x${string}`,
+        chainId?: number,
+      ) => Promise<unknown>;
+    },
+    chainId?: number,
+  ): Promise<void> {
+    const currentAllowance = await paymentService.checkAllowance(
+      tokenAddress,
+      allowanceTarget,
+      ownerAddress,
+      chainId,
+    );
+
+    if (currentAllowance < amount) {
+      const approveHash = await paymentService.submitApprove(
+        tokenAddress,
+        allowanceTarget,
+        amount,
+        chainId,
+      );
+      await paymentService.waitForReceipt(approveHash, chainId);
+    }
+  }
+
+  /**
+   * Check if the connected wallet supports EIP-5792 batched calls (wallet_sendCalls).
+   */
+  async supportsBatchCalls(chainId: number): Promise<boolean> {
+    if (!this._config) return false;
+    try {
+      const caps = await getCapabilities(this._config);
+      const chainCaps = caps[chainId];
+      if (!chainCaps) return false;
+      const atomic = chainCaps['atomicBatch'] ?? chainCaps['atomic'];
+      if (atomic && ((atomic as Record<string, unknown>)['supported'] === true ||
+          (atomic as Record<string, unknown>)['status'] === 'supported')) {
+        return true;
+      }
+      return false;
+    } catch {
+      // wallet doesn't support wallet_getCapabilities
+      return false;
+    }
+  }
+
+  /**
+   * Execute approve + swap as a single batched call via EIP-5792 (wallet_sendCalls).
+   * Returns the tx hash of the swap transaction.
+   */
+  async executeZeroExBatched(
+    tokenAddress: `0x${string}`,
+    allowanceTarget: `0x${string}`,
+    approveAmount: bigint,
+    rawTx: ZeroExRawTransactionData,
+    chainId: number,
+    needsApproval: boolean,
+  ): Promise<`0x${string}`> {
+    if (!this._config) {
+      throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
+    }
+
+    const calls: Array<{ to: `0x${string}`; data?: `0x${string}`; value?: bigint }> = [];
+
+    if (needsApproval) {
+      const approveData = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [allowanceTarget, approveAmount],
+      });
+      calls.push({
+        to: tokenAddress,
+        data: approveData,
+      });
+    }
+
+    calls.push({
+      to: rawTx.to as `0x${string}`,
+      data: rawTx.data as `0x${string}`,
+      value: BigInt(rawTx.value),
+    });
+
+    const { id } = await sendCalls(this._config, {
+      calls,
+      chainId,
+    });
+
+    // Poll for the batch to complete
+    const txHash = await this._waitForBatchResult(id);
+    return txHash;
+  }
+
+  private async _waitForBatchResult(batchId: string): Promise<`0x${string}`> {
+    if (!this._config) {
+      throw new Error('SwapService: wagmi Config not set.');
+    }
+
+    const MAX_ATTEMPTS = 60;
+    const POLL_INTERVAL = 2000;
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      const result = await getCallsStatus(this._config, { id: batchId });
+
+      if (result.status === 'success') {
+        // Get the last receipt (the swap tx)
+        const receipts = result.receipts ?? [];
+        const lastReceipt = receipts[receipts.length - 1];
+        if (lastReceipt?.transactionHash) {
+          return lastReceipt.transactionHash;
+        }
+        throw new Error('Batch confirmed but no transaction hash in receipts');
+      }
+
+      if (result.status === 'failure') {
+        throw new Error('Batch transaction failed');
+      }
+
+      // Still pending — wait and retry
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+    }
+
+    throw new Error('Batch transaction timed out');
   }
 
   async executeBungeeApprovalIfNeeded(

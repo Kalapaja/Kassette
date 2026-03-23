@@ -50,7 +50,7 @@ function makeRecord(overrides: Partial<PendingTxRecord> = {}): PendingTxRecord {
     amount: '5000000000000000000',
     amountHuman: '5.00',
     invoiceId: 'inv-001',
-    paymentPath: 'same-chain-swap',
+    paymentPath: 'direct',
     timestamp: '2026-01-01T00:00:00.000Z',
     invoiceValidTill: '2026-12-31T23:59:59.000Z',
     ...overrides,
@@ -504,6 +504,18 @@ describe('PaymentLayoutComponent — recovery', () => {
       const { component, state, pendingTxService } = createTestHarness();
 
       const record = makeRecord({ swapExecutor: 'Across' });
+      await component.handlePendingTxRecovery(makeInvoice(), record);
+
+      expect(state.currentStep()).toBe('idle');
+      expect(pendingTxService.remove).toHaveBeenCalledWith('inv-001');
+    });
+
+    it('should discard legacy same-chain-swap records and go to idle', async () => {
+      const { component, state, pendingTxService } = createTestHarness();
+
+      // Old Uniswap records had paymentPath: 'same-chain-swap' without swapExecutor
+      const record = makeRecord() as any;
+      record.paymentPath = 'same-chain-swap';
       await component.handlePendingTxRecovery(makeInvoice(), record);
 
       expect(state.currentStep()).toBe('idle');
