@@ -714,17 +714,49 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const invoiceId = this.getInvoiceId();
     const selectedChainId = this.state.selectedChainId()!;
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
+    const isNative = isNativeAddress(selectedTokenAddress);
+    const allowanceTarget = details.raw_transaction.allowance_target as `0x${string}`;
+    const requiredAmount = BigInt(swap.from_amount_units);
 
-    // ERC20 approval to allowance_target (skip for native tokens)
-    if (!isNativeAddress(selectedTokenAddress) && details.raw_transaction.allowance_target) {
+    // Check if approval is needed for ERC20 tokens
+    let needsApproval = false;
+    if (!isNative && allowanceTarget) {
       const account = this.state.connectedAccount()!;
-      const requiredAmount = BigInt(swap.from_amount_units);
+      const currentAllowance = await this.paymentService.checkAllowance(
+        selectedTokenAddress,
+        allowanceTarget,
+        account.address as `0x${string}`,
+        selectedChainId,
+      );
+      needsApproval = currentAllowance < requiredAmount;
+    }
+
+    // Try EIP-5792 batched calls (approve + swap in one popup) if approval needed
+    if (needsApproval && await this.swapService.supportsBatchCalls(selectedChainId)) {
+      this.state.transition('executing');
+      const txHash = await this.swapService.executeZeroExBatched(
+        selectedTokenAddress,
+        allowanceTarget,
+        requiredAmount,
+        details.raw_transaction.raw_transaction,
+        selectedChainId,
+        true,
+      );
+      this.state.txHash.set(txHash);
+      await this.swapService.submitSwapTransaction(swap.id, txHash, 'ZeroEx');
+      this.state.transition('polling');
+      this.startPolling(invoiceId);
+      return;
+    }
+
+    // Fallback: sequential approve → send tx
+    if (needsApproval) {
       this.state.transition('approving');
       await this.swapService.executeZeroExApprovalIfNeeded(
         selectedTokenAddress,
-        details.raw_transaction.allowance_target as `0x${string}`,
+        allowanceTarget,
         requiredAmount,
-        account.address as `0x${string}`,
+        this.state.connectedAccount()!.address as `0x${string}`,
         this.paymentService,
         selectedChainId,
       );

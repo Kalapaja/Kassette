@@ -38,6 +38,7 @@ function createTestHarness() {
     executeZeroExApprovalIfNeeded: vi.fn().mockResolvedValue(undefined),
     executeZeroExTx: vi.fn().mockResolvedValue('0xswaphash'),
     submitSwapTransaction: vi.fn().mockResolvedValue(undefined),
+    supportsBatchCalls: vi.fn().mockResolvedValue(false),
   };
   const invoiceService = {
     registerSwap: vi.fn(),
