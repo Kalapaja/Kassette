@@ -1,10 +1,9 @@
 import type { Invoice } from './invoice.types';
 import type { PublicSwap } from './swap.types';
-import type { UniswapQuote } from './uniswap.types';
 
 // ─── Payment Path ───
 
-export type PaymentPath = "direct" | "same-chain-swap" | "swap";
+export type PaymentPath = "direct" | "swap";
 
 // ─── Quote Result ───
 
@@ -13,7 +12,6 @@ export interface QuoteResult {
   userPayAmount: bigint; // Amount user pays in source token units
   userPayAmountHuman: string; // Formatted for display
   swap: PublicSwap | null;
-  uniswapQuote: UniswapQuote | null;
 }
 
 // ─── Payment Step State Machine ───

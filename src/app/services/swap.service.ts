@@ -15,7 +15,9 @@ import type {
   BungeeSignTypedData,
   CreateSwapParams,
   PublicSwap,
+  SwapExecutorType,
   SwapTransaction,
+  ZeroExRawTransactionData,
 } from '@/app/types/swap.types';
 
 @Injectable({ providedIn: 'root' })
@@ -54,12 +56,13 @@ export class SwapService {
   async submitSwapTransaction(
     swapId: string,
     transactionHash: string,
+    swapExecutor: SwapExecutorType = 'Across',
   ): Promise<void> {
     try {
       await firstValueFrom(
         this.http.post('/public/swap/submitted', {
           swap_id: swapId,
-          swap_executor: 'Across',
+          swap_executor: swapExecutor,
           transaction_hash: transactionHash,
         }),
       );
@@ -147,6 +150,67 @@ export class SwapService {
       primaryType: 'PermitWitnessTransferFrom',
       message: typedData.values as unknown as Record<string, unknown>,
     });
+  }
+
+  async executeZeroExTx(
+    rawTx: ZeroExRawTransactionData,
+    chainId: number,
+  ): Promise<`0x${string}`> {
+    if (!this._config) {
+      throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
+    }
+
+    return await sendTransaction(this._config, {
+      chainId,
+      to: rawTx.to as `0x${string}`,
+      data: rawTx.data as `0x${string}`,
+      value: BigInt(rawTx.value),
+      gas: BigInt(rawTx.gas),
+      gasPrice: BigInt(rawTx.gas_price),
+    });
+  }
+
+  async executeZeroExApprovalIfNeeded(
+    tokenAddress: `0x${string}`,
+    allowanceTarget: `0x${string}`,
+    amount: bigint,
+    ownerAddress: `0x${string}`,
+    paymentService: {
+      checkAllowance: (
+        token: `0x${string}`,
+        spender: `0x${string}`,
+        owner: `0x${string}`,
+        chainId?: number,
+      ) => Promise<bigint>;
+      submitApprove: (
+        token: `0x${string}`,
+        spender: `0x${string}`,
+        amount: bigint,
+        chainId?: number,
+      ) => Promise<`0x${string}`>;
+      waitForReceipt: (
+        hash: `0x${string}`,
+        chainId?: number,
+      ) => Promise<unknown>;
+    },
+    chainId?: number,
+  ): Promise<void> {
+    const currentAllowance = await paymentService.checkAllowance(
+      tokenAddress,
+      allowanceTarget,
+      ownerAddress,
+      chainId,
+    );
+
+    if (currentAllowance < amount) {
+      const approveHash = await paymentService.submitApprove(
+        tokenAddress,
+        allowanceTarget,
+        amount,
+        chainId,
+      );
+      await paymentService.waitForReceipt(approveHash, chainId);
+    }
   }
 
   async executeBungeeApprovalIfNeeded(

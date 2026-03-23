@@ -8,15 +8,18 @@ vi.hoisted(() => {
 
 vi.mock('@wagmi/core', () => ({
   switchChain: vi.fn(),
-  waitForTransactionReceipt: vi.fn(),
+  waitForTransactionReceipt: vi.fn().mockResolvedValue({
+    status: 'success',
+    transactionHash: '0xfinalhash',
+  }),
 }));
 
 import '@angular/compiler';
 import { PaymentLayoutComponent } from './payment-layout.component';
 import { PaymentStateService } from '@/app/services/payment-state.service';
 import { POLYGON_USDC_ADDRESS } from '@/app/config/payment';
-import type { UniswapQuote } from '@/app/types/uniswap.types';
 import type { QuoteResult } from '@/app/types/payment-step.types';
+import type { PublicSwap, ZeroExSwapDetails } from '@/app/types/swap.types';
 
 // ─── Test helpers ───
 
@@ -31,8 +34,10 @@ function createTestHarness() {
       transactionHash: '0xfinalhash',
     }),
   };
-  const uniswapService = {
-    submitSwap: vi.fn().mockResolvedValue('0xswaphash'),
+  const swapService = {
+    executeZeroExApprovalIfNeeded: vi.fn().mockResolvedValue(undefined),
+    executeZeroExTx: vi.fn().mockResolvedValue('0xswaphash'),
+    submitSwapTransaction: vi.fn().mockResolvedValue(undefined),
   };
   const invoiceService = {
     registerSwap: vi.fn(),
@@ -50,7 +55,7 @@ function createTestHarness() {
   Object.assign(component, {
     state,
     paymentService,
-    uniswapService,
+    swapService,
     invoiceService,
     pendingTxService,
     chainService: { getChain: vi.fn() },
@@ -62,29 +67,55 @@ function createTestHarness() {
     redirectTimer: null,
   });
 
-  return { component, state, paymentService, uniswapService, invoiceService, pendingTxService };
+  return { component, state, paymentService, swapService, invoiceService, pendingTxService };
 }
 
-function makeUniswapQuote(overrides: Partial<UniswapQuote> = {}): UniswapQuote {
+function makeZeroExSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: ZeroExSwapDetails } {
   return {
-    amountIn: 1_000_000n,
-    amountOut: 1_000_000n,
-    feeTier: 500,
-    tokenIn: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F' as `0x${string}`,
-    tokenOut: POLYGON_USDC_ADDRESS,
-    recipient: '0xrecipient' as `0x${string}`,
-    isNativeToken: false,
+    id: 'swap-001',
+    invoice_id: 'inv-001',
+    swap_executor: 'ZeroEx',
+    from_chain: 'Polygon',
+    to_chain: 'Polygon',
+    from_token_address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+    to_token_address: POLYGON_USDC_ADDRESS,
+    from_amount_units: '1000000',
+    expected_to_amount_units: '1000000',
+    from_address: '0xuser',
+    to_address: '0xrecipient',
+    direction: 'Incoming',
+    from_chain_id: 137,
+    to_chain_id: 137,
+    status: 'Created',
+    estimated_to_amount: '1.00',
+    swap_details: {
+      id: 'zeroex-quote-1',
+      raw_transaction: {
+        allowance_target: '0xAllowanceTarget',
+        raw_transaction: {
+          to: '0xSwapContract',
+          data: '0xswapdata',
+          gas: '200000',
+          gas_price: '1000000000',
+          value: '0',
+        },
+      },
+      signature: null,
+      transaction_hash: null,
+    },
+    created_at: '2026-01-01T00:00:00Z',
+    valid_till: '2026-01-01T00:10:00Z',
     ...overrides,
-  };
+  } as PublicSwap & { swap_details: ZeroExSwapDetails };
 }
 
-function makeQuoteResult(uniswapQuote: UniswapQuote): QuoteResult {
+function makeZeroExQuoteResult(swap?: PublicSwap & { swap_details: ZeroExSwapDetails }): QuoteResult {
+  const s = swap ?? makeZeroExSwap();
   return {
-    path: 'same-chain-swap',
-    userPayAmount: uniswapQuote.amountIn,
+    path: 'swap',
+    userPayAmount: BigInt(s.from_amount_units),
     userPayAmountHuman: '1.0',
-    swap: null,
-    uniswapQuote,
+    swap: s,
   };
 }
 
@@ -110,9 +141,9 @@ afterEach(() => {
 // ─── Tests ───
 
 describe('PaymentLayoutComponent — execution chainId', () => {
-  describe('executeUniswapSwap', () => {
-    function setupUniswapState(state: PaymentStateService, chainId = 137) {
-      const uniQuote = makeUniswapQuote();
+  describe('executeZeroExSwap', () => {
+    function setupZeroExState(state: PaymentStateService, chainId = 137) {
+      const swap = makeZeroExSwap();
       state.invoice.set({
         id: 'inv-001',
         status: 'Pending',
@@ -121,79 +152,76 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         cart: { items: [] },
       } as any);
       state.selectedChainId.set(chainId);
-      state.selectedTokenAddress.set(uniQuote.tokenIn);
+      state.selectedTokenAddress.set('0xc2132D05D31c914a87C6611C10748AEb04B58e8F' as `0x${string}`);
       state.selectedTokenSymbol.set('USDT');
       state.selectedTokenDecimals.set(6);
-      state.requiredAmount.set(uniQuote.amountIn);
+      state.requiredAmount.set(1_000_000n);
       state.requiredAmountHuman.set('1.0');
       state.connectedAccount.set({ address: '0xuser', chainId });
-      state.quote.set(makeQuoteResult(uniQuote));
-      return uniQuote;
+      state.quote.set(makeZeroExQuoteResult(swap));
+      return swap;
     }
 
-    it('passes selectedChainId to checkAllowance, submitApprove, and waitForReceipt', async () => {
-      const { component, state, paymentService, uniswapService } = createTestHarness();
-      setupUniswapState(state, 137);
-      // Allowance is 0 → approval needed
-      paymentService.checkAllowance.mockResolvedValue(0n);
+    it('calls executeZeroExApprovalIfNeeded for ERC20 tokens', async () => {
+      const { component, state, swapService } = createTestHarness();
+      const swap = setupZeroExState(state, 137);
 
-      await component.executeUniswapSwap();
+      await component.executeZeroExSwap(swap);
 
-      expect(paymentService.checkAllowance).toHaveBeenCalledWith(
-        expect.any(String), expect.any(String), expect.any(String),
-        137,
-      );
-      expect(paymentService.submitApprove).toHaveBeenCalledWith(
-        expect.any(String), expect.any(String), expect.any(BigInt),
-        137,
-      );
-      // waitForReceipt called twice: once for approve, once for swap
-      for (const call of paymentService.waitForReceipt.mock.calls) {
-        expect(call[1]).toBe(137);
-      }
-      expect(uniswapService.submitSwap).toHaveBeenCalled();
-    });
-
-    it('skips approval but still passes chainId to waitForReceipt when allowance sufficient', async () => {
-      const { component, state, paymentService } = createTestHarness();
-      const uniQuote = setupUniswapState(state, 137);
-      // Allowance exceeds maxAmountWithSlippage
-      paymentService.checkAllowance.mockResolvedValue(uniQuote.amountIn * 2n);
-
-      await component.executeUniswapSwap();
-
-      expect(paymentService.submitApprove).not.toHaveBeenCalled();
-      // waitForReceipt called once for the swap receipt
-      expect(paymentService.waitForReceipt).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(swapService.executeZeroExApprovalIfNeeded).toHaveBeenCalledWith(
+        '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+        '0xAllowanceTarget',
+        1000000n,
+        '0xuser',
+        expect.any(Object),
         137,
       );
     });
 
-    it('skips allowance check entirely for native token swaps', async () => {
-      const { component, state, paymentService } = createTestHarness();
-      const uniQuote = makeUniswapQuote({ isNativeToken: true });
-      state.invoice.set({
-        id: 'inv-001', status: 'Pending', payment_address: '0xrecipient',
-        valid_till: '2026-12-31T23:59:59.000Z', cart: { items: [] },
-      } as any);
-      state.selectedChainId.set(137);
-      state.selectedTokenAddress.set(uniQuote.tokenIn);
-      state.selectedTokenSymbol.set('POL');
-      state.selectedTokenDecimals.set(18);
-      state.requiredAmount.set(uniQuote.amountIn);
-      state.requiredAmountHuman.set('1.0');
-      state.connectedAccount.set({ address: '0xuser', chainId: 137 });
-      state.quote.set(makeQuoteResult(uniQuote));
+    it('calls executeZeroExTx with raw transaction data', async () => {
+      const { component, state, swapService } = createTestHarness();
+      const swap = setupZeroExState(state, 137);
 
-      await component.executeUniswapSwap();
+      await component.executeZeroExSwap(swap);
 
-      expect(paymentService.checkAllowance).not.toHaveBeenCalled();
-      expect(paymentService.submitApprove).not.toHaveBeenCalled();
-      expect(paymentService.waitForReceipt).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(swapService.executeZeroExTx).toHaveBeenCalledWith(
+        { to: '0xSwapContract', data: '0xswapdata', gas: '200000', gas_price: '1000000000', value: '0' },
         137,
       );
+    });
+
+    it('notifies backend via submitSwapTransaction with ZeroEx executor', async () => {
+      const { component, state, swapService } = createTestHarness();
+      const swap = setupZeroExState(state, 137);
+
+      await component.executeZeroExSwap(swap);
+
+      expect(swapService.submitSwapTransaction).toHaveBeenCalledWith(
+        'swap-001',
+        '0xswaphash',
+        'ZeroEx',
+      );
+    });
+
+    it('transitions to polling after successful execution', async () => {
+      const { component, state } = createTestHarness();
+      const swap = setupZeroExState(state, 137);
+
+      await component.executeZeroExSwap(swap);
+
+      expect(state.currentStep()).toBe('polling');
+    });
+
+    it('skips approval for native token swaps', async () => {
+      const { component, state, swapService } = createTestHarness();
+      const swap = setupZeroExState(state, 137);
+      // Set native token address
+      state.selectedTokenAddress.set('0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`);
+
+      await component.executeZeroExSwap(swap);
+
+      expect(swapService.executeZeroExApprovalIfNeeded).not.toHaveBeenCalled();
+      expect(swapService.executeZeroExTx).toHaveBeenCalled();
     });
   });
 

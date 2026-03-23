@@ -14,8 +14,8 @@ import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { ZERO_ADDRESS } from '@/app/config/address.utils';
 import type { PublicSwap } from '@/app/types/swap.types';
 
-// Minimal mock swap for tests
-function makeMockSwap(fromAmountUnits: string, txValue?: string): PublicSwap {
+// Minimal mock Across swap for tests
+function makeMockAcrossSwap(fromAmountUnits: string, txValue?: string): PublicSwap {
   return {
     id: 'swap-1',
     invoice_id: 'inv-1',
@@ -47,6 +47,45 @@ function makeMockSwap(fromAmountUnits: string, txValue?: string): PublicSwap {
         },
         approval_transactions: [],
       },
+      transaction_hash: null,
+    },
+    created_at: '2026-01-01T00:00:00Z',
+    valid_till: '2026-01-01T00:10:00Z',
+  };
+}
+
+// Minimal mock ZeroEx swap for tests
+function makeMockZeroExSwap(fromAmountUnits: string, txValue?: string): PublicSwap {
+  return {
+    id: 'swap-2',
+    invoice_id: 'inv-1',
+    swap_executor: 'ZeroEx',
+    from_chain: 'Polygon',
+    to_chain: 'Polygon',
+    from_token_address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    to_token_address: POLYGON_USDC_ADDRESS,
+    from_amount_units: fromAmountUnits,
+    expected_to_amount_units: '1000000',
+    from_address: '0xuser',
+    to_address: '0xrecipient',
+    direction: 'Incoming',
+    from_chain_id: POLYGON_CHAIN_ID,
+    to_chain_id: POLYGON_CHAIN_ID,
+    status: 'Created',
+    estimated_to_amount: '1.00',
+    swap_details: {
+      id: 'zeroex-1',
+      raw_transaction: {
+        allowance_target: '0xAllowanceTarget',
+        raw_transaction: {
+          to: '0xSwapContract',
+          data: '0x',
+          gas: '200000',
+          gas_price: '1000000000',
+          value: txValue ?? '0',
+        },
+      },
+      signature: null,
       transaction_hash: null,
     },
     created_at: '2026-01-01T00:00:00Z',
@@ -104,16 +143,16 @@ describe('QuoteService', () => {
       expect(service.detectPath(POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS)).toBe('direct');
     });
 
-    it('returns "same-chain-swap" for non-USDC token on Polygon', () => {
+    it('returns "swap" for non-USDC token on Polygon', () => {
       expect(
         service.detectPath(POLYGON_CHAIN_ID, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619' as `0x${string}`),
-      ).toBe('same-chain-swap');
+      ).toBe('swap');
     });
 
-    it('returns "same-chain-swap" for native token on Polygon', () => {
+    it('returns "swap" for native token on Polygon', () => {
       expect(
         service.detectPath(POLYGON_CHAIN_ID, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`),
-      ).toBe('same-chain-swap');
+      ).toBe('swap');
     });
 
     it('returns "swap" for ETH on mainnet', () => {
@@ -142,42 +181,6 @@ describe('QuoteService', () => {
       };
     });
 
-    // ─── Same-chain swap quotes ───
-
-    it('delegates to UniswapService for Polygon non-USDC tokens', async () => {
-      const mockGetQuote = vi.fn().mockResolvedValue({
-        amountIn: 500_000_000_000_000n,
-        amountOut: 1_000_000n,
-        feeTier: 500,
-        tokenIn: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270' as `0x${string}`,
-        tokenOut: POLYGON_USDC_ADDRESS,
-        recipient: '0xrecipient' as `0x${string}`,
-        isNativeToken: true,
-      });
-      (service as unknown as { _uniswapService: { getQuote: typeof mockGetQuote } })._uniswapService = {
-        getQuote: mockGetQuote,
-      };
-
-      const params = makeParams({
-        sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
-        sourceChainId: POLYGON_CHAIN_ID,
-        sourceDecimals: 18,
-      });
-
-      const result = await service.calculateQuote(params);
-
-      expect(mockGetQuote).toHaveBeenCalledWith({
-        tokenIn: params.sourceToken,
-        amountOut: params.recipientAmount,
-        recipient: params.recipientAddress,
-      });
-      expect(result.path).toBe('same-chain-swap');
-      expect(result.userPayAmount).toBe(500_000_000_000_000n);
-      expect(result.swap).toBeNull();
-      expect(result.uniswapQuote).not.toBeNull();
-      expect(result.uniswapQuote!.feeTier).toBe(500);
-    });
-
     // ─── Direct quotes ───
 
     it('returns direct quote for Polygon USDC without calling swap service', async () => {
@@ -197,12 +200,10 @@ describe('QuoteService', () => {
       expect(result.swap).toBeNull();
     });
 
-    // ─── Swap quotes: precision truncation ───
+    // ─── Swap quotes: Across (cross-chain) ───
 
     it('uses transaction value for native token Across swaps', async () => {
-      // Backend returns from_amount_units in USDC terms (1000000 = $1),
-      // but the real ETH amount is in the transaction value field.
-      mockCreateSwap.mockResolvedValue(makeMockSwap('1000000', '500000000000000'));
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1000000', '500000000000000'));
 
       const result = await service.calculateQuote(makeParams({ sourceDecimals: 18 }));
 
@@ -212,8 +213,7 @@ describe('QuoteService', () => {
     });
 
     it('truncates 18-decimal native token with many significant digits', async () => {
-      // tx value 123456789012345678 wei = 0.123456789012345678 ETH → truncated to 6 decimals
-      mockCreateSwap.mockResolvedValue(makeMockSwap('1000000', '123456789012345678'));
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1000000', '123456789012345678'));
 
       const result = await service.calculateQuote(makeParams({ sourceDecimals: 18 }));
 
@@ -221,8 +221,7 @@ describe('QuoteService', () => {
     });
 
     it('keeps 6 decimals for 6-decimal tokens', async () => {
-      // 1030000 = 1.03 USDC
-      mockCreateSwap.mockResolvedValue(makeMockSwap('1030000'));
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
 
       const params = makeParams({
         sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
@@ -236,18 +235,50 @@ describe('QuoteService', () => {
     });
 
     it('handles 8-decimal tokens (capped to 6)', async () => {
-      // 103000000 in 8 decimals = 1.03
-      mockCreateSwap.mockResolvedValue(makeMockSwap('103000000'));
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('103000000'));
 
       const result = await service.calculateQuote(makeParams({ sourceDecimals: 8 }));
 
       expect(result.userPayAmountHuman).toBe('1.030000');
     });
 
+    // ─── Swap quotes: ZeroEx (same-chain) ───
+
+    it('routes Polygon non-USDC token through swap API (ZeroEx)', async () => {
+      mockCreateSwap.mockResolvedValue(makeMockZeroExSwap('1030000'));
+
+      const params = makeParams({
+        sourceToken: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F' as `0x${string}`,
+        sourceChainId: POLYGON_CHAIN_ID,
+        sourceDecimals: 6,
+      });
+
+      const result = await service.calculateQuote(params);
+
+      expect(mockCreateSwap).toHaveBeenCalled();
+      expect(result.path).toBe('swap');
+      expect(result.swap).not.toBeNull();
+      expect(result.swap!.swap_executor).toBe('ZeroEx');
+    });
+
+    it('uses raw_transaction value for native token ZeroEx swaps', async () => {
+      mockCreateSwap.mockResolvedValue(makeMockZeroExSwap('1000000', '500000000000000'));
+
+      const params = makeParams({
+        sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
+        sourceChainId: POLYGON_CHAIN_ID,
+        sourceDecimals: 18,
+      });
+
+      const result = await service.calculateQuote(params);
+
+      expect(result.userPayAmount).toBe(500_000_000_000_000n);
+    });
+
     // ─── Native token address handling ───
 
     it('sends zero address for native tokens in swap request', async () => {
-      mockCreateSwap.mockResolvedValue(makeMockSwap('1000000', '500000000000000'));
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1000000', '500000000000000'));
 
       await service.calculateQuote(makeParams({
         sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
@@ -260,7 +291,7 @@ describe('QuoteService', () => {
 
     it('sends token address as-is for ERC-20 tokens', async () => {
       const tokenAddr = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
-      mockCreateSwap.mockResolvedValue(makeMockSwap('1030000'));
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
 
       await service.calculateQuote(makeParams({
         sourceToken: tokenAddr,
