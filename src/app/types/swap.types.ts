@@ -167,7 +167,7 @@ export interface CreateSwapParams {
   from_chain_id: number;
   from_asset_id: string;
   from_address: string;
-  from_amount_units?: string;
+  from_amount_units: string;
   expected_to_amount_units?: string;
 }
 

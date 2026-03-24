@@ -70,10 +70,9 @@ export class QuoteService {
       from_chain_id: params.sourceChainId,
       from_asset_id: isNative ? ZERO_ADDRESS : params.sourceToken,
       from_address: params.depositorAddress,
-      // For native tokens we don't know the source amount upfront —
-      // the backend computes it. Only send USDC target.
-      ...(isNative ? {} : { from_amount_units: params.recipientAmount.toString() }),
-      expected_to_amount_units: params.recipientAmount.toString(),
+      from_amount_units: params.recipientAmount.toString(),
+      // Optional hint for swap providers that support target-amount mode
+      ...(isNative ? {} : { expected_to_amount_units: params.recipientAmount.toString() }),
     });
 
     // For native token swaps, the real amount is in the transaction's

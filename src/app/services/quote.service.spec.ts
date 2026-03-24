@@ -289,7 +289,7 @@ describe('QuoteService', () => {
       );
     });
 
-    it('sends from_amount_units for ERC-20 swaps', async () => {
+    it('sends expected_to_amount_units for ERC-20 swaps', async () => {
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
 
       await service.calculateQuote(makeParams({
@@ -305,7 +305,7 @@ describe('QuoteService', () => {
       );
     });
 
-    it('omits from_amount_units for native token swaps', async () => {
+    it('omits expected_to_amount_units for native token swaps', async () => {
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1000000', '500000000000000'));
 
       await service.calculateQuote(makeParams({
@@ -314,8 +314,8 @@ describe('QuoteService', () => {
       }));
 
       const callArgs = mockCreateSwap.mock.calls[0][0];
-      expect(callArgs).not.toHaveProperty('from_amount_units');
-      expect(callArgs.expected_to_amount_units).toBe('5000000');
+      expect(callArgs.from_amount_units).toBe('5000000');
+      expect(callArgs).not.toHaveProperty('expected_to_amount_units');
     });
 
     it('sends token address as-is for ERC-20 tokens', async () => {
