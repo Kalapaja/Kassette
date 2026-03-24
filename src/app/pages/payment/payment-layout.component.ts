@@ -791,8 +791,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private async executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
+    const isNative = isNativeAddress(this.state.selectedTokenAddress()!);
 
-    if (details.raw_transaction.approval_transactions.length > 0) {
+    // Native tokens don't need ERC-20 approval
+    if (!isNative && details.raw_transaction.approval_transactions.length > 0) {
       this.state.transition('approving');
       await this.swapService.executeAcrossApprovals(
         details.raw_transaction.approval_transactions,
@@ -824,9 +826,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private async executeBungeeSwap(swap: PublicSwap & { swap_details: BungeeSwapDetails }): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
+    const isNative = isNativeAddress(this.state.selectedTokenAddress()!);
 
-    // Token approval for Permit2 if needed
-    if (details.raw_transaction.approval_data) {
+    // Token approval for Permit2 if needed (native tokens don't need ERC-20 approval)
+    if (!isNative && details.raw_transaction.approval_data) {
       this.state.transition('approving');
       await this.swapService.executeBungeeApprovalIfNeeded(
         details.raw_transaction.approval_data,

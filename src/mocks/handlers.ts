@@ -160,12 +160,16 @@ export const handlers = [
       from_asset_id?: string;
       from_address?: string;
       from_amount_units?: string;
+      expected_to_amount_units?: string;
     };
 
     // Simulate realistic from_amount_units based on source token.
     // The real API returns the amount in source-token units.
-    // Invoice amount is in USDC (6 decimals); mock prices approximate real rates.
-    const invoiceUnits = BigInt(body.from_amount_units ?? '1000000');
+    // Use expected_to_amount_units (USDC target) when available,
+    // fall back to from_amount_units for backward compat.
+    const invoiceUnits = BigInt(
+      body.expected_to_amount_units ?? body.from_amount_units ?? '1000000',
+    );
     const NATIVE = '0x0000000000000000000000000000000000000000';
     const isNative =
       !body.from_asset_id ||

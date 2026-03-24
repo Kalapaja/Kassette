@@ -289,6 +289,21 @@ describe('QuoteService', () => {
       );
     });
 
+    it('always sends expected_to_amount_units in swap request', async () => {
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1000000', '500000000000000'));
+
+      await service.calculateQuote(makeParams({
+        recipientAmount: 5_000_000n,
+      }));
+
+      expect(mockCreateSwap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from_amount_units: '5000000',
+          expected_to_amount_units: '5000000',
+        }),
+      );
+    });
+
     it('sends token address as-is for ERC-20 tokens', async () => {
       const tokenAddr = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
