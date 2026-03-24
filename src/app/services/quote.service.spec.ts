@@ -98,6 +98,7 @@ function makeParams(overrides: Partial<QuoteParams> = {}): QuoteParams {
     sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
     sourceChainId: 1,
     sourceDecimals: 18,
+    sourceUsdPrice: 2000, // ~ETH price
     recipientAmount: 1_000_000n, // 1 USDC
     depositorAddress: '0xuser' as `0x${string}`,
     recipientAddress: '0xrecipient' as `0x${string}`,
@@ -108,6 +109,27 @@ function makeParams(overrides: Partial<QuoteParams> = {}): QuoteParams {
 
 describe('QuoteService', () => {
   // ─── Static helpers ───
+
+  describe('convertToSourceAmount', () => {
+    it('converts USDC to native 18-decimal token using USD price', () => {
+      // 1 USDC at $2000/ETH → 0.0005 ETH = 500000000000000 wei
+      expect(QuoteService.convertToSourceAmount(1_000_000n, 18, 2000)).toBe(500_000_000_000_000n);
+    });
+
+    it('converts USDC to native token at low price', () => {
+      // 0.1 USDC at $0.40/POL → 0.25 POL = 250000000000000000 wei
+      expect(QuoteService.convertToSourceAmount(100_000n, 18, 0.40)).toBe(250_000_000_000_000_000n);
+    });
+
+    it('returns same amount for $1 stablecoin with 6 decimals', () => {
+      // 5 USDC at $1/USDT → 5 USDT = 5000000
+      expect(QuoteService.convertToSourceAmount(5_000_000n, 6, 1.0)).toBe(5_000_000n);
+    });
+
+    it('handles zero price gracefully (returns recipientAmount)', () => {
+      expect(QuoteService.convertToSourceAmount(1_000_000n, 18, 0)).toBe(1_000_000n);
+    });
+  });
 
   describe('isDirectTransfer', () => {
     it('returns true for Polygon USDC', () => {
@@ -287,6 +309,36 @@ describe('QuoteService', () => {
       expect(mockCreateSwap).toHaveBeenCalledWith(
         expect.objectContaining({ from_asset_id: ZERO_ADDRESS }),
       );
+    });
+
+    it('converts from_amount_units to native token units for native swaps', async () => {
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('500000000000000', '500000000000000'));
+
+      // 1 USDC at $2000/ETH → 0.0005 ETH = 500000000000000 wei
+      await service.calculateQuote(makeParams({
+        sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
+        sourceDecimals: 18,
+        sourceUsdPrice: 2000,
+        recipientAmount: 1_000_000n,
+      }));
+
+      const callArgs = mockCreateSwap.mock.calls[0][0];
+      expect(callArgs.from_amount_units).toBe('500000000000000');
+    });
+
+    it('sends from_amount_units as-is for ERC-20 stablecoin swaps', async () => {
+      mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
+
+      // USDC at $1/token → 5 USDC = 5000000 units
+      await service.calculateQuote(makeParams({
+        sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+        sourceDecimals: 6,
+        sourceUsdPrice: 1.0,
+        recipientAmount: 5_000_000n,
+      }));
+
+      const callArgs = mockCreateSwap.mock.calls[0][0];
+      expect(callArgs.from_amount_units).toBe('5000000');
     });
 
     it('sends token address as-is for ERC-20 tokens', async () => {
