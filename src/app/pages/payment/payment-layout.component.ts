@@ -575,6 +575,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         sourceToken: option.tokenAddress,
         sourceChainId: option.chainId,
         sourceDecimals: option.decimals,
+        sourceUsdPrice: usdPrice,
         recipientAmount: parseUnits(getRemainingAmount(invoice), 6),
         depositorAddress: account.address as `0x${string}`,
         recipientAddress: invoice.payment_address as `0x${string}`,

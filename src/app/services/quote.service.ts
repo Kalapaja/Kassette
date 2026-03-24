@@ -16,6 +16,7 @@ export interface QuoteParams {
   sourceToken: `0x${string}`;
   sourceChainId: number;
   sourceDecimals: number;
+  sourceUsdPrice: number; // USD price of the source token
   recipientAmount: bigint; // Invoice USDC amount in smallest units (6 decimals)
   depositorAddress: `0x${string}`;
   recipientAddress: `0x${string}`; // invoice.payment_address
@@ -26,7 +27,7 @@ export interface QuoteParams {
 export class QuoteService {
   private readonly _swapService = inject(SwapService);
 
-  destroy(): void {}
+  destroy(): void { }
 
   static isDirectTransfer(
     chainId: number,
@@ -63,16 +64,40 @@ export class QuoteService {
     };
   }
 
+  /**
+   * Convert USDC amount to source token amount using the USD price.
+   * For stablecoins / ERC-20s with similar decimals this is ~1:1.
+   * For native tokens (18 decimals, different price) the conversion matters.
+   */
+  static convertToSourceAmount(
+    usdcAmount: bigint,
+    sourceDecimals: number,
+    sourceUsdPrice: number,
+  ): bigint {
+    if (sourceUsdPrice <= 0) return usdcAmount;
+    // Use 10^8 precision to avoid floating-point in bigint division
+    const PRICE_PRECISION = 100_000_000n;
+    const priceScaled = BigInt(Math.round(sourceUsdPrice * Number(PRICE_PRECISION)));
+    return (usdcAmount * 10n ** BigInt(sourceDecimals) * PRICE_PRECISION) /
+      (priceScaled * 10n ** BigInt(USDC_DECIMALS));
+  }
+
   private async _swapQuote(params: QuoteParams): Promise<QuoteResult> {
     const isNative = isNativeAddress(params.sourceToken);
+
+    // from_amount_units must be in source-token units
+    const fromAmount = QuoteService.convertToSourceAmount(
+      params.recipientAmount,
+      params.sourceDecimals,
+      params.sourceUsdPrice,
+    );
+
     const swap = await this._swapService.createSwap({
       invoice_id: params.invoiceId,
       from_chain_id: params.sourceChainId,
       from_asset_id: isNative ? ZERO_ADDRESS : params.sourceToken,
       from_address: params.depositorAddress,
-      from_amount_units: params.recipientAmount.toString(),
-      // Optional hint for swap providers that support target-amount mode
-      ...(isNative ? {} : { expected_to_amount_units: params.recipientAmount.toString() }),
+      from_amount_units: fromAmount.toString(),
     });
 
     // For native token swaps, the real amount is in the transaction's
