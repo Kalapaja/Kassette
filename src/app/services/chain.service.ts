@@ -45,7 +45,6 @@ export class ChainService {
           name: chain.name,
           logoUrl: chain.logoUrl ?? '',
           explorerUrl: chain.explorerUrl,
-          rpcUrl: chain.publicRpcUrl,
           nativeCurrency: {
             name: viemChain.nativeCurrency.name,
             symbol: viemChain.nativeCurrency.symbol,

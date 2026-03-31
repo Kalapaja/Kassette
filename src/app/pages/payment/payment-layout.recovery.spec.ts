@@ -84,7 +84,6 @@ function createTestHarness() {
   };
   const chainService = {
     getChain: vi.fn().mockReturnValue({
-      rpcUrl: 'https://rpc.test',
       logoUrl: 'https://logo.test/chain.png',
       explorerUrl: 'https://explorer.test',
     }),
