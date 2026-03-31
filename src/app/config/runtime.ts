@@ -3,7 +3,6 @@ interface AppConfig {
   merchantName?: string;
   merchantLogoUrl?: string;
   projectId?: string;
-  ankrApiToken?: string;
 }
 
 declare global {

@@ -1,5 +1,4 @@
-import { HttpClient } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 import {
   createPublicClient,
   erc20Abi,
@@ -8,19 +7,14 @@ import {
 } from 'viem';
 
 import { isNativeAddress } from '@/app/config/address.utils';
-import { ANKR_API_URL, ANKR_CHAIN_MAP, ANKR_TIMEOUT_MS, UNICHAIN_CHAIN_ID, type AnkrAsset, type AnkrJsonRpcResponse } from '@/app/config/ankr';
-import type { ChainConfig } from '@/app/config/chains';
-import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
+import { getReownRpcUrl } from '@/app/config/rpc';
+import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
-import { ChainService } from '@/app/services/chain.service';
-import { firstValueFrom, TimeoutError, timeout } from 'rxjs';
 
 const MAX_CONCURRENCY = 2;
 
 @Injectable({ providedIn: 'root' })
 export class BalanceService {
-  private readonly http = inject(HttpClient);
-  private readonly chainService = inject(ChainService);
   private _clients: Map<number, PublicClient> = new Map();
   private _cache: Map<string, bigint> = new Map();
 
@@ -28,127 +22,25 @@ export class BalanceService {
     let client = this._clients.get(chainId);
     if (client) return client;
 
-    const chainConfig = this.chainService.getChain(chainId);
-    if (!chainConfig) return undefined;
+    const viemChain = VIEM_CHAINS[chainId];
+    if (!viemChain) return undefined;
 
-    client = this._createClient(chainConfig);
-    this._clients.set(chainId, client);
-    return client;
-  }
-
-  private _createClient(chainConfig: ChainConfig): PublicClient {
-    const viemChain = VIEM_CHAINS[chainConfig.chainId];
-    return createPublicClient({
+    client = createPublicClient({
       chain: viemChain,
-      transport: http(chainConfig.rpcUrl),
+      transport: http(getReownRpcUrl(chainId)),
       batch: { multicall: { wait: 50 } },
     }) as PublicClient;
+
+    this._clients.set(chainId, client);
+    return client;
   }
 
   async getBalances(
     userAddress: `0x${string}`,
     tokens: TokenConfig[],
   ): Promise<Map<string, bigint>> {
-    const results = new Map<string, bigint>();
-
-    // Split tokens: Ankr-supported chains vs Unichain
-    const unichainTokens = tokens.filter(t => t.chainId === UNICHAIN_CHAIN_ID);
-
-    // Run Ankr + Unichain RPC in parallel
-    const [ankrResult, unichainResult] = await Promise.allSettled([
-      this._fetchViaAnkr(userAddress, tokens),
-      this._fetchChainViaRpc(UNICHAIN_CHAIN_ID, userAddress, unichainTokens),
-    ]);
-
-    // Merge Unichain results (always from RPC)
-    if (unichainResult.status === 'fulfilled') {
-      for (const [key, value] of unichainResult.value) {
-        results.set(key, value);
-      }
-    }
-
-    if (ankrResult.status === 'fulfilled') {
-      // Ankr succeeded — merge its results
-      for (const [key, value] of ankrResult.value) {
-        results.set(key, value);
-      }
-    } else {
-      // Ankr failed — fall back to per-chain RPC for all non-Unichain chains
-      console.warn('[BalanceService] Ankr API failed, falling back to per-chain RPC:', ankrResult.reason);
-      const rpcTokens = tokens.filter(t => t.chainId !== UNICHAIN_CHAIN_ID);
-      const fallbackResults = await this._fetchAllViaRpc(userAddress, rpcTokens);
-      for (const [key, value] of fallbackResults) {
-        results.set(key, value);
-      }
-    }
-
+    const results = await this._fetchAllViaRpc(userAddress, tokens);
     this._cache = new Map(results);
-    return results;
-  }
-
-  private async _fetchViaAnkr(
-    userAddress: string,
-    tokens: TokenConfig[],
-  ): Promise<Map<string, bigint>> {
-    const body = {
-      id: 1,
-      jsonrpc: '2.0',
-      method: 'ankr_getAccountBalance',
-      params: {
-        walletAddress: userAddress,
-        blockchain: Object.keys(ANKR_CHAIN_MAP),
-        onlyWhitelisted: true,
-      },
-    };
-
-    let response: AnkrJsonRpcResponse;
-    try {
-      response = await firstValueFrom(
-        this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(
-          timeout(ANKR_TIMEOUT_MS),
-        ),
-      );
-    } catch (err) {
-      if (err instanceof TimeoutError) {
-        throw new Error(`Ankr API timed out after ${ANKR_TIMEOUT_MS}ms`);
-      }
-      throw err;
-    }
-
-    if (!response?.result?.assets) {
-      throw new Error('Invalid Ankr response: missing result.assets');
-    }
-
-    return this._mapAnkrAssets(response.result.assets, tokens);
-  }
-
-  private _mapAnkrAssets(
-    assets: AnkrAsset[],
-    tokens: TokenConfig[],
-  ): Map<string, bigint> {
-    // Build lookup from caller's token list (Across API tokens)
-    const knownTokens = new Set(
-      tokens.map(t => getTokenKey(t.chainId, t.address)),
-    );
-
-    const results = new Map<string, bigint>();
-
-    for (const asset of assets) {
-      const chainId = ANKR_CHAIN_MAP[asset.blockchain];
-      if (chainId === undefined) continue;
-
-      const isNative = asset.tokenType === 'NATIVE' || !asset.contractAddress;
-      const address = isNative
-        ? NATIVE_TOKEN_ADDRESS
-        : asset.contractAddress as `0x${string}`;
-
-      const key = getTokenKey(chainId, address);
-      if (!knownTokens.has(key)) continue;
-
-      const balance = BigInt(asset.balanceRawInteger || '0');
-      results.set(key, balance);
-    }
-
     return results;
   }
 
