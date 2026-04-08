@@ -2,7 +2,7 @@ import { runtimeConfig } from "@/app/config/runtime";
 
 export const environment = {
   production: false,
-  mocks: true,
+  mocks: false,
   projectId: runtimeConfig("projectId", "da9b8666eec49849ccb28bca96afdefa"),
   merchantName: runtimeConfig("merchantName", "JPDesignShop"),
   merchantLogoUrl: runtimeConfig(

@@ -4,7 +4,7 @@ import { appConfig } from './app/app.config';
 import { environment } from './environments/environment';
 
 async function bootstrap() {
-  if (!environment.production) {
+  if (environment.mocks) {
     const { worker } = await import('./mocks/browser');
     await worker.start({ onUnhandledRequest: 'bypass' }).catch(() => {
       console.warn('[MSW] Failed to start mock service worker, continuing without mocks');

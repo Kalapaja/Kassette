@@ -100,5 +100,7 @@ export interface OrderItem {
   description?: string;
   quantity: number;
   price: string;
+  discount?: string;
+  tax?: string;
   image?: string;
 }
