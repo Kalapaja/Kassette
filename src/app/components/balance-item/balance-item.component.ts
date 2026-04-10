@@ -58,7 +58,7 @@ import { type FiatParts, fiatPartsToString } from '../../i18n/format';
                 <span class="flex items-start text-xs font-[421] leading-[14px] text-content-tetriary tabular-nums">
                   <span>$</span>
                   <span>{{ fiatMatch()![1] }}</span>
-                  <span>.{{ fiatMatch()![3] ?? '00' }}</span>
+                  <span>.{{ fiatMatch()![3] || '00' }}</span>
                 </span>
               } @else {
                 <span class="flex items-start text-xs font-[421] leading-[14px] text-content-tetriary tabular-nums">{{ fiatValue() }}</span>
@@ -79,7 +79,7 @@ import { type FiatParts, fiatPartsToString } from '../../i18n/format';
                 <span class="flex items-baseline text-content-primary tabular-nums">
                   <span>$</span>
                   <span>{{ valueMatch()![1] }}</span>
-                  <span class="text-[10px] font-medium leading-4">.{{ valueMatch()![3] ?? '00' }}</span>
+                  <span class="text-[10px] font-medium leading-4">.{{ valueMatch()![3] || '00' }}</span>
                 </span>
               } @else {
                 <span class="flex items-baseline text-content-primary tabular-nums">{{ unitPrice() }}</span>

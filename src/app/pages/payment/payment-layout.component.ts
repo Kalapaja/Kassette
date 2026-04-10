@@ -105,6 +105,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   // ── Local state ──
   items: OrderItem[] = [];
+  showItemImages = false;
   totalAmount = signal<number>(0);
   readonly skeletonItems = [0, 1, 2, 3, 4];
 
@@ -408,9 +409,13 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       this.items = invoice.cart.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
-        price: `$${item.price}`,
+        price: parseFloat(item.price) || 0,
+        discount: item.discount ? parseFloat(item.discount) || 0 : undefined,
+        tax: item.tax ? parseFloat(item.tax) || 0 : undefined,
+        currency: '$',
         image: item.image_url,
       }));
+      this.showItemImages = this.items.some((item) => !!item.image);
 
       // Check for pending tx BEFORE going to idle
       this.pendingTxService.cleanupExpired();

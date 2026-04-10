@@ -7,6 +7,11 @@ export const es: Record<keyof typeof en, string> = {
   "order.yourOrder": "Tu pedido",
   "order.shipping": "Envio",
   "order.total": "Total",
+  "order.item.price": "Precio",
+  "order.item.quantity": "Cantidad",
+  "order.item.discount": "Descuento",
+  "order.item.tax": "Impuesto",
+  "order.item.totalPrice": "Precio total",
 
   "button.pay": "Pagar",
   "button.connectAndPay": "Conectar billetera y pagar",

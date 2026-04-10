@@ -31,7 +31,18 @@
     } @else {
       <span></span>
     }
-    <div class="powered-by-bar inline-flex h-[23px] items-end gap-1 text-xs font-[421] leading-[14px] text-content-tetriary font-sans [&_svg]:size-[15px]">
+    <div class="inline-flex items-baseline gap-2">
+      <select
+        class="hidden md:block font-sans text-xs font-[421] px-1 py-0 border-none bg-transparent text-content-tetriary cursor-pointer appearance-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] hover:text-content-secondary"
+        [attr.aria-label]="ts.t('aria.languageSwitcher')"
+        [value]="ts.locale()"
+        (change)="onLocaleChange($event)"
+      >
+        @for (loc of ts.supportedLocales; track loc) {
+          <option [value]="loc" [selected]="loc === ts.locale()">{{ ts.localeLabels[loc] }}</option>
+        }
+      </select>
+    <a href="https://kalatori.org" target="_blank" rel="noopener noreferrer" class="powered-by-bar inline-flex items-baseline gap-1 text-xs font-[421] leading-[14px] text-content-tetriary font-sans [&_svg]:size-[15px] [&_svg]:self-center no-underline">
       <span>{{ ts.t('footer.poweredBy') }}</span>
       <!-- Kalatori Logo (top bar) -->
       <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -111,6 +122,7 @@
         </defs>
       </svg>
       <span>Kalatori</span>
+    </a>
     </div>
   </div>
 
@@ -136,7 +148,7 @@
               <path d="M13.5823 4.99084L13.2298 5.34535L13.5823 4.99084ZM5.50254 10.2214L5.14988 9.86696L5.50254 10.2214ZM4.99887 13.5587L4.64628 13.9132L4.99887 13.5587ZM4.99859 10.7228L5.35125 11.0773L4.99859 10.7228ZM5.50226 14.0593L5.14967 14.4138L5.50226 14.0593ZM13.5823 19.2909L13.2298 18.9364L13.5823 19.2909ZM14.1054 18.7707L14.458 19.1252L14.1054 18.7707ZM18.843 14.0583L18.4904 13.7037L18.843 14.0583ZM19.3455 10.7225L18.9929 11.077L19.3455 10.7225ZM19.3452 13.5589L18.9927 13.2043L19.3452 13.5589ZM15.5158 6.09302V6.59302H16.253V6.09302V5.59302H15.5158V6.09302ZM18.253 8.09302H17.753V8.80437H18.253H18.753V8.09302H18.253ZM18.8427 10.2224L18.4901 10.5769L18.9929 11.077L19.3455 10.7225L19.6981 10.368L19.1953 9.86791L18.8427 10.2224ZM19.3452 13.5589L18.9927 13.2043L18.4904 13.7037L18.843 14.0583L19.1955 14.4129L19.6978 13.9135L19.3452 13.5589ZM18.253 15.4766H17.753V16.1887H18.253H18.753V15.4766H18.253ZM16.253 18.1887V17.6887H15.5158V18.1887V18.6887H16.253V18.1887ZM14.1054 18.7707L13.7528 18.4161L13.2298 18.9364L13.5823 19.2909L13.9349 19.6454L14.458 19.1252L14.1054 18.7707ZM10.7616 19.2909L11.1142 18.9364L10.5911 18.4162L10.2385 18.7707L9.88596 19.1252L10.409 19.6454L10.7616 19.2909ZM8.82819 18.1887V17.6887H8.0919V18.1887V18.6887H8.82819V18.1887ZM6.0919 16.1887H6.5919V15.4774H6.0919H5.5919V16.1887H6.0919ZM5.50226 14.0593L5.85485 13.7048L5.35146 13.2041L4.99887 13.5587L4.64628 13.9132L5.14967 14.4138L5.50226 14.0593ZM4.99859 10.7228L5.35125 11.0773L5.8552 10.5758L5.50254 10.2214L5.14988 9.86696L4.64593 10.3684L4.99859 10.7228ZM6.0919 8.80362H6.5919V8.09302H6.0919H5.5919V8.80362H6.0919ZM8.0919 6.09302V6.59302H8.82819V6.09302V5.59302H8.0919V6.09302ZM10.2385 5.51107L10.5911 5.86559L11.1142 5.34535L10.7616 4.99084L10.409 4.63632L9.88596 5.15656L10.2385 5.51107ZM13.5823 4.99084L13.2298 5.34535L13.7528 5.86559L14.1054 5.51107L14.458 5.15656L13.9349 4.63632L13.5823 4.99084ZM10.7616 4.99084L11.1142 5.34535C11.6993 4.76341 12.6446 4.76341 13.2298 5.34535L13.5823 4.99084L13.9349 4.63632C12.9597 3.66642 11.3842 3.66642 10.409 4.63632L10.7616 4.99084ZM8.82819 6.09302V6.59302C9.48887 6.59302 10.1227 6.33149 10.5911 5.86559L10.2385 5.51107L9.88596 5.15656C9.60489 5.4361 9.2246 5.59302 8.82819 5.59302V6.09302ZM6.0919 8.09302H6.5919C6.5919 7.26459 7.26348 6.59302 8.0919 6.59302V6.09302V5.59302C6.71119 5.59302 5.5919 6.71231 5.5919 8.09302H6.0919ZM5.50254 10.2214L5.8552 10.5758C6.32677 10.1066 6.5919 9.46885 6.5919 8.80362H6.0919H5.5919C5.5919 9.20276 5.43283 9.58544 5.14988 9.86696L5.50254 10.2214ZM4.99887 13.5587L5.35146 13.2041C4.7619 12.6178 4.76181 11.6637 5.35125 11.0773L4.99859 10.7228L4.64593 10.3684C3.66352 11.3458 3.66368 12.9359 4.64628 13.9132L4.99887 13.5587ZM6.0919 15.4774H6.5919C6.5919 14.812 6.32664 14.174 5.85485 13.7048L5.50226 14.0593L5.14967 14.4138C5.43275 14.6954 5.5919 15.0781 5.5919 15.4774H6.0919ZM8.0919 18.1887V17.6887C7.26348 17.6887 6.5919 17.0171 6.5919 16.1887H6.0919H5.5919C5.5919 17.5694 6.71119 18.6887 8.0919 18.6887V18.1887ZM10.2385 18.7707L10.5911 18.4162C10.1227 17.9502 9.48887 17.6887 8.82819 17.6887V18.1887V18.6887C9.2246 18.6887 9.60489 18.8456 9.88596 19.1252L10.2385 18.7707ZM13.5823 19.2909L13.2298 18.9364C12.6446 19.5183 11.6993 19.5183 11.1142 18.9364L10.7616 19.2909L10.409 19.6454C11.3842 20.6153 12.9597 20.6153 13.9349 19.6454L13.5823 19.2909ZM15.5158 18.1887V17.6887C14.8551 17.6887 14.2213 17.9502 13.7528 18.4161L14.1054 18.7707L14.458 19.1252C14.7391 18.8456 15.1194 18.6887 15.5158 18.6887V18.1887ZM18.253 16.1887H17.753C17.753 17.0171 17.0815 17.6887 16.253 17.6887V18.1887V18.6887C17.6337 18.6887 18.753 17.5694 18.753 16.1887H18.253ZM18.843 14.0583L18.4904 13.7037C18.0184 14.173 17.753 14.8111 17.753 15.4766H18.253H18.753C18.753 15.0773 18.9123 14.6944 19.1955 14.4129L18.843 14.0583ZM19.3455 10.7225L18.9929 11.077C19.5826 11.6636 19.5826 12.6179 18.9927 13.2043L19.3452 13.5589L19.6978 13.9135C20.6808 12.9362 20.681 11.3456 19.6981 10.368L19.3455 10.7225ZM18.253 8.80437H17.753C17.753 9.46977 18.0183 10.1077 18.4901 10.5769L18.8427 10.2224L19.1953 9.86791C18.9122 9.58638 18.753 9.20361 18.753 8.80437H18.253ZM16.253 6.09302V6.59302C17.0815 6.59302 17.753 7.26459 17.753 8.09302H18.253H18.753C18.753 6.71231 17.6337 5.59302 16.253 5.59302V6.09302ZM15.5158 6.09302V5.59302C15.1194 5.59302 14.7391 5.4361 14.458 5.15656L14.1054 5.51107L13.7528 5.86559C14.2213 6.33149 14.8551 6.59302 15.5158 6.59302V6.09302Z" fill="#595959"/>
               <path d="M8.90625 12L11.1562 14.25L15.6562 9.75" stroke="#595959" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="text-xs font-[421] leading-5 uppercase text-content-secondary overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px] md:max-w-[400px]">{{ ts.t('order.badge', { id: state.invoice()!.id }) }}</span>
+            <span class="text-xs font-system font-[421] leading-5 uppercase text-content-secondary overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px] md:max-w-[400px]">{{ ts.t('order.badge', { id: state.invoice()!.id }) }}</span>
           </div>
         }
 
@@ -175,23 +187,29 @@
         </div>
       </div>
 
-      <div class="items-section flex flex-col gap-5 mt-[87px] md:mt-20 xl:flex-1">
+      <div class="items-section flex flex-col gap-5 mt-5 md:mt-20 xl:flex-1">
         <div class="text-xs font-[421] leading-5 uppercase text-content-secondary py-[5px] border-b border-border-tetriary">{{ ts.t('order.yourOrder') }}</div>
-        <div class="flex flex-col gap-2.5">
-          <ng-content select="[slot=items]" />
-          @for (item of items; track item.name) {
-            <kp-order-item
-              [name]="item.name"
-              [description]="item.description || ''"
-              [quantity]="item.quantity"
-              [price]="item.price"
-              [priceParts]="formatFiatFromString(item.price)"
-            >
-              @if (item.image) {
-                <img slot="image" [src]="item.image" [alt]="item.name" />
-              }
-            </kp-order-item>
-          }
+        <div class="relative">
+          <div class="flex flex-col gap-2.5 max-h-[40vh] md:max-h-[50vh] overflow-y-auto pb-[30px]">
+            <ng-content select="[slot=items]" />
+            @for (item of items; track item.name) {
+              <kp-order-item
+                [name]="item.name"
+                [description]="item.description || ''"
+                [quantity]="item.quantity"
+                [price]="item.price"
+                [discount]="item.discount ?? 0"
+                [tax]="item.tax ?? 0"
+                [currency]="item.currency"
+                [showImage]="showItemImages"
+              >
+                @if (item.image) {
+                  <img slot="image" [src]="item.image" [alt]="item.name" />
+                }
+              </kp-order-item>
+            }
+          </div>
+          <div class="pointer-events-none absolute inset-x-0 bottom-0 h-[30px] bg-linear-to-t from-fill-primary to-transparent"></div>
         </div>
         @if (shipping()) {
           <div class="flex items-center justify-between py-2.5 border-t border-border-tetriary">
@@ -253,7 +271,7 @@
         </kp-button>
       </div>
 
-      <div class="footer flex items-center justify-center gap-1 h-[23px] py-2.5 md:hidden">
+      <a href="https://kalatori.org" target="_blank" rel="noopener noreferrer" class="footer flex items-center justify-center gap-1 h-[23px] py-2.5 md:hidden no-underline">
         <span class="text-xs font-[421] leading-[14px] text-content-tetriary">{{ ts.t('footer.poweredBy') }}</span>
         <span class="flex items-center gap-0.5">
           <!-- Kalatori Logo (footer) -->
@@ -335,7 +353,7 @@
           </svg>
           <span class="text-xs font-[421] leading-[14px] text-content-tetriary">Kalatori</span>
         </span>
-      </div>
+      </a>
     </div>
 
     <!-- Bottom Sheet (token selection / payment flow) -->
@@ -355,7 +373,7 @@
                 <path d="M2.24833 15C4.67294 15 6.49483 13 7.58206 11.4208C7.45242 11.7514 7.38275 12.1019 7.37622 12.4562C7.37622 13.3781 7.93567 14.0354 9.03767 14.0354C10.5503 14.0354 12.1674 12.7771 13.0044 11.4208C12.9508 11.5981 12.9213 11.7817 12.9168 11.9667C12.9168 12.6094 13.2989 13.0146 14.0779 13.0146C16.5311 13.0146 19 8.89062 19 5.28437C19 2.47396 17.5011 0 13.7391 0C7.12711 0 0 7.66042 0 12.6094C0 14.5531 1.102 15 2.24833 15ZM11.4623 4.97708C11.4623 4.27812 11.8739 3.78854 12.4756 3.78854C13.0636 3.78854 13.4752 4.27812 13.4752 4.97604C13.4752 5.67604 13.0636 6.17917 12.4756 6.17917C11.8739 6.17917 11.4623 5.67604 11.4623 4.97708ZM14.6068 4.97708C14.6068 4.27812 15.0184 3.78854 15.6201 3.78854C16.2081 3.78854 16.6197 4.27812 16.6197 4.97604C16.6197 5.67604 16.2081 6.17917 15.6201 6.17917C15.0184 6.17917 14.6068 5.67604 14.6068 4.97708Z" fill="#AB9FF2"/>
               </svg>
             </div>
-            <span class="text-sm font-[421] leading-[18px] text-content-primary">{{ state.walletAddress() || '0x...' }}</span>
+            <span class="text-sm font-system font-[421] leading-[18px] text-content-primary">{{ state.walletAddress() || '0x...' }}</span>
             <button
               class="appearance-none box-border flex items-center cursor-pointer bg-transparent border-none p-0 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 focus-visible:rounded-[4px] [&_svg]:size-4 [&_svg]:text-content-tetriary"
               [attr.aria-label]="ts.t('aria.disconnectWallet')"
@@ -503,7 +521,7 @@
             <span class="text-xs font-[421] leading-[14px] text-content-tetriary">{{ ts.t('sheet.exchangeRate') }}</span>
           </div>
         </div>
-        <div class="flex flex-col gap-[5px] py-2.5" [style.pointer-events]="isProcessing() ? 'none' : ''">
+        <div class="flex flex-col gap-[5px] py-2.5 max-h-[30vh] md:max-h-[50vh] overflow-y-auto" [style.pointer-events]="isProcessing() ? 'none' : ''">
           @if (state.isLoadingTokens()) {
             @for (i of skeletonItems; track i) {
               <div class="flex items-center gap-2.5 h-16 py-[5px] px-2.5 border border-border rounded-xl box-border" [style.animation-delay]="i * 0.1 + 's'">

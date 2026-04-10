@@ -1,66 +1,74 @@
-import { Component, input } from '@angular/core';
-import type { FiatParts } from '../../i18n/format';
+import { Component, inject, input } from '@angular/core';
+import { TranslationService } from '@/app/services/translation.service';
 
 @Component({
   selector: 'kp-order-item',
   styleUrl: './order-item.component.css',
   host: {
-    class: 'flex items-start justify-between w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
+    class: 'flex items-start gap-4 w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
   },
   template: `
-    <div class="flex gap-2 items-start">
-      <div class="image w-[41px] h-[41px] rounded-[10px] border-[0.5px] border-border-tetriary overflow-hidden shrink-0">
+    @if (showImage()) {
+      <div class="image w-24 h-24 flex p-3 shrink-0 bg-fill-secondary rounded-md">
         <ng-content select="[slot=image]" />
       </div>
-      <div class="flex flex-col flex-1 min-w-0">
-        <div class="flex gap-1 items-center text-sm leading-[18px] text-content-primary">
-          <span>{{ name() }}</span>
-          <span class="opacity-50 text-right shrink-0">x{{ quantity() }}</span>
-        </div>
-        @if (description()) {
-          <span class="text-sm leading-[18px] text-content-secondary">{{ description() }}</span>
-        }
-      </div>
-    </div>
-    @if (priceParts(); as parts) {
-      <div class="flex items-center text-base leading-5 text-content-primary">
-        <span class="font-[421]">{{ parts.currency }}</span>
-        <span>{{ parts.integer }}</span>
-        <span>{{ parts.decimal }}</span>
-      </div>
-    } @else {
-      <div class="flex items-center text-base leading-5 text-content-primary">
-        @if (currencySymbol()) {
-          <span class="font-[421]">{{ currencySymbol() }}</span>
-        }
-        @if (priceMatch()) {
-          <span>{{ priceMatch()![1] }}</span>
-          <span>{{ priceMatch()![2] ? '.' + priceMatch()![2].replace('.', '').slice(0, 2).padEnd(2, '0') : '.00' }}</span>
-        } @else {
-          <span>{{ numericParts() }}</span>
-        }
-      </div>
     }
+    <div class="w-full">
+      <h3 class="text-base font-semibold text-content-primary">{{ name() }}</h3>
+      <ul class="text-sm text-content-primary space-y-2 mt-3">
+        <li class="flex flex-wrap gap-4">{{ ts.t('order.item.price') }} <span class="ml-auto">{{ currency() }}{{ price().toFixed(2) }}</span></li>
+        <li class="flex flex-wrap gap-4">{{ ts.t('order.item.quantity') }} <span class="ml-auto">{{ quantity() }}</span></li>
+        @if (hasDiscount()) {
+          <li class="flex flex-wrap gap-4">{{ ts.t('order.item.discount') }} <span class="ml-auto font-semibold text-sm">-{{ currency() }}{{ discount().toFixed(2) }} <span class="font-normal text-content-tetriary">({{ discountPercent() }}%)</span></span></li>
+        }
+        @if (hasTax()) {
+          <li class="flex flex-wrap gap-4">{{ ts.t('order.item.tax') }} <span class="ml-auto">{{ currency() }}{{ tax().toFixed(2) }}</span></li>
+        }
+        <li class="flex flex-wrap gap-4">{{ ts.t('order.item.totalPrice') }}
+          <span class="ml-auto font-semibold text-sm">
+            @if (hasDiscount()) {
+              <span class="line-through text-content-tetriary font-normal mr-1">{{ currency() }}{{ subtotal() }}</span>
+            }
+            {{ currency() }}{{ totalPrice() }}
+          </span>
+        </li>
+      </ul>
+    </div>
   `,
 })
 export class OrderItemComponent {
+  protected readonly ts = inject(TranslationService);
   name = input<string>('');
   description = input<string>('');
   quantity = input<number>(1);
-  price = input<string>('');
-  priceParts = input<FiatParts | null>(null);
+  price = input<number>(0);
+  discount = input<number>(0);
+  tax = input<number>(0);
+  currency = input<string>('$');
+  showImage = input<boolean>(true);
 
-  protected currencySymbol(): string {
-    const [currency] = this.price().split(/(\d+)/);
-    return currency;
+  protected hasDiscount(): boolean {
+    return this.discount() > 0;
   }
 
-  protected numericParts(): string {
-    const [, ...rest] = this.price().split(/(\d+)/);
-    return rest.join('');
+  protected hasTax(): boolean {
+    return this.tax() > 0;
   }
 
-  protected priceMatch(): RegExpMatchArray | null {
-    return this.numericParts().match(/^(\d+)(\.?\d*)$/);
+  protected discountPercent(): string {
+    const sub = this.price() * this.quantity();
+    if (sub === 0) return '0';
+    const pct = (this.discount() / sub) * 100;
+    return pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1);
+  }
+
+  protected subtotal(): string {
+    return (this.price() * this.quantity()).toFixed(2);
+  }
+
+  protected totalPrice(): string {
+    const sub = this.price() * this.quantity();
+    const total = Math.max(0, sub - this.discount() + this.tax());
+    return total.toFixed(2);
   }
 }
