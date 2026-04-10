@@ -13,3 +13,7 @@ dist/
 
 # Lint cache
 .eslintcache
+
+# Dagger SDK (auto-generated)
+.dagger/sdk/
+.dagger/node_modules/
