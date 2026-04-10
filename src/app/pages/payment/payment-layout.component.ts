@@ -106,7 +106,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   // ── Local state ──
   items: OrderItem[] = [];
   showItemImages = false;
-  itemsOverflowing = false;
   totalAmount = signal<number>(0);
   readonly skeletonItems = [0, 1, 2, 3, 4];
 
@@ -118,7 +117,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   // ── Template view children ──
   searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   successAmount = viewChild<ElementRef<HTMLElement>>('successAmount');
-  itemsScroll = viewChild<ElementRef<HTMLElement>>('itemsScroll');
 
   // ── Computed signals for template ──
   readonly isPartiallyPaid = computed(() => this.state.invoice()?.status === 'PartiallyPaid');
@@ -319,11 +317,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.state.searching.set(false);
   }
 
-  onItemsScroll(el: HTMLElement): void {
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
-    this.itemsOverflowing = !atBottom;
-  }
-
   onLocaleChange(e: Event): void {
     const locale = (e.target as HTMLSelectElement).value as Locale;
     this.ts.setLocale(locale);
@@ -416,16 +409,13 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       this.items = invoice.cart.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
-        price: `$${item.price}`,
-        discount: item.discount,
-        tax: item.tax,
+        price: parseFloat(item.price) || 0,
+        discount: item.discount ? parseFloat(item.discount) || 0 : undefined,
+        tax: item.tax ? parseFloat(item.tax) || 0 : undefined,
+        currency: '$',
         image: item.image_url,
       }));
       this.showItemImages = this.items.some((item) => !!item.image);
-      setTimeout(() => {
-        const el = this.itemsScroll()?.nativeElement;
-        if (el) this.itemsOverflowing = el.scrollHeight > el.clientHeight;
-      });
 
       // Check for pending tx BEFORE going to idle
       this.pendingTxService.cleanupExpired();

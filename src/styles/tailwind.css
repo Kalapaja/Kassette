@@ -80,6 +80,7 @@ html {
 
   /* Typography */
   --font-sans: "Alaska", sans-serif;
+  --font-system: system-ui, sans-serif;
 
   /* Border radius */
   --radius-sm: 0.375rem;
