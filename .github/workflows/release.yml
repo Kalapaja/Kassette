@@ -7,46 +7,31 @@ on:
 permissions:
   contents: write
 
+env:
+  DOCKER_HOST: ${{ vars.DAGGER_CI_HOST }}
+
 jobs:
-  build-and-release:
+  release-zip:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
         with:
-          node-version: 24
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-dagger
+        with:
+          ssh-private-key: ${{ secrets.DAGGER_CI_SSH_KEY }}
+          known-host: ${{ vars.DAGGER_CI_KNOWN_HOST }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Extract version from tag
-        id: version
+      - name: Build release zip
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          VERSION="${GITHUB_REF_NAME#v}"
+          dagger call release-zip --version="$VERSION" \
+            export --path="./payment-page-v${VERSION}.zip"
 
-      - name: Build production bundle
-        run: pnpm build
-
-      - name: Prepare release archive
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          mv dist/browser dist/dist
-          cd dist
-          zip -r "../payment-page-v${VERSION}.zip" dist
-
-      - name: Upload release archive
+      - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           gh release upload "${{ github.ref_name }}" \
-            "payment-page-v${VERSION}.zip" \
+            "payment-page-v${GITHUB_REF_NAME#v}.zip" \
             --clobber
