@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # Application dependencies (pnpm)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      angular:
+        patterns: ["@angular/*", "@angular-eslint/*"]
+      wallet:
+        patterns: ["@wagmi/*", "viem", "@reown/*", "@walletconnect/*"]
+      testing:
+        patterns: ["vitest", "@vitest/*", "@playwright/*"]
+    # Angular major upgrades should be manual
+    ignore:
+      - dependency-name: "@angular/*"
+        update-types: ["version-update:semver-major"]
+
+  # Dagger module dependencies
+  - package-ecosystem: npm
+    directory: /.dagger
+    schedule:
+      interval: weekly
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
