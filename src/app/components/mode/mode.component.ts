@@ -4,7 +4,14 @@ export type ModeValue = 'light' | 'dark';
 
 @Component({
   selector: 'kp-mode',
-  styles: `:host { display: inline-flex; align-items: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }`,
+  styles: `
+    :host {
+      display: inline-flex;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+  `,
   host: {
     '[attr.mode]': 'mode()',
   },
@@ -24,15 +31,79 @@ export type ModeValue = 'light' | 'dark';
         (click)="select('light')"
       >
         <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1"/>
-          <line x1="6" y1="0.5" x2="6" y2="2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="6" y1="10" x2="6" y2="11.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="0.5" y1="6" x2="2" y2="6" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="10" y1="6" x2="11.5" y2="6" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="2.11" y1="2.11" x2="3.17" y2="3.17" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="8.83" y1="8.83" x2="9.89" y2="9.89" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="9.89" y1="2.11" x2="8.83" y2="3.17" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-          <line x1="3.17" y1="8.83" x2="2.11" y2="9.89" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+          <circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1" />
+          <line
+            x1="6"
+            y1="0.5"
+            x2="6"
+            y2="2"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="6"
+            y1="10"
+            x2="6"
+            y2="11.5"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="0.5"
+            y1="6"
+            x2="2"
+            y2="6"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="10"
+            y1="6"
+            x2="11.5"
+            y2="6"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="2.11"
+            y1="2.11"
+            x2="3.17"
+            y2="3.17"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="8.83"
+            y1="8.83"
+            x2="9.89"
+            y2="9.89"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="9.89"
+            y1="2.11"
+            x2="8.83"
+            y2="3.17"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
+          <line
+            x1="3.17"
+            y1="8.83"
+            x2="2.11"
+            y2="9.89"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+          />
         </svg>
       </button>
       <button
@@ -44,7 +115,13 @@ export type ModeValue = 'light' | 'dark';
         (click)="select('dark')"
       >
         <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M10.5 6.75C10.5 9.37 8.37 11.5 5.75 11.5C3.67 11.5 1.91 10.15 1.28 8.28C1.56 8.38 1.87 8.44 2.19 8.44C4.21 8.44 5.84 6.81 5.84 4.79C5.84 3.46 5.14 2.3 4.1 1.65C4.62 1.39 5.2 1.25 5.81 1.25C8.4 1.25 10.5 3.35 10.5 5.94V6.75Z" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+          <path
+            d="M10.5 6.75C10.5 9.37 8.37 11.5 5.75 11.5C3.67 11.5 1.91 10.15 1.28 8.28C1.56 8.38 1.87 8.44 2.19 8.44C4.21 8.44 5.84 6.81 5.84 4.79C5.84 3.46 5.14 2.3 4.1 1.65C4.62 1.39 5.2 1.25 5.81 1.25C8.4 1.25 10.5 3.35 10.5 5.94V6.75Z"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
     </div>

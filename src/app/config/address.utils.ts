@@ -14,7 +14,5 @@ export function isNativeAddress(address: string): boolean {
  */
 export function normalizeAddress(address: string): `0x${string}` {
   const lower = address.toLowerCase();
-  return (lower === ZERO_ADDRESS
-    ? NATIVE_TOKEN_ADDRESS.toLowerCase()
-    : lower) as `0x${string}`;
+  return (lower === ZERO_ADDRESS ? NATIVE_TOKEN_ADDRESS.toLowerCase() : lower) as `0x${string}`;
 }

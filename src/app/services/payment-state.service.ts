@@ -43,7 +43,9 @@ export class PaymentStateService {
 
   readonly invoice = signal<Invoice | null>(DEFAULT_CONTEXT.invoice);
   readonly selectedChainId = signal<number | null>(DEFAULT_CONTEXT.selectedChainId);
-  readonly selectedTokenAddress = signal<`0x${string}` | null>(DEFAULT_CONTEXT.selectedTokenAddress);
+  readonly selectedTokenAddress = signal<`0x${string}` | null>(
+    DEFAULT_CONTEXT.selectedTokenAddress,
+  );
   readonly selectedTokenSymbol = signal<string>(DEFAULT_CONTEXT.selectedTokenSymbol);
   readonly selectedTokenLogoUrl = signal<string>(DEFAULT_CONTEXT.selectedTokenLogoUrl);
   readonly selectedChainLogoUrl = signal<string>(DEFAULT_CONTEXT.selectedChainLogoUrl);
@@ -98,12 +100,16 @@ export class PaymentStateService {
   });
 
   /** True when an error is displayed. */
-  readonly isError = computed(() => this.currentStep() === 'error' || this.currentStep() === 'invoice-error');
+  readonly isError = computed(
+    () => this.currentStep() === 'error' || this.currentStep() === 'invoice-error',
+  );
 
   /** True when a transaction is in progress (approving, executing, polling, recovering). */
   readonly isTransacting = computed(() => {
     const step = this.currentStep();
-    return step === 'approving' || step === 'executing' || step === 'polling' || step === 'recovering';
+    return (
+      step === 'approving' || step === 'executing' || step === 'polling' || step === 'recovering'
+    );
   });
 
   // ─── Transition method ───
@@ -142,13 +148,19 @@ export class PaymentStateService {
   applyContext(ctx: Partial<StepContext>): void {
     if (ctx.invoice !== undefined) this.invoice.set(ctx.invoice);
     if (ctx.selectedChainId !== undefined) this.selectedChainId.set(ctx.selectedChainId);
-    if (ctx.selectedTokenAddress !== undefined) this.selectedTokenAddress.set(ctx.selectedTokenAddress);
-    if (ctx.selectedTokenSymbol !== undefined) this.selectedTokenSymbol.set(ctx.selectedTokenSymbol);
-    if (ctx.selectedTokenLogoUrl !== undefined) this.selectedTokenLogoUrl.set(ctx.selectedTokenLogoUrl);
-    if (ctx.selectedChainLogoUrl !== undefined) this.selectedChainLogoUrl.set(ctx.selectedChainLogoUrl);
-    if (ctx.selectedTokenDecimals !== undefined) this.selectedTokenDecimals.set(ctx.selectedTokenDecimals);
+    if (ctx.selectedTokenAddress !== undefined)
+      this.selectedTokenAddress.set(ctx.selectedTokenAddress);
+    if (ctx.selectedTokenSymbol !== undefined)
+      this.selectedTokenSymbol.set(ctx.selectedTokenSymbol);
+    if (ctx.selectedTokenLogoUrl !== undefined)
+      this.selectedTokenLogoUrl.set(ctx.selectedTokenLogoUrl);
+    if (ctx.selectedChainLogoUrl !== undefined)
+      this.selectedChainLogoUrl.set(ctx.selectedChainLogoUrl);
+    if (ctx.selectedTokenDecimals !== undefined)
+      this.selectedTokenDecimals.set(ctx.selectedTokenDecimals);
     if (ctx.requiredAmount !== undefined) this.requiredAmount.set(ctx.requiredAmount);
-    if (ctx.requiredAmountHuman !== undefined) this.requiredAmountHuman.set(ctx.requiredAmountHuman);
+    if (ctx.requiredAmountHuman !== undefined)
+      this.requiredAmountHuman.set(ctx.requiredAmountHuman);
     if (ctx.requiredFiatHuman !== undefined) this.requiredFiatHuman.set(ctx.requiredFiatHuman);
     if (ctx.paymentPath !== undefined) this.paymentPath.set(ctx.paymentPath);
     if (ctx.quote !== undefined) this.quote.set(ctx.quote);

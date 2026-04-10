@@ -135,7 +135,6 @@ afterEach(() => {
 // ─── Tests ───
 
 describe('PaymentLayoutComponent — recovery', () => {
-
   // ═══════════════════════════════════════════════════════════════
   // Bug 2: requiredAmount not restored from pending record
   // ═══════════════════════════════════════════════════════════════
@@ -496,8 +495,9 @@ describe('PaymentLayoutComponent — recovery', () => {
       const record = makeRecord({ amount: 'not-a-number' });
       // BigInt('not-a-number') throws SyntaxError before try/catch — propagates to loadInvoice
       // which catches it and transitions to 'invoice-error'
-      await expect(component.handlePendingTxRecovery(makeInvoice(), record))
-        .rejects.toThrow('Cannot convert not-a-number to a BigInt');
+      await expect(component.handlePendingTxRecovery(makeInvoice(), record)).rejects.toThrow(
+        'Cannot convert not-a-number to a BigInt',
+      );
     });
 
     it('should discard Across/Bungee records and go to idle', async () => {
@@ -558,7 +558,9 @@ describe('PaymentLayoutComponent — recovery', () => {
       state.txHash.set('0xabc123');
       state.selectedChainId.set(137);
       state.invoice.set(makeInvoice());
-      const spy = vi.spyOn(component, 'getTransactionReceipt').mockRejectedValue(new Error('RPC error'));
+      const spy = vi
+        .spyOn(component, 'getTransactionReceipt')
+        .mockRejectedValue(new Error('RPC error'));
 
       component.startRecoveryMonitoring();
       await vi.advanceTimersByTimeAsync(10000); // 2 intervals

@@ -5,11 +5,14 @@ import type { FiatParts } from '../../i18n/format';
   selector: 'kp-order-item',
   styleUrl: './order-item.component.css',
   host: {
-    class: 'flex items-start justify-between w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
+    class:
+      'flex items-start justify-between w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
   },
   template: `
     <div class="flex gap-2 items-start">
-      <div class="image w-[41px] h-[41px] rounded-[10px] border-[0.5px] border-border-tetriary overflow-hidden shrink-0">
+      <div
+        class="image w-[41px] h-[41px] rounded-[10px] border-[0.5px] border-border-tetriary overflow-hidden shrink-0"
+      >
         <ng-content select="[slot=image]" />
       </div>
       <div class="flex flex-col flex-1 min-w-0">
@@ -35,7 +38,11 @@ import type { FiatParts } from '../../i18n/format';
         }
         @if (priceMatch()) {
           <span>{{ priceMatch()![1] }}</span>
-          <span>{{ priceMatch()![2] ? '.' + priceMatch()![2].replace('.', '').slice(0, 2).padEnd(2, '0') : '.00' }}</span>
+          <span>{{
+            priceMatch()![2]
+              ? '.' + priceMatch()![2].replace('.', '').slice(0, 2).padEnd(2, '0')
+              : '.00'
+          }}</span>
         } @else {
           <span>{{ numericParts() }}</span>
         }

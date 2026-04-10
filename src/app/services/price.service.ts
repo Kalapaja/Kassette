@@ -16,10 +16,10 @@ const NATIVE_COINGECKO_IDS: Record<number, string> = {
   137: 'coingecko:polygon-ecosystem-token',
   56: 'coingecko:binancecoin',
   42161: 'coingecko:ethereum', // Arbitrum uses ETH
-  10: 'coingecko:ethereum',   // Optimism uses ETH
-  8453: 'coingecko:ethereum',  // Base uses ETH
+  10: 'coingecko:ethereum', // Optimism uses ETH
+  8453: 'coingecko:ethereum', // Base uses ETH
   59144: 'coingecko:ethereum', // Linea uses ETH
-  130: 'coingecko:ethereum',   // Unichain uses ETH
+  130: 'coingecko:ethereum', // Unichain uses ETH
 };
 
 interface TokenRef {
@@ -81,9 +81,7 @@ export class PriceService {
     // Split into batches that fit under URL length limit
     const batches = this._buildBatches(coinKeys);
 
-    const results = await Promise.allSettled(
-      batches.map((batch) => this._fetchBatch(batch)),
-    );
+    const results = await Promise.allSettled(batches.map((batch) => this._fetchBatch(batch)));
 
     for (const result of results) {
       if (result.status !== 'fulfilled') {

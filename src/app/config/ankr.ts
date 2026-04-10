@@ -31,9 +31,7 @@ export const ANKR_CHAIN_NAMES: Record<number, string> = Object.fromEntries(
 );
 
 /** Set of chain IDs that Ankr's multichain endpoint supports */
-export const ANKR_SUPPORTED_CHAIN_IDS: Set<number> = new Set(
-  Object.values(ANKR_CHAIN_MAP),
-);
+export const ANKR_SUPPORTED_CHAIN_IDS: Set<number> = new Set(Object.values(ANKR_CHAIN_MAP));
 
 // ---------------------------------------------------------------------------
 // Constants

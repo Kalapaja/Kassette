@@ -118,7 +118,7 @@ describe('QuoteService', () => {
 
     it('converts USDC to native token at low price', () => {
       // 0.1 USDC at $0.40/POL → 0.25 POL = 250000000000000000 wei
-      expect(QuoteService.convertToSourceAmount(100_000n, 18, 0.40)).toBe(250_000_000_000_000_000n);
+      expect(QuoteService.convertToSourceAmount(100_000n, 18, 0.4)).toBe(250_000_000_000_000_000n);
     });
 
     it('returns same amount for $1 stablecoin with 6 decimals', () => {
@@ -138,7 +138,10 @@ describe('QuoteService', () => {
 
     it('returns true for Polygon USDC (case-insensitive)', () => {
       expect(
-        QuoteService.isDirectTransfer(POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS.toUpperCase() as `0x${string}`),
+        QuoteService.isDirectTransfer(
+          POLYGON_CHAIN_ID,
+          POLYGON_USDC_ADDRESS.toUpperCase() as `0x${string}`,
+        ),
       ).toBe(true);
     });
 
@@ -167,13 +170,19 @@ describe('QuoteService', () => {
 
     it('returns "swap" for non-USDC token on Polygon', () => {
       expect(
-        service.detectPath(POLYGON_CHAIN_ID, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619' as `0x${string}`),
+        service.detectPath(
+          POLYGON_CHAIN_ID,
+          '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619' as `0x${string}`,
+        ),
       ).toBe('swap');
     });
 
     it('returns "swap" for native token on Polygon', () => {
       expect(
-        service.detectPath(POLYGON_CHAIN_ID, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`),
+        service.detectPath(
+          POLYGON_CHAIN_ID,
+          '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
+        ),
       ).toBe('swap');
     });
 
@@ -198,9 +207,10 @@ describe('QuoteService', () => {
       mockCreateSwap = vi.fn();
       service = Object.create(QuoteService.prototype);
       // Inject mock SwapService
-      (service as unknown as { _swapService: { createSwap: typeof mockCreateSwap } })._swapService = {
-        createSwap: mockCreateSwap,
-      };
+      (service as unknown as { _swapService: { createSwap: typeof mockCreateSwap } })._swapService =
+        {
+          createSwap: mockCreateSwap,
+        };
     });
 
     // ─── Direct quotes ───
@@ -302,9 +312,11 @@ describe('QuoteService', () => {
     it('sends zero address for native tokens in swap request', async () => {
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1000000', '500000000000000'));
 
-      await service.calculateQuote(makeParams({
-        sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
-      }));
+      await service.calculateQuote(
+        makeParams({
+          sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
+        }),
+      );
 
       expect(mockCreateSwap).toHaveBeenCalledWith(
         expect.objectContaining({ from_asset_id: ZERO_ADDRESS }),
@@ -315,12 +327,14 @@ describe('QuoteService', () => {
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('500000000000000', '500000000000000'));
 
       // 1 USDC at $2000/ETH → 0.0005 ETH = 500000000000000 wei
-      await service.calculateQuote(makeParams({
-        sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
-        sourceDecimals: 18,
-        sourceUsdPrice: 2000,
-        recipientAmount: 1_000_000n,
-      }));
+      await service.calculateQuote(
+        makeParams({
+          sourceToken: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as `0x${string}`,
+          sourceDecimals: 18,
+          sourceUsdPrice: 2000,
+          recipientAmount: 1_000_000n,
+        }),
+      );
 
       const callArgs = mockCreateSwap.mock.calls[0][0];
       expect(callArgs.from_amount_units).toBe('500000000000000');
@@ -330,12 +344,14 @@ describe('QuoteService', () => {
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
 
       // USDC at $1/token → 5 USDC = 5000000 units
-      await service.calculateQuote(makeParams({
-        sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
-        sourceDecimals: 6,
-        sourceUsdPrice: 1.0,
-        recipientAmount: 5_000_000n,
-      }));
+      await service.calculateQuote(
+        makeParams({
+          sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+          sourceDecimals: 6,
+          sourceUsdPrice: 1.0,
+          recipientAmount: 5_000_000n,
+        }),
+      );
 
       const callArgs = mockCreateSwap.mock.calls[0][0];
       expect(callArgs.from_amount_units).toBe('5000000');
@@ -345,11 +361,13 @@ describe('QuoteService', () => {
       const tokenAddr = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
       mockCreateSwap.mockResolvedValue(makeMockAcrossSwap('1030000'));
 
-      await service.calculateQuote(makeParams({
-        sourceToken: tokenAddr,
-        sourceChainId: 8453,
-        sourceDecimals: 6,
-      }));
+      await service.calculateQuote(
+        makeParams({
+          sourceToken: tokenAddr,
+          sourceChainId: 8453,
+          sourceDecimals: 6,
+        }),
+      );
 
       expect(mockCreateSwap).toHaveBeenCalledWith(
         expect.objectContaining({ from_asset_id: tokenAddr }),

@@ -6,3 +6,10 @@ dist/
 
 .DS_store
 .angular/
+.claude/settings.local.json
+
+# Test coverage
+/coverage/
+
+# Lint cache
+.eslintcache

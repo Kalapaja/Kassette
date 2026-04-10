@@ -1,14 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import {
-  createPublicClient,
-  erc20Abi,
-  http,
-  type PublicClient,
-} from 'viem';
+import { createPublicClient, erc20Abi, http, type PublicClient } from 'viem';
 
 import { isNativeAddress } from '@/app/config/address.utils';
-import { ANKR_API_URL, ANKR_CHAIN_MAP, ANKR_TIMEOUT_MS, UNICHAIN_CHAIN_ID, type AnkrAsset, type AnkrJsonRpcResponse } from '@/app/config/ankr';
+import {
+  ANKR_API_URL,
+  ANKR_CHAIN_MAP,
+  ANKR_TIMEOUT_MS,
+  UNICHAIN_CHAIN_ID,
+  type AnkrAsset,
+  type AnkrJsonRpcResponse,
+} from '@/app/config/ankr';
 import type { ChainConfig } from '@/app/config/chains';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
@@ -52,7 +54,7 @@ export class BalanceService {
     const results = new Map<string, bigint>();
 
     // Split tokens: Ankr-supported chains vs Unichain
-    const unichainTokens = tokens.filter(t => t.chainId === UNICHAIN_CHAIN_ID);
+    const unichainTokens = tokens.filter((t) => t.chainId === UNICHAIN_CHAIN_ID);
 
     // Run Ankr + Unichain RPC in parallel
     const [ankrResult, unichainResult] = await Promise.allSettled([
@@ -74,8 +76,11 @@ export class BalanceService {
       }
     } else {
       // Ankr failed — fall back to per-chain RPC for all non-Unichain chains
-      console.warn('[BalanceService] Ankr API failed, falling back to per-chain RPC:', ankrResult.reason);
-      const rpcTokens = tokens.filter(t => t.chainId !== UNICHAIN_CHAIN_ID);
+      console.warn(
+        '[BalanceService] Ankr API failed, falling back to per-chain RPC:',
+        ankrResult.reason,
+      );
+      const rpcTokens = tokens.filter((t) => t.chainId !== UNICHAIN_CHAIN_ID);
       const fallbackResults = await this._fetchAllViaRpc(userAddress, rpcTokens);
       for (const [key, value] of fallbackResults) {
         results.set(key, value);
@@ -104,9 +109,7 @@ export class BalanceService {
     let response: AnkrJsonRpcResponse;
     try {
       response = await firstValueFrom(
-        this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(
-          timeout(ANKR_TIMEOUT_MS),
-        ),
+        this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(timeout(ANKR_TIMEOUT_MS)),
       );
     } catch (err) {
       if (err instanceof TimeoutError) {
@@ -122,14 +125,9 @@ export class BalanceService {
     return this._mapAnkrAssets(response.result.assets, tokens);
   }
 
-  private _mapAnkrAssets(
-    assets: AnkrAsset[],
-    tokens: TokenConfig[],
-  ): Map<string, bigint> {
+  private _mapAnkrAssets(assets: AnkrAsset[], tokens: TokenConfig[]): Map<string, bigint> {
     // Build lookup from caller's token list (Across API tokens)
-    const knownTokens = new Set(
-      tokens.map(t => getTokenKey(t.chainId, t.address)),
-    );
+    const knownTokens = new Set(tokens.map((t) => getTokenKey(t.chainId, t.address)));
 
     const results = new Map<string, bigint>();
 
@@ -138,9 +136,7 @@ export class BalanceService {
       if (chainId === undefined) continue;
 
       const isNative = asset.tokenType === 'NATIVE' || !asset.contractAddress;
-      const address = isNative
-        ? NATIVE_TOKEN_ADDRESS
-        : asset.contractAddress as `0x${string}`;
+      const address = isNative ? NATIVE_TOKEN_ADDRESS : (asset.contractAddress as `0x${string}`);
 
       const key = getTokenKey(chainId, address);
       if (!knownTokens.has(key)) continue;
@@ -213,23 +209,14 @@ export class BalanceService {
               }
             })
             .catch((e) => {
-              console.error(
-                `[BalanceService] Chain ${chainId} native balance failed:`,
-                e,
-              );
+              console.error(`[BalanceService] Chain ${chainId} native balance failed:`, e);
             })
         : Promise.resolve();
 
     // Fetch ERC-20 balances via multicall (single RPC call per chain)
     const multicallPromise =
       erc20Tokens.length > 0
-        ? this._multicallBalances(
-            client,
-            chainId,
-            erc20Tokens,
-            userAddress,
-            balances,
-          )
+        ? this._multicallBalances(client, chainId, erc20Tokens, userAddress, balances)
         : Promise.resolve();
 
     await Promise.allSettled([nativePromise, multicallPromise]);
@@ -256,21 +243,12 @@ export class BalanceService {
 
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
-        if (
-          result.status === 'success' &&
-          typeof result.result === 'bigint'
-        ) {
-          balances.set(
-            getTokenKey(chainId, tokens[i].address),
-            result.result,
-          );
+        if (result.status === 'success' && typeof result.result === 'bigint') {
+          balances.set(getTokenKey(chainId, tokens[i].address), result.result);
         }
       }
     } catch (e) {
-      console.error(
-        `[BalanceService] Chain ${chainId}: multicall error:`,
-        e,
-      );
+      console.error(`[BalanceService] Chain ${chainId}: multicall error:`, e);
     }
   }
 

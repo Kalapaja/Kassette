@@ -22,18 +22,28 @@ import { Component, OnDestroy, OnInit, input, output } from '@angular/core';
         <div class="w-[51px] h-0.5 rounded-[4px] bg-border-secondary"></div>
       </div>
       @if (title()) {
-        <div class="py-[10px] text-[25px] font-[421] leading-[25px] text-content-primary text-center w-full">{{ title() }}</div>
+        <div
+          class="py-[10px] text-[25px] font-[421] leading-[25px] text-content-primary text-center w-full"
+        >
+          {{ title() }}
+        </div>
       }
       <div class="shrink-0 xl:pt-5">
         <ng-content select="[slot=header]" />
       </div>
       <div class="flex flex-col flex-1 min-h-0">
-        <div class="flex flex-col gap-[5px] w-full px-5 box-border flex-1 min-h-0 host-scrollable:overflow-y-auto host-scrollable:overflow-x-hidden host-scrollable:overscroll-contain">
+        <div
+          class="flex flex-col gap-[5px] w-full px-5 box-border flex-1 min-h-0 host-scrollable:overflow-y-auto host-scrollable:overflow-x-hidden host-scrollable:overscroll-contain"
+        >
           <ng-content />
         </div>
       </div>
       @if (footer()) {
-        <div class="text-xs font-[421] leading-5 text-content-tetriary text-center px-5 pt-[10px] pb-5 shrink-0">{{ footer() }}</div>
+        <div
+          class="text-xs font-[421] leading-5 text-content-tetriary text-center px-5 pt-[10px] pb-5 shrink-0"
+        >
+          {{ footer() }}
+        </div>
       }
       <div class="shrink-0">
         <ng-content select="[slot=footer]" />

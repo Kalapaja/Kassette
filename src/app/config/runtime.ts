@@ -18,18 +18,15 @@ declare global {
  */
 function fromAppConfig<K extends keyof AppConfig>(key: K): string {
   const value = window.__APP_CONFIG__?.[key];
-  if (typeof value === "string" && value && !value.startsWith("%")) {
+  if (typeof value === 'string' && value && !value.startsWith('%')) {
     return value;
   }
-  return "";
+  return '';
 }
 
 /**
  * Resolve config value: window.__APP_CONFIG__ (backend) → import.meta.env (build-time) → ''
  */
-export function runtimeConfig(
-  appConfigKey: keyof AppConfig,
-  envValue: string = "",
-): string {
-  return fromAppConfig(appConfigKey) || envValue || "";
+export function runtimeConfig(appConfigKey: keyof AppConfig, envValue: string = ''): string {
+  return fromAppConfig(appConfigKey) || envValue || '';
 }

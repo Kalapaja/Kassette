@@ -90,7 +90,7 @@ describe('UniswapService', () => {
       // Simulate 4 fee tiers returning different amounts; one rejects
       mockReadContract
         .mockResolvedValueOnce([200_000_000_000_000n, 0n, 0, 0n]) // fee 100
-        .mockRejectedValueOnce(new Error('No pool'))                // fee 500
+        .mockRejectedValueOnce(new Error('No pool')) // fee 500
         .mockResolvedValueOnce([150_000_000_000_000n, 0n, 0, 0n]) // fee 3000 (best)
         .mockResolvedValueOnce([180_000_000_000_000n, 0n, 0, 0n]); // fee 10000
 
@@ -208,9 +208,7 @@ describe('UniswapService', () => {
       const call = mockWriteContract.mock.calls[0];
       expect(call[1].functionName).toBe('multicall');
       // Should send ETH value
-      expect(call[1].value).toBe(
-        UniswapService.maxAmountWithSlippage(nativeQuote.amountIn),
-      );
+      expect(call[1].value).toBe(UniswapService.maxAmountWithSlippage(nativeQuote.amountIn));
       // multicall args should be array of two calldata entries
       expect(call[1].args[0]).toHaveLength(2);
     });

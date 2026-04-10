@@ -1,4 +1,4 @@
-import type { Locale } from "./index";
+import type { Locale } from './index';
 
 export interface FiatParts {
   currency: string; // e.g., "$", "US$"
@@ -12,33 +12,33 @@ export interface FiatParts {
  */
 export function formatFiat(amount: number, locale: Locale): FiatParts {
   const formatter = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "USD",
+    style: 'currency',
+    currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 
   const parts = formatter.formatToParts(amount);
 
-  let currency = "";
-  let integer = "";
-  let decimal = "";
+  let currency = '';
+  let integer = '';
+  let decimal = '';
   let inDecimal = false;
 
   for (const part of parts) {
     switch (part.type) {
-      case "currency":
+      case 'currency':
         currency += part.value;
         break;
-      case "decimal":
+      case 'decimal':
         inDecimal = true;
         decimal += part.value;
         break;
-      case "fraction":
+      case 'fraction':
         decimal += part.value;
         break;
-      case "integer":
-      case "group":
+      case 'integer':
+      case 'group':
         if (inDecimal) {
           decimal += part.value;
         } else {
@@ -46,7 +46,7 @@ export function formatFiat(amount: number, locale: Locale): FiatParts {
         }
         break;
       // literal (spacing around currency) — append to currency
-      case "literal":
+      case 'literal':
         if (!integer && !inDecimal) {
           currency += part.value;
         }
@@ -70,6 +70,6 @@ export function fiatPartsToString(parts: FiatParts): string {
  */
 export function parseFiatString(value: string): number {
   // Strip currency symbol and any non-numeric chars except dot/minus
-  const cleaned = value.replace(/[^0-9.\-]/g, "");
+  const cleaned = value.replace(/[^0-9.\-]/g, '');
   return parseFloat(cleaned) || 0;
 }

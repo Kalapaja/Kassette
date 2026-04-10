@@ -18,8 +18,7 @@ const mockWaitForTransactionReceipt = vi.fn();
 vi.mock('@wagmi/core', () => ({
   readContract: (...args: unknown[]) => mockReadContract(...args),
   writeContract: (...args: unknown[]) => mockWriteContract(...args),
-  waitForTransactionReceipt: (...args: unknown[]) =>
-    mockWaitForTransactionReceipt(...args),
+  waitForTransactionReceipt: (...args: unknown[]) => mockWaitForTransactionReceipt(...args),
 }));
 
 const FAKE_CONFIG = {} as any;

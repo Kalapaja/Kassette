@@ -18,8 +18,7 @@ const mockSignTypedData = vi.fn();
 
 vi.mock('@wagmi/core', () => ({
   sendTransaction: (...args: unknown[]) => mockSendTransaction(...args),
-  waitForTransactionReceipt: (...args: unknown[]) =>
-    mockWaitForTransactionReceipt(...args),
+  waitForTransactionReceipt: (...args: unknown[]) => mockWaitForTransactionReceipt(...args),
   signTypedData: (...args: unknown[]) => mockSignTypedData(...args),
 }));
 
@@ -110,12 +109,8 @@ describe('SwapService', () => {
         10, // Optimism
       );
 
-      expect(mockCheckAllowance).toHaveBeenCalledWith(
-        '0xtoken', '0xspender', '0xowner', 10,
-      );
-      expect(mockSubmitApprove).toHaveBeenCalledWith(
-        '0xtoken', '0xspender', 1000n, 10,
-      );
+      expect(mockCheckAllowance).toHaveBeenCalledWith('0xtoken', '0xspender', '0xowner', 10);
+      expect(mockSubmitApprove).toHaveBeenCalledWith('0xtoken', '0xspender', 1000n, 10);
       expect(mockWaitForReceipt).toHaveBeenCalledWith('0xhash', 10);
     });
 

@@ -52,16 +52,7 @@ export class AppKitService implements OnDestroy {
     }
 
     try {
-      const networks = [
-        mainnet,
-        polygon,
-        bsc,
-        arbitrum,
-        optimism,
-        base,
-        linea,
-        unichain,
-      ] as const;
+      const networks = [mainnet, polygon, bsc, arbitrum, optimism, base, linea, unichain] as const;
 
       this.wagmiAdapter = new WagmiAdapter({
         projectId,

@@ -3,7 +3,7 @@ import type { PublicSwap } from './swap.types';
 
 // ─── Payment Path ───
 
-export type PaymentPath = "direct" | "swap";
+export type PaymentPath = 'direct' | 'swap';
 
 // ─── Quote Result ───
 
@@ -17,39 +17,32 @@ export interface QuoteResult {
 // ─── Payment Step State Machine ───
 
 export type PaymentStep =
-  | "loading"
-  | "invoice-error"
-  | "idle"
-  | "token-select"
-  | "ready-to-pay"
-  | "quoting"
-  | "approving"
-  | "executing"
-  | "polling"
-  | "recovering"
-  | "paid"
-  | "error";
+  | 'loading'
+  | 'invoice-error'
+  | 'idle'
+  | 'token-select'
+  | 'ready-to-pay'
+  | 'quoting'
+  | 'approving'
+  | 'executing'
+  | 'polling'
+  | 'recovering'
+  | 'paid'
+  | 'error';
 
 export const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
-  "loading": ["idle", "invoice-error", "recovering", "polling"],
-  "invoice-error": [],
-  "idle": ["token-select"],
-  "token-select": ["quoting", "ready-to-pay", "idle"],
-  "ready-to-pay": [
-    "executing",
-    "approving",
-    "token-select",
-    "quoting",
-    "ready-to-pay",
-    "error",
-  ],
-  "quoting": ["ready-to-pay", "token-select", "quoting", "error"],
-  "approving": ["executing", "error", "ready-to-pay"],
-  "executing": ["polling", "error", "ready-to-pay"],
-  "polling": ["paid", "error", "token-select"],
-  "recovering": ["polling", "token-select", "recovering", "error", "paid"],
-  "paid": [],
-  "error": ["ready-to-pay", "token-select"],
+  loading: ['idle', 'invoice-error', 'recovering', 'polling'],
+  'invoice-error': [],
+  idle: ['token-select'],
+  'token-select': ['quoting', 'ready-to-pay', 'idle'],
+  'ready-to-pay': ['executing', 'approving', 'token-select', 'quoting', 'ready-to-pay', 'error'],
+  quoting: ['ready-to-pay', 'token-select', 'quoting', 'error'],
+  approving: ['executing', 'error', 'ready-to-pay'],
+  executing: ['polling', 'error', 'ready-to-pay'],
+  polling: ['paid', 'error', 'token-select'],
+  recovering: ['polling', 'token-select', 'recovering', 'error', 'paid'],
+  paid: [],
+  error: ['ready-to-pay', 'token-select'],
 };
 
 // ─── Step Context ───

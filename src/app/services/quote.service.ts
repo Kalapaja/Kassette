@@ -2,11 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { formatUnits } from 'viem';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { SwapService } from '@/app/services/swap.service';
-import {
-  POLYGON_CHAIN_ID,
-  POLYGON_USDC_ADDRESS,
-  USDC_DECIMALS,
-} from '@/app/config/payment';
+import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS, USDC_DECIMALS } from '@/app/config/payment';
 import { isAcrossSwap, isZeroExSwap } from '@/app/types/swap.types';
 import type { PaymentPath, QuoteResult } from '@/app/types/payment-step.types';
 
@@ -27,12 +23,9 @@ export interface QuoteParams {
 export class QuoteService {
   private readonly _swapService = inject(SwapService);
 
-  destroy(): void { }
+  destroy(): void {}
 
-  static isDirectTransfer(
-    chainId: number,
-    tokenAddress: `0x${string}`,
-  ): boolean {
+  static isDirectTransfer(chainId: number, tokenAddress: `0x${string}`): boolean {
     return (
       chainId === POLYGON_CHAIN_ID &&
       tokenAddress.toLowerCase() === POLYGON_USDC_ADDRESS.toLowerCase()
@@ -78,8 +71,10 @@ export class QuoteService {
     // Use 10^8 precision to avoid floating-point in bigint division
     const PRICE_PRECISION = 100_000_000n;
     const priceScaled = BigInt(Math.round(sourceUsdPrice * Number(PRICE_PRECISION)));
-    return (usdcAmount * 10n ** BigInt(sourceDecimals) * PRICE_PRECISION) /
-      (priceScaled * 10n ** BigInt(USDC_DECIMALS));
+    return (
+      (usdcAmount * 10n ** BigInt(sourceDecimals) * PRICE_PRECISION) /
+      (priceScaled * 10n ** BigInt(USDC_DECIMALS))
+    );
   }
 
   private async _swapQuote(params: QuoteParams): Promise<QuoteResult> {

@@ -8,7 +8,9 @@ import { Component, input, output, signal } from '@angular/core';
   },
   template: `
     @if (label() || comment()) {
-      <div class="flex justify-between items-start text-xs font-[421] leading-[14px] tracking-[0.48px] uppercase">
+      <div
+        class="flex justify-between items-start text-xs font-[421] leading-[14px] tracking-[0.48px] uppercase"
+      >
         <label class="text-content-primary" for="input">{{ label() }}</label>
         <span class="text-brand-quaternary">{{ comment() }}</span>
       </div>
@@ -18,7 +20,10 @@ import { Component, input, output, signal } from '@angular/core';
       [class.border-content-primary]="focused()"
     >
       @if (inputPrefix()) {
-        <span class="text-xs font-[421] leading-[14px] tracking-[0.48px] uppercase text-content-primary shrink-0 mr-[5px]">{{ inputPrefix() }}</span>
+        <span
+          class="text-xs font-[421] leading-[14px] tracking-[0.48px] uppercase text-content-primary shrink-0 mr-[5px]"
+          >{{ inputPrefix() }}</span
+        >
       }
       <input
         id="input"

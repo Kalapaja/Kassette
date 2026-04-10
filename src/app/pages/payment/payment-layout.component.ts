@@ -42,7 +42,12 @@ import { QuoteService } from '@/app/services/quote.service';
 import { PendingTxService, type PendingTxRecord } from '@/app/services/pending-tx.service';
 
 import type { Invoice } from '@/app/types/invoice.types';
-import { isActiveStatus, isExpiredStatus, isFinalStatus, getRemainingAmount } from '@/app/types/invoice.types';
+import {
+  isActiveStatus,
+  isExpiredStatus,
+  isFinalStatus,
+  getRemainingAmount,
+} from '@/app/types/invoice.types';
 import type { PaymentStep, TokenOption, OrderItem } from '@/app/types/payment-step.types';
 import {
   isAcrossSwap,
@@ -132,8 +137,14 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   readonly showTokenList = computed(() => {
     const step = this.state.currentStep();
-    return step === 'token-select' || step === 'ready-to-pay' || step === 'quoting' ||
-      step === 'approving' || step === 'executing' || step === 'polling';
+    return (
+      step === 'token-select' ||
+      step === 'ready-to-pay' ||
+      step === 'quoting' ||
+      step === 'approving' ||
+      step === 'executing' ||
+      step === 'polling'
+    );
   });
 
   readonly shippingFiatParts = computed(() => {
@@ -240,7 +251,12 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         this.state.connectedAccount.set(null);
 
         const step = untracked(() => this.state.currentStep());
-        if (step !== 'loading' && step !== 'polling' && step !== 'paid' && step !== 'invoice-error') {
+        if (
+          step !== 'loading' &&
+          step !== 'polling' &&
+          step !== 'paid' &&
+          step !== 'invoice-error'
+        ) {
           this.state.currentStep.set('idle');
           this.state.paymentPath.set(null);
           this.state.quote.set(null);
@@ -429,9 +445,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async onWalletConnected(
-    account: { address: string; chainId: number },
-  ): Promise<void> {
+  private async onWalletConnected(account: { address: string; chainId: number }): Promise<void> {
     const config = this.appKit.wagmiConfig;
     if (config) {
       this.paymentService.setConfig(config);
@@ -484,7 +498,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       if (balance <= 0n) continue;
 
       const precision = Math.min(token.decimals, 6);
-      const requiredHuman = (usdAmount / price * 1.03).toFixed(precision);
+      const requiredHuman = ((usdAmount / price) * 1.03).toFixed(precision);
       const requiredAmount = parseUnits(requiredHuman, token.decimals);
       const balanceHuman = formatUnits(balance, token.decimals);
 
@@ -536,7 +550,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         paymentPath: path,
         requiredAmount: amount,
         requiredAmountHuman: remainingAmount,
-        requiredFiatHuman: fiatPartsToString(formatFiat(parseFloat(remainingAmount), this.ts.locale())),
+        requiredFiatHuman: fiatPartsToString(
+          formatFiat(parseFloat(remainingAmount), this.ts.locale()),
+        ),
         exchangeFee: fiatPartsToString(formatFiat(0, this.ts.locale())),
         gasFee: '',
         quote: {
@@ -601,9 +617,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       });
     } catch (err) {
       if (requestId !== this.quoteRequestId) return; // stale error
-      this.state.quoteError.set(
-        extractUserMessage(err, this.ts.t('error.getQuote')),
-      );
+      this.state.quoteError.set(extractUserMessage(err, this.ts.t('error.getQuote')));
       this.state.transition('token-select');
     }
   }
@@ -710,7 +724,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async executeZeroExSwap(swap: PublicSwap & { swap_details: ZeroExSwapDetails }): Promise<void> {
+  private async executeZeroExSwap(
+    swap: PublicSwap & { swap_details: ZeroExSwapDetails },
+  ): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
     const selectedChainId = this.state.selectedChainId()!;
@@ -733,7 +749,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
 
     // Try EIP-5792 batched calls (approve + swap in one popup) if approval needed
-    if (needsApproval && await this.swapService.supportsBatchCalls(selectedChainId)) {
+    if (needsApproval && (await this.swapService.supportsBatchCalls(selectedChainId))) {
       this.state.transition('executing');
       const txHash = await this.swapService.executeZeroExBatched(
         selectedTokenAddress,
@@ -789,7 +805,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.startPolling(invoiceId);
   }
 
-  private async executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void> {
+  private async executeAcrossSwap(
+    swap: PublicSwap & { swap_details: AcrossSwapDetails },
+  ): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
     const isNative = isNativeAddress(this.state.selectedTokenAddress()!);
@@ -797,15 +815,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     // Native tokens don't need ERC-20 approval
     if (!isNative && details.raw_transaction.approval_transactions.length > 0) {
       this.state.transition('approving');
-      await this.swapService.executeAcrossApprovals(
-        details.raw_transaction.approval_transactions,
-      );
+      await this.swapService.executeAcrossApprovals(details.raw_transaction.approval_transactions);
     }
 
     this.state.transition('executing');
-    const txHash = await this.swapService.executeAcrossTx(
-      details.raw_transaction.transaction,
-    );
+    const txHash = await this.swapService.executeAcrossTx(details.raw_transaction.transaction);
 
     this.state.txHash.set(txHash);
 
@@ -824,7 +838,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.startPolling(invoiceId);
   }
 
-  private async executeBungeeSwap(swap: PublicSwap & { swap_details: BungeeSwapDetails }): Promise<void> {
+  private async executeBungeeSwap(
+    swap: PublicSwap & { swap_details: BungeeSwapDetails },
+  ): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
     const isNative = isNativeAddress(this.state.selectedTokenAddress()!);
@@ -855,10 +871,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   private isUserRejection(err: unknown): boolean {
     if (err && typeof err === 'object') {
       if ('code' in err && (err as { code: number }).code === 4001) return true;
-      if (
-        'message' in err &&
-        typeof (err as { message: string }).message === 'string'
-      ) {
+      if ('message' in err && typeof (err as { message: string }).message === 'string') {
         const msg = (err as { message: string }).message.toLowerCase();
         return msg.includes('user rejected') || msg.includes('user denied');
       }
@@ -866,17 +879,16 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     return false;
   }
 
-  private async handlePendingTxRecovery(
-    invoice: Invoice,
-    record: PendingTxRecord,
-  ): Promise<void> {
+  private async handlePendingTxRecovery(invoice: Invoice, record: PendingTxRecord): Promise<void> {
     const invoiceId = this.getInvoiceId();
 
     // Swap paths (Across/Bungee/ZeroEx) are fully tracked by the backend — no recovery needed.
     // Remove stale swap records and proceed normally.
     // Also discard legacy 'same-chain-swap' records from the old Uniswap flow.
-    if ((record.swapExecutor && record.swapExecutor !== 'direct') ||
-        (record as { paymentPath: string }).paymentPath === 'same-chain-swap') {
+    if (
+      (record.swapExecutor && record.swapExecutor !== 'direct') ||
+      (record as { paymentPath: string }).paymentPath === 'same-chain-swap'
+    ) {
       this.pendingTxService.remove(invoiceId);
       this.state.transition('idle', { invoice });
       return;
@@ -961,10 +973,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private startPolling(invoiceId: string): void {
-    this.invoiceService.startPolling(
-      this.state.invoice()!.id,
-      3000,
-      (invoice) => this.ngZone.run(() => this.onInvoiceUpdate(invoice, invoiceId)),
+    this.invoiceService.startPolling(this.state.invoice()!.id, 3000, (invoice) =>
+      this.ngZone.run(() => this.onInvoiceUpdate(invoice, invoiceId)),
     );
   }
 
@@ -1078,10 +1088,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       if (originalTx.blockNumber !== null) {
         this.stopRecoveryMonitoring();
 
-        const receipt = await this.getTransactionReceipt(
-          txHash as `0x${string}`,
-          selectedChainId,
-        );
+        const receipt = await this.getTransactionReceipt(txHash as `0x${string}`, selectedChainId);
 
         if (receipt?.status === 'reverted') {
           this.pendingTxService.remove(invoiceId);
@@ -1129,8 +1136,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
         gasParams = {
           maxFeePerGas: bumpedMax > currentFees.maxFeePerGas ? bumpedMax : currentFees.maxFeePerGas,
-          maxPriorityFeePerGas: bumpedPriority > (currentFees.maxPriorityFeePerGas ?? 0n)
-            ? bumpedPriority : (currentFees.maxPriorityFeePerGas ?? 0n),
+          maxPriorityFeePerGas:
+            bumpedPriority > (currentFees.maxPriorityFeePerGas ?? 0n)
+              ? bumpedPriority
+              : (currentFees.maxPriorityFeePerGas ?? 0n),
         };
       } else {
         // Legacy
@@ -1152,7 +1161,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
       // 6. Update persistence and context
       const record = this.pendingTxService.load(invoiceId)!;
-      this.pendingTxService.save({ ...record, txHash: newHash, timestamp: new Date().toISOString() });
+      this.pendingTxService.save({
+        ...record,
+        txHash: newHash,
+        timestamp: new Date().toISOString(),
+      });
       this.state.txHash.set(newHash);
       this.state.pendingTxTimestamp.set(new Date().toISOString());
       this.state.errorMessage.set('');

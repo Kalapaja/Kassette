@@ -2,13 +2,7 @@
 
 export type SwapExecutorType = 'Across' | 'Bungee' | 'ZeroEx';
 
-export type SwapStatus =
-  | 'Created'
-  | 'Submitted'
-  | 'Pending'
-  | 'Completed'
-  | 'Failed'
-  | 'Abandoned';
+export type SwapStatus = 'Created' | 'Submitted' | 'Pending' | 'Completed' | 'Failed' | 'Abandoned';
 
 // --- Across types ---
 

@@ -82,7 +82,9 @@ function createTestHarness() {
   return { component, state, paymentService, swapService, invoiceService, pendingTxService };
 }
 
-function makeZeroExSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: ZeroExSwapDetails } {
+function makeZeroExSwap(
+  overrides: Partial<PublicSwap> = {},
+): PublicSwap & { swap_details: ZeroExSwapDetails } {
   return {
     id: 'swap-001',
     invoice_id: 'inv-001',
@@ -121,7 +123,9 @@ function makeZeroExSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swa
   } as PublicSwap & { swap_details: ZeroExSwapDetails };
 }
 
-function makeAcrossSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: AcrossSwapDetails } {
+function makeAcrossSwap(
+  overrides: Partial<PublicSwap> = {},
+): PublicSwap & { swap_details: AcrossSwapDetails } {
   return {
     id: 'swap-002',
     invoice_id: 'inv-001',
@@ -151,9 +155,7 @@ function makeAcrossSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swa
           max_fee_per_gas: '1000000000',
           max_priority_fee_per_gas: '100000000',
         },
-        approval_transactions: [
-          { chain_id: 8453, to: '0xTokenAddr', data: '0xapprovedata' },
-        ],
+        approval_transactions: [{ chain_id: 8453, to: '0xTokenAddr', data: '0xapprovedata' }],
       },
       transaction_hash: null,
     },
@@ -163,7 +165,9 @@ function makeAcrossSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swa
   } as PublicSwap & { swap_details: AcrossSwapDetails };
 }
 
-function makeBungeeSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: BungeeSwapDetails } {
+function makeBungeeSwap(
+  overrides: Partial<PublicSwap> = {},
+): PublicSwap & { swap_details: BungeeSwapDetails } {
   return {
     id: 'swap-003',
     invoice_id: 'inv-001',
@@ -207,7 +211,9 @@ function makeBungeeSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swa
   } as PublicSwap & { swap_details: BungeeSwapDetails };
 }
 
-function makeZeroExQuoteResult(swap?: PublicSwap & { swap_details: ZeroExSwapDetails }): QuoteResult {
+function makeZeroExQuoteResult(
+  swap?: PublicSwap & { swap_details: ZeroExSwapDetails },
+): QuoteResult {
   const s = swap ?? makeZeroExSwap();
   return {
     path: 'swap',
@@ -283,7 +289,13 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       await component.executeZeroExSwap(swap);
 
       expect(swapService.executeZeroExTx).toHaveBeenCalledWith(
-        { to: '0xSwapContract', data: '0xswapdata', gas: '200000', gas_price: '1000000000', value: '0' },
+        {
+          to: '0xSwapContract',
+          data: '0xswapdata',
+          gas: '200000',
+          gas_price: '1000000000',
+          value: '0',
+        },
         137,
       );
     });
@@ -335,8 +347,8 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       state.selectedChainId.set(8453);
       state.selectedTokenAddress.set(
         isNative
-          ? NATIVE_TOKEN_ADDRESS as `0x${string}`
-          : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+          ? (NATIVE_TOKEN_ADDRESS as `0x${string}`)
+          : ('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`),
       );
       state.selectedTokenSymbol.set(isNative ? 'ETH' : 'USDC');
       state.selectedTokenDecimals.set(isNative ? 18 : 6);
@@ -382,8 +394,8 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       state.selectedChainId.set(8453);
       state.selectedTokenAddress.set(
         isNative
-          ? NATIVE_TOKEN_ADDRESS as `0x${string}`
-          : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+          ? (NATIVE_TOKEN_ADDRESS as `0x${string}`)
+          : ('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`),
       );
       state.selectedTokenSymbol.set(isNative ? 'ETH' : 'USDC');
       state.selectedTokenDecimals.set(isNative ? 18 : 6);
@@ -419,8 +431,11 @@ describe('PaymentLayoutComponent — execution chainId', () => {
     it('passes selectedChainId to submitTransfer and waitForReceipt', async () => {
       const { component, state, paymentService } = createTestHarness();
       state.invoice.set({
-        id: 'inv-001', status: 'Pending', payment_address: '0xrecipient',
-        valid_till: '2026-12-31T23:59:59.000Z', cart: { items: [] },
+        id: 'inv-001',
+        status: 'Pending',
+        payment_address: '0xrecipient',
+        valid_till: '2026-12-31T23:59:59.000Z',
+        cart: { items: [] },
       } as any);
       state.selectedChainId.set(137);
       state.selectedTokenAddress.set(POLYGON_USDC_ADDRESS);
@@ -438,10 +453,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         1_000_000n,
         137,
       );
-      expect(paymentService.waitForReceipt).toHaveBeenCalledWith(
-        expect.any(String),
-        137,
-      );
+      expect(paymentService.waitForReceipt).toHaveBeenCalledWith(expect.any(String), 137);
     });
   });
 });

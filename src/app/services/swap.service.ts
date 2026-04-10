@@ -39,10 +39,7 @@ export class SwapService {
 
   async createSwap(params: CreateSwapParams): Promise<PublicSwap> {
     const data = await firstValueFrom(
-      this.http.post<ApiResultStructured<PublicSwap>>(
-        '/public/swap/create',
-        params,
-      ),
+      this.http.post<ApiResultStructured<PublicSwap>>('/public/swap/create', params),
     );
 
     if (data.error) {
@@ -75,10 +72,7 @@ export class SwapService {
     }
   }
 
-  async submitSwapSignature(
-    swapId: string,
-    signature: string,
-  ): Promise<void> {
+  async submitSwapSignature(swapId: string, signature: string): Promise<void> {
     await firstValueFrom(
       this.http.post('/public/swap/signature', {
         swap_id: swapId,
@@ -88,9 +82,7 @@ export class SwapService {
     );
   }
 
-  async executeAcrossApprovals(
-    approvalTxns: ApprovalTransaction[],
-  ): Promise<void> {
+  async executeAcrossApprovals(approvalTxns: ApprovalTransaction[]): Promise<void> {
     if (!this._config) {
       throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
     }
@@ -124,9 +116,7 @@ export class SwapService {
     });
   }
 
-  async signBungeeTypedData(
-    typedData: BungeeSignTypedData,
-  ): Promise<`0x${string}`> {
+  async signBungeeTypedData(typedData: BungeeSignTypedData): Promise<`0x${string}`> {
     if (!this._config) {
       throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
     }
@@ -136,18 +126,14 @@ export class SwapService {
     const { EIP712Domain: _, ...types } = typedData.types;
 
     // chainId may come as hex string (e.g. "0x89") — normalize to number
-    const chainId = typedData.domain.chainId != null
-      ? Number(typedData.domain.chainId)
-      : undefined;
+    const chainId = typedData.domain.chainId != null ? Number(typedData.domain.chainId) : undefined;
 
     return await signTypedData(this._config, {
       domain: {
         name: typedData.domain.name,
         version: typedData.domain.version,
         chainId,
-        verifyingContract: typedData.domain.verifyingContract as
-          | `0x${string}`
-          | undefined,
+        verifyingContract: typedData.domain.verifyingContract as `0x${string}` | undefined,
         salt: typedData.domain.salt as `0x${string}` | undefined,
       },
       types,
@@ -156,10 +142,7 @@ export class SwapService {
     });
   }
 
-  async executeZeroExTx(
-    rawTx: ZeroExRawTransactionData,
-    chainId: number,
-  ): Promise<`0x${string}`> {
+  async executeZeroExTx(rawTx: ZeroExRawTransactionData, chainId: number): Promise<`0x${string}`> {
     if (!this._config) {
       throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
     }
@@ -192,10 +175,7 @@ export class SwapService {
         amount: bigint,
         chainId?: number,
       ) => Promise<`0x${string}`>;
-      waitForReceipt: (
-        hash: `0x${string}`,
-        chainId?: number,
-      ) => Promise<unknown>;
+      waitForReceipt: (hash: `0x${string}`, chainId?: number) => Promise<unknown>;
     },
     chainId?: number,
   ): Promise<void> {
@@ -227,8 +207,11 @@ export class SwapService {
       const chainCaps = caps[chainId];
       if (!chainCaps) return false;
       const atomic = chainCaps['atomicBatch'] ?? chainCaps['atomic'];
-      if (atomic && ((atomic as Record<string, unknown>)['supported'] === true ||
-          (atomic as Record<string, unknown>)['status'] === 'supported')) {
+      if (
+        atomic &&
+        ((atomic as Record<string, unknown>)['supported'] === true ||
+          (atomic as Record<string, unknown>)['status'] === 'supported')
+      ) {
         return true;
       }
       return false;
@@ -331,10 +314,7 @@ export class SwapService {
         amount: bigint,
         chainId?: number,
       ) => Promise<`0x${string}`>;
-      waitForReceipt: (
-        hash: `0x${string}`,
-        chainId?: number,
-      ) => Promise<unknown>;
+      waitForReceipt: (hash: `0x${string}`, chainId?: number) => Promise<unknown>;
     },
     chainId?: number,
   ): Promise<void> {
@@ -343,12 +323,7 @@ export class SwapService {
     const owner = approvalData.userAddress as `0x${string}`;
     const requiredAmount = BigInt(approvalData.amount);
 
-    const currentAllowance = await paymentService.checkAllowance(
-      token,
-      spender,
-      owner,
-      chainId,
-    );
+    const currentAllowance = await paymentService.checkAllowance(token, spender, owner, chainId);
 
     if (currentAllowance < requiredAmount) {
       const approveHash = await paymentService.submitApprove(

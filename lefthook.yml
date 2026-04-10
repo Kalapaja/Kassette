@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: '*.{ts,html,js}'
+      run: pnpm exec eslint --max-warnings=0 {staged_files}
+    format:
+      glob: '*.{ts,html,css,json,md,yml,yaml}'
+      run: pnpm exec prettier --check {staged_files}
+
+commit-msg:
+  commands:
+    conventional:
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  parallel: false
+  commands:
+    typecheck:
+      run: pnpm exec tsc --noEmit -p tsconfig.app.json
+    test:
+      run: pnpm exec vitest run
+    version-tag:
+      run: ./.githooks/pre-push-tag-check.sh

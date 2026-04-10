@@ -350,9 +350,17 @@ describe('PaymentStateService', () => {
       service.transition('invoice-error');
       // Try every possible step — all should fail
       const allSteps: PaymentStep[] = [
-        'loading', 'idle', 'token-select', 'ready-to-pay',
-        'quoting', 'approving', 'executing', 'polling',
-        'recovering', 'paid', 'error',
+        'loading',
+        'idle',
+        'token-select',
+        'ready-to-pay',
+        'quoting',
+        'approving',
+        'executing',
+        'polling',
+        'recovering',
+        'paid',
+        'error',
       ];
       for (const step of allSteps) {
         const result = service.transition(step);
@@ -635,7 +643,9 @@ describe('PaymentStateService', () => {
 
         service.tokens.set([mockToken]);
         service.selectedChainId.set(137);
-        service.selectedTokenAddress.set('0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' as `0x${string}`);
+        service.selectedTokenAddress.set(
+          '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' as `0x${string}`,
+        );
 
         expect(service.selectedToken()).toBe(mockToken);
       });
@@ -658,7 +668,9 @@ describe('PaymentStateService', () => {
 
         service.tokens.set([mockToken]);
         service.selectedChainId.set(137);
-        service.selectedTokenAddress.set('0x3c499c542cef5e3811e1192ce70d8cc03d5c3359' as `0x${string}`);
+        service.selectedTokenAddress.set(
+          '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359' as `0x${string}`,
+        );
 
         expect(service.selectedToken()).toBe(mockToken);
       });
@@ -732,20 +744,22 @@ describe('PaymentStateService', () => {
       service.searching.set(true);
       service.isLoadingTokens.set(true);
       service.quoteError.set('quote failed');
-      service.tokens.set([{
-        chainId: 1,
-        chainName: 'Ethereum',
-        chainLogoUrl: '',
-        tokenAddress: '0x0' as `0x${string}`,
-        symbol: 'ETH',
-        decimals: 18,
-        logoUrl: '',
-        usdPrice: 3000,
-        requiredAmount: '0.01',
-        balance: 0n,
-        balanceHuman: '0',
-        sufficient: false,
-      }]);
+      service.tokens.set([
+        {
+          chainId: 1,
+          chainName: 'Ethereum',
+          chainLogoUrl: '',
+          tokenAddress: '0x0' as `0x${string}`,
+          symbol: 'ETH',
+          decimals: 18,
+          logoUrl: '',
+          usdPrice: 3000,
+          requiredAmount: '0.01',
+          balance: 0n,
+          balanceHuman: '0',
+          sufficient: false,
+        },
+      ]);
 
       service.reset();
 
@@ -821,9 +835,18 @@ describe('PaymentStateService', () => {
 
     it('rejects all possible transitions', () => {
       const allSteps: PaymentStep[] = [
-        'loading', 'invoice-error', 'idle', 'token-select', 'ready-to-pay',
-        'quoting', 'approving', 'executing', 'polling',
-        'recovering', 'paid', 'error',
+        'loading',
+        'invoice-error',
+        'idle',
+        'token-select',
+        'ready-to-pay',
+        'quoting',
+        'approving',
+        'executing',
+        'polling',
+        'recovering',
+        'paid',
+        'error',
       ];
       for (const step of allSteps) {
         expect(service.transition(step)).toBe(false);

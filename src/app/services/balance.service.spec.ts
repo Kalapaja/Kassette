@@ -9,7 +9,12 @@ vi.hoisted(() => {
 });
 
 import '@angular/compiler';
-import { Injector, runInInjectionContext, EnvironmentInjector, createEnvironmentInjector } from '@angular/core';
+import {
+  Injector,
+  runInInjectionContext,
+  EnvironmentInjector,
+  createEnvironmentInjector,
+} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { of, throwError } from 'rxjs';
@@ -17,11 +22,7 @@ import { of, throwError } from 'rxjs';
 import { BalanceService } from './balance.service';
 import { ChainService } from './chain.service';
 import { ANKR_API_URL, ANKR_CHAIN_MAP } from '@/app/config/ankr';
-import {
-  NATIVE_TOKEN_ADDRESS,
-  getTokenKey,
-  type TokenConfig,
-} from '@/app/config/tokens';
+import { NATIVE_TOKEN_ADDRESS, getTokenKey, type TokenConfig } from '@/app/config/tokens';
 import type { AnkrJsonRpcResponse } from '@/app/config/ankr';
 
 // ---------------------------------------------------------------------------
@@ -111,9 +112,7 @@ describe('BalanceService', () => {
 
   describe('Ankr API call', () => {
     it('sends correct JSON-RPC body with method, blockchain array, and onlyWhitelisted', async () => {
-      const tokens = [
-        makeToken({ chainId: 1, address: NATIVE_TOKEN_ADDRESS, symbol: 'ETH' }),
-      ];
+      const tokens = [makeToken({ chainId: 1, address: NATIVE_TOKEN_ADDRESS, symbol: 'ETH' })];
 
       httpPostSpy.mockReturnValue(of(makeAnkrResponse()));
 
@@ -351,9 +350,7 @@ describe('BalanceService', () => {
 
       const unichainKey = getTokenKey(130, NATIVE_TOKEN_ADDRESS);
       const mockUnichainResult = new Map([[unichainKey, 5000000000000000000n]]);
-      vi.spyOn(service as any, '_fetchChainViaRpc').mockResolvedValue(
-        mockUnichainResult,
-      );
+      vi.spyOn(service as any, '_fetchChainViaRpc').mockResolvedValue(mockUnichainResult);
 
       httpPostSpy.mockReturnValue(of(makeAnkrResponse()));
 
@@ -362,11 +359,9 @@ describe('BalanceService', () => {
       expect(results.get(unichainKey)).toBe(5000000000000000000n);
 
       // Verify _fetchChainViaRpc was called with chainId 130
-      expect((service as any)._fetchChainViaRpc).toHaveBeenCalledWith(
-        130,
-        USER_ADDRESS,
-        [unichainToken],
-      );
+      expect((service as any)._fetchChainViaRpc).toHaveBeenCalledWith(130, USER_ADDRESS, [
+        unichainToken,
+      ]);
     });
   });
 
@@ -589,12 +584,8 @@ describe('BalanceService', () => {
       );
 
       const results = await service.getBalances(USER_ADDRESS, [ethToken, maticToken]);
-      expect(results.get(getTokenKey(1, NATIVE_TOKEN_ADDRESS))).toBe(
-        1000000000000000000n,
-      );
-      expect(results.get(getTokenKey(137, NATIVE_TOKEN_ADDRESS))).toBe(
-        2000000000000000000n,
-      );
+      expect(results.get(getTokenKey(1, NATIVE_TOKEN_ADDRESS))).toBe(1000000000000000000n);
+      expect(results.get(getTokenKey(137, NATIVE_TOKEN_ADDRESS))).toBe(2000000000000000000n);
     });
   });
 

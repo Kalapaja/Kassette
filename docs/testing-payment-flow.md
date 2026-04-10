@@ -12,6 +12,7 @@ deno task dev
 ```
 
 Open `http://localhost:3001/`. You should see:
+
 - `[MSW] Mocking enabled.` in the browser console
 - A scenario badge in the top-right corner showing `scenario: happy`
 
@@ -57,10 +58,10 @@ URL: `http://localhost:3001/?scenario=swap-expired`
 
 ## Additional Query Parameters
 
-| Parameter | Description | Default |
-|---|---|---|
-| `pollDelay` | Delay in ms before mock transitions to final status | `12000` |
-| `invoiceAmount` | Invoice amount in USD | `100.00` |
+| Parameter       | Description                                         | Default  |
+| --------------- | --------------------------------------------------- | -------- |
+| `pollDelay`     | Delay in ms before mock transitions to final status | `12000`  |
+| `invoiceAmount` | Invoice amount in USD                               | `100.00` |
 
 Parameters can be combined: `?scenario=happy&pollDelay=5000&invoiceAmount=50.00`
 

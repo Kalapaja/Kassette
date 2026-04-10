@@ -8,7 +8,12 @@
     "dev": "ng serve",
     "build": "ng build -c production && node -e \"const fs=require('fs'),p=require('path'),d='dist/browser';fs.readdirSync(d).filter(f=>/\\.(js|css)$/.test(f)).forEach(f=>fs.renameSync(p.join(d,f),p.join(d,'assets',f)))\"",
     "test": "vitest run",
-    "lint": "ng lint"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@angular/animations": "^21.2.0",
@@ -34,15 +39,26 @@
     "viem": "^2.46.3"
   },
   "devDependencies": {
+    "@angular-eslint/eslint-plugin": "^21.3.1",
+    "@angular-eslint/eslint-plugin-template": "^21.3.1",
+    "@angular-eslint/template-parser": "^21.3.1",
     "@angular/build": "^21.2.0",
     "@angular/cli": "^21.2.0",
     "@angular/compiler-cli": "^21.2.0",
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@tailwindcss/postcss": "^4.2.1",
+    "@vitest/coverage-v8": "^4.1.4",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "lefthook": "^2.1.5",
     "msw": "^2.12.10",
     "postcss": "^8.5.6",
+    "prettier": "^3.8.2",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
-    "vitest": "^4.0.18"
+    "typescript-eslint": "^8.58.1",
+    "vitest": "^4.1.4"
   },
   "msw": {
     "workerDirectory": [
