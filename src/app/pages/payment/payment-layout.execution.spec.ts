@@ -17,6 +17,7 @@ vi.mock('@wagmi/core', () => ({
 import '@angular/compiler';
 import { PaymentLayoutComponent } from './payment-layout.component';
 import { PaymentStateService } from '@/app/services/payment-state.service';
+import { createComponentHarness } from '@/app/testing/test-harness';
 import { POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import type { QuoteResult } from '@/app/types/payment-step.types';
@@ -61,10 +62,8 @@ function createTestHarness() {
     load: vi.fn(),
     remove: vi.fn(),
   };
-  const ts = { t: vi.fn((key: string) => key) };
 
-  const component = Object.create(PaymentLayoutComponent.prototype);
-  Object.assign(component, {
+  const component = createComponentHarness(PaymentLayoutComponent, {
     state,
     paymentService,
     swapService,
@@ -72,12 +71,7 @@ function createTestHarness() {
     pendingTxService,
     chainService: { getChain: vi.fn() },
     tokenService: { findToken: vi.fn() },
-    ts,
-    ngZone: { run: (fn: () => void) => fn() },
-    appKit: { wagmiConfig: {} },
-    recoveryInterval: null,
-    redirectTimer: null,
-  });
+  } as any);
 
   return { component, state, paymentService, swapService, invoiceService, pendingTxService };
 }

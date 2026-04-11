@@ -111,7 +111,7 @@ export class Kassette {
     return this.nodeBase(src).withExec(["pnpm", "format:check"]).stdout()
   }
 
-  /** TypeScript type checking (includes spec files). */
+  /** TypeScript type checking (app code; specs validated by Vitest at runtime). */
   @func()
   async typecheck(
     @argument({ defaultPath: ".", ignore: [".git", "node_modules", "dist", ".angular", ".dagger", "coverage", "playwright-report", "test-results"] })
@@ -161,6 +161,74 @@ export class Kassette {
     return this.nodeBase(src)
       .withExec(["pnpm", "build"])
       .directory("/app/dist/browser")
+  }
+
+  // ── E2E ────────────────────────────────────────────────────────────
+
+  /**
+   * Run Playwright E2E tests against a production-quality build.
+   *
+   * Uses the `e2e` Angular build configuration: full optimization (minification,
+   * tree-shaking, output hashing) without the deployment-specific /public/ baseHref.
+   * The bundle is served from a minimal Node.js static server as a Dagger Service.
+   * Playwright mocks API responses at the network level (no MSW needed in the bundle).
+   */
+  @func("end-to-end")
+  async endToEnd(
+    @argument({ defaultPath: ".", ignore: [".git", "node_modules", "dist", ".angular", ".dagger", "coverage", "playwright-report", "test-results"] })
+    src: Directory,
+  ): Promise<string> {
+    // Build with e2e configuration: production optimization but without the
+    // /public/ baseHref (which is deployment-specific). Playwright mocks APIs
+    // at the network level, so MSW in the bundle is not needed.
+    const built = this.nodeBase(src)
+      .withExec(["pnpm", "exec", "ng", "build", "-c", "e2e"])
+      .directory("/app/dist/browser")
+
+    // Serve the built bundle via a minimal Node.js HTTP server.
+    // Plain http.createServer — no framework, no HTTPS upgrades.
+    const serverScript = [
+      'const http = require("http");',
+      'const fs = require("fs");',
+      'const path = require("path");',
+      'const MIME = { ".html":"text/html", ".js":"application/javascript", ".css":"text/css", ".json":"application/json", ".svg":"image/svg+xml", ".png":"image/png", ".woff2":"font/woff2" };',
+      'const ROOT = "/app/dist";',
+      'http.createServer((req, res) => {',
+      '  const url = new URL(req.url, "http://localhost");',
+      '  let file = path.join(ROOT, url.pathname);',
+      '  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(ROOT, "index.html");',
+      '  const ext = path.extname(file);',
+      '  res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });',
+      '  fs.createReadStream(file).pipe(res);',
+      '}).listen(3000, "0.0.0.0", () => console.log("Static server on :3000"));',
+    ].join("\n")
+
+    const server = dag
+      .container()
+      .from(`node:${NODE_VERSION}-bookworm-slim`)
+      .withDirectory("/app/dist", built)
+      .withNewFile("/app/server.js", serverScript)
+      .withExposedPort(3000)
+      .asService({ args: ["node", "/app/server.js"] })
+
+    // Run Playwright against the static server
+    const playwrightCache = dag.cacheVolume("playwright-browsers")
+
+    return this.nodeBase(src)
+      .withMountedCache("/root/.cache/ms-playwright", playwrightCache)
+      .withExec([
+        "pnpm",
+        "exec",
+        "playwright",
+        "install",
+        "--with-deps",
+        "chromium",
+      ])
+      .withServiceBinding("kassette-e2e", server)
+      .withEnvVariable("PLAYWRIGHT_BASE_URL", "http://kassette-e2e:3000")
+      .withEnvVariable("CI", "true")
+      .withExec(["pnpm", "e2e"])
+      .stdout()
   }
 
   // ── Release ────────────────────────────────────────────────────────

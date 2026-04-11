@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import fc from 'fast-check';
 import { formatFiat, fiatPartsToString, parseFiatString } from './format';
 
 describe('formatFiat()', () => {
@@ -38,6 +39,37 @@ describe('fiatPartsToString()', () => {
     const parts = formatFiat(42.5, 'en');
     const str = fiatPartsToString(parts);
     expect(str).toBe('$42.50');
+  });
+});
+
+describe('formatFiat + parseFiatString round-trip (property-based)', () => {
+  it('EN: format → string → parse recovers the original amount within rounding', () => {
+    fc.assert(
+      fc.property(fc.double({ min: 0, max: 1e7, noNaN: true, noDefaultInfinity: true }), (n) => {
+        const rounded = Math.round(n * 100) / 100; // formatFiat rounds to 2 decimals
+        const parts = formatFiat(rounded, 'en');
+        const str = fiatPartsToString(parts);
+        const parsed = parseFiatString(str);
+        expect(Math.abs(parsed - rounded)).toBeLessThan(0.01);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  it('formatFiat always produces non-empty currency, integer, and decimal parts', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0, max: 1e9, noNaN: true, noDefaultInfinity: true }),
+        fc.constantFrom('en' as const, 'es' as const),
+        (n, locale) => {
+          const parts = formatFiat(n, locale);
+          expect(parts.currency.length).toBeGreaterThan(0);
+          expect(parts.integer.length).toBeGreaterThan(0);
+          expect(parts.decimal.length).toBeGreaterThan(0);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 });
 

@@ -7,15 +7,15 @@ updates:
       interval: weekly
     groups:
       angular:
-        patterns: ["@angular/*", "@angular-eslint/*"]
+        patterns: ['@angular/*', '@angular-eslint/*']
       wallet:
-        patterns: ["@wagmi/*", "viem", "@reown/*", "@walletconnect/*"]
+        patterns: ['@wagmi/*', 'viem', '@reown/*', '@walletconnect/*']
       testing:
-        patterns: ["vitest", "@vitest/*", "@playwright/*"]
+        patterns: ['vitest', '@vitest/*', '@playwright/*']
     # Angular major upgrades should be manual
     ignore:
-      - dependency-name: "@angular/*"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: '@angular/*'
+        update-types: ['version-update:semver-major']
 
   # Dagger module dependencies
   - package-ecosystem: npm
