@@ -8,7 +8,7 @@
 ## Start Dev Server
 
 ```bash
-deno task dev
+pnpm dev
 ```
 
 Open `http://localhost:3001/`. You should see:
@@ -79,7 +79,7 @@ Parameters can be combined: `?scenario=happy&pollDelay=5000&invoiceAmount=50.00`
 ## Build Verification
 
 ```bash
-deno task typecheck   # Only 2 pre-existing errors (kp-bottom-sheet.ts, wallet.service.ts)
-deno task lint        # No errors
-deno task build:dev   # Build succeeds
+pnpm exec tsc --noEmit -p tsconfig.app.json   # Typecheck
+pnpm lint                                      # ESLint (zero warnings)
+pnpm build                                     # Production build
 ```
