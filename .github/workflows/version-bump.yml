@@ -1,0 +1,65 @@
+name: Version Bump PR
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: Open version bump PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Compute next version
+        id: version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$TAG_VERSION"
+          NEXT_MINOR=$((MINOR + 1))
+          NEXT_VERSION="${MAJOR}.${NEXT_MINOR}.0"
+          echo "current=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if bump is needed
+        id: check
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          NEXT="${{ steps.version.outputs.next }}"
+          printf '%s\n%s\n' "$CURRENT" "$NEXT" | sort -V | tail -1 | grep -q "^${CURRENT}$" \
+            && echo "skip=true" >> "$GITHUB_OUTPUT" \
+            || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        if: steps.check.outputs.skip != 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Bump package.json
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            pkg.version = "${{ steps.version.outputs.next }}";
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          '
+          pnpm install --lockfile-only
+
+      - uses: peter-evans/create-pull-request@v8
+        if: steps.check.outputs.skip != 'true'
+        with:
+          sign-commits: true
+          branch: chore/bump-version-to-${{ steps.version.outputs.next }}
+          commit-message: 'chore: start ${{ steps.version.outputs.next }} development cycle'
+          title: 'chore: bump version to ${{ steps.version.outputs.next }}'
+          body: |
+            Automated version bump after **v${{ steps.version.outputs.current }}** release.
+
+            Bumps to **${{ steps.version.outputs.next }}** (minor increment).
+            If you need a different version (e.g. major bump), edit `package.json` in this PR before merging.
