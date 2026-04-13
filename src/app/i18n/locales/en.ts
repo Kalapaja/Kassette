@@ -7,6 +7,11 @@ export const en = {
   'order.yourOrder': 'Your order',
   'order.shipping': 'Shipping',
   'order.total': 'Total',
+  'order.item.price': 'Price',
+  'order.item.quantity': 'Quantity',
+  'order.item.discount': 'Discount',
+  'order.item.tax': 'Tax',
+  'order.item.totalPrice': 'Total Price',
 
   // -- Main CTA --
   'button.pay': 'Pay',

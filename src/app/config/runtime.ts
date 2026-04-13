@@ -24,9 +24,25 @@ function fromAppConfig<K extends keyof AppConfig>(key: K): string {
   return '';
 }
 
+const ENV_KEY_MAP: Record<keyof AppConfig, string> = {
+  projectId: 'VITE_REOWN_PROJECT_ID',
+  merchantName: 'VITE_MERCHANT_NAME',
+  merchantLogoUrl: 'VITE_MERCHANT_LOGO_URL',
+  ankrApiToken: 'VITE_ANKR_API_TOKEN',
+};
+
+function fromEnv(key: keyof AppConfig): string {
+  const envKey = ENV_KEY_MAP[key];
+  const value = (import.meta as any).env?.[envKey];
+  if (typeof value === 'string' && value && !value.startsWith('%')) {
+    return value;
+  }
+  return '';
+}
+
 /**
- * Resolve config value: window.__APP_CONFIG__ (backend) → import.meta.env (build-time) → ''
+ * Resolve config value: window.__APP_CONFIG__ (backend) → import.meta.env (build-time) → fallback → ''
  */
-export function runtimeConfig(appConfigKey: keyof AppConfig, envValue: string = ''): string {
-  return fromAppConfig(appConfigKey) || envValue || '';
+export function runtimeConfig(appConfigKey: keyof AppConfig, fallback: string = ''): string {
+  return fromAppConfig(appConfigKey) || fromEnv(appConfigKey) || fallback;
 }

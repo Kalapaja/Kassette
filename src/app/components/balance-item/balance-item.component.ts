@@ -80,7 +80,7 @@ import { type FiatParts, fiatPartsToString } from '../../i18n/format';
                 >
                   <span>$</span>
                   <span>{{ fiatMatch()![1] }}</span>
-                  <span>.{{ fiatMatch()![3] ?? '00' }}</span>
+                  <span>.{{ fiatMatch()![3] || '00' }}</span>
                 </span>
               } @else {
                 <span

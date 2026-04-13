@@ -95,6 +95,9 @@ export interface OrderItem {
   name: string;
   description?: string;
   quantity: number;
-  price: string;
+  price: number;
+  discount?: number;
+  tax?: number;
+  currency: string;
   image?: string;
 }
