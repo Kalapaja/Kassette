@@ -57,7 +57,7 @@ Single file, single `@object()` class at `.dagger/src/index.ts`:
 | ---------------- | ---------------------------------------------------------------------------- |
 | `lint`           | ESLint with zero warnings tolerance                                          |
 | `format-check`   | Prettier formatting check                                                    |
-| `typecheck`      | `tsc --noEmit -p tsconfig.app.json`                                          |
+| `typecheck`      | `tsc --noEmit` against `tsconfig.app.json` and `tsconfig.spec.json`          |
 | `test`           | Vitest with coverage thresholds                                              |
 | `audit`          | `pnpm audit --prod --audit-level=critical` — **blocking on critical**        |
 | `audit-advisory` | `pnpm audit --prod --audit-level=moderate` — advisory, exit code always 0    |

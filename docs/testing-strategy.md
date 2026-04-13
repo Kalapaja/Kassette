@@ -165,16 +165,16 @@ Each job runs a single `dagger call <command>` against the shared remote engine.
 
 ## Static Analysis & Security
 
-| Tool           | Run                              | What it catches                                                   |
-| -------------- | -------------------------------- | ----------------------------------------------------------------- |
-| **ESLint**     | `dagger call lint`               | Code quality (@angular-eslint + typescript-eslint, zero warnings) |
-| **Prettier**   | `dagger call format-check`       | Formatting consistency                                            |
-| **TypeScript** | `dagger call typecheck`          | Type errors (`tsc --noEmit -p tsconfig.app.json`)                 |
-| **pnpm audit** | `dagger call audit`              | **Critical** vulnerabilities in production deps — blocking        |
-| **pnpm audit** | `dagger call audit-advisory`     | High/moderate vulnerabilities — advisory (exit always 0)          |
-| **CodeQL**     | `.github/workflows/codeql.yml`   | JavaScript/TypeScript security patterns                           |
-| **Semgrep**    | `.github/workflows/semgrep.yml`  | SAST with default + security-audit rulesets                       |
-| **Gitleaks**   | `.github/workflows/gitleaks.yml` | Secret detection in commits                                       |
+| Tool           | Run                              | What it catches                                                           |
+| -------------- | -------------------------------- | ------------------------------------------------------------------------- |
+| **ESLint**     | `dagger call lint`               | Code quality (@angular-eslint + typescript-eslint, zero warnings)         |
+| **Prettier**   | `dagger call format-check`       | Formatting consistency                                                    |
+| **TypeScript** | `dagger call typecheck`          | Type errors in app (`tsconfig.app.json`) and specs (`tsconfig.spec.json`) |
+| **pnpm audit** | `dagger call audit`              | **Critical** vulnerabilities in production deps — blocking                |
+| **pnpm audit** | `dagger call audit-advisory`     | High/moderate vulnerabilities — advisory (exit always 0)                  |
+| **CodeQL**     | `.github/workflows/codeql.yml`   | JavaScript/TypeScript security patterns                                   |
+| **Semgrep**    | `.github/workflows/semgrep.yml`  | SAST with default + security-audit rulesets                               |
+| **Gitleaks**   | `.github/workflows/gitleaks.yml` | Secret detection in commits                                               |
 
 ### Audit policy
 

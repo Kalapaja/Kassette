@@ -87,7 +87,10 @@ function createTestHarness() {
   } as any);
 
   return {
-    component,
+    // Widened to `any` so tests can call private members and `vi.spyOn` them.
+    // TS has no clean "expose private for tests" idiom; casting via `any` keeps
+    // call sites readable at the cost of public-member type hints inside tests.
+    component: component as any,
     state,
     invoiceService,
     pendingTxService,

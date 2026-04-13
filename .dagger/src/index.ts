@@ -115,14 +115,22 @@ export class Kassette {
     return this.nodeBase(src).withExec(["pnpm", "format:check"]).stdout()
   }
 
-  /** TypeScript type checking (app code; specs validated by Vitest at runtime). */
+  /**
+   * TypeScript type checking for both the app (tsconfig.app.json) and the spec
+   * project (tsconfig.spec.json). Vitest transpiles specs but does not type-check
+   * them; without this, type-level regressions in tests (e.g. stale mock shapes)
+   * reach main unnoticed.
+   */
   @func()
   async typecheck(
     @argument({ defaultPath: ".", ignore: [".git", "node_modules", "dist", ".angular", ".dagger", "coverage", "playwright-report", "test-results"] })
     src: Directory,
   ): Promise<string> {
     return this.nodeBase(src)
-      .withExec(["pnpm", "exec", "tsc", "--noEmit", "-p", "tsconfig.app.json"])
+      .withExec([
+        "sh", "-c",
+        "pnpm exec tsc --noEmit -p tsconfig.app.json && pnpm exec tsc --noEmit -p tsconfig.spec.json",
+      ])
       .stdout()
   }
 

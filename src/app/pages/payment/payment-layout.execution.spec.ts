@@ -44,7 +44,16 @@ function createTestHarness() {
     tokenService: { findToken: vi.fn() },
   } as any);
 
-  return { component, state, paymentService, swapService, invoiceService, pendingTxService };
+  // `component` widened to `any` so tests can call private methods like
+  // executeZeroExSwap/executeAcrossSwap/executeDirect.
+  return {
+    component: component as any,
+    state,
+    paymentService,
+    swapService,
+    invoiceService,
+    pendingTxService,
+  };
 }
 
 const savedLocation = globalThis.location;
