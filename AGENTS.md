@@ -51,7 +51,8 @@ dagger call lint                    # ESLint only
 dagger call format-check            # Prettier only
 dagger call typecheck               # tsc --noEmit
 dagger call test                    # Vitest with coverage thresholds
-dagger call audit                   # pnpm audit (non-blocking)
+dagger call audit                   # pnpm audit (blocking on critical)
+dagger call audit-advisory          # pnpm audit (high/moderate, advisory)
 dagger call build                   # Production Angular build → dist/browser
 dagger call end-to-end              # Playwright E2E against production build
 dagger call release-zip --version=X.Y.Z  # SRI-patched release ZIP

@@ -138,10 +138,9 @@ export class Kassette {
   }
 
   /**
-   * Audit production dependencies for known vulnerabilities.
-   * Currently non-blocking (exit 0 always) because transitive deps
-   * like @reown/appkit pull in vulnerable axios versions we can't control.
-   * Tighten once the dep tree is clean.
+   * Audit production dependencies for critical vulnerabilities. Blocking.
+   * Critical advisories are rare and serious enough to warrant breaking CI;
+   * use pnpm.overrides in package.json when a transitive dep can't be patched.
    */
   @func()
   async audit(
@@ -149,9 +148,23 @@ export class Kassette {
     src: Directory,
   ): Promise<string> {
     return this.nodeBase(src)
+      .withExec(["pnpm", "audit", "--prod", "--audit-level=critical"])
+      .stdout()
+  }
+
+  /**
+   * Surface high/moderate advisories without blocking. Daily CVE churn in
+   * transitive deps would otherwise break unrelated PRs.
+   */
+  @func()
+  async auditAdvisory(
+    @argument({ defaultPath: ".", ignore: [".git", "node_modules", "dist", ".angular", ".dagger", "coverage", "playwright-report", "test-results"] })
+    src: Directory,
+  ): Promise<string> {
+    return this.nodeBase(src)
       .withExec([
         "sh", "-c",
-        "pnpm audit --prod --audit-level=critical 2>&1; echo \"audit exit code: $?\"",
+        "pnpm audit --prod --audit-level=moderate 2>&1; echo \"audit exit code: $?\"",
       ])
       .stdout()
   }

@@ -28,7 +28,8 @@ jobs:
           - { name: Format, command: format-check }
           - { name: Typecheck, command: typecheck }
           - { name: Test, command: test }
-          - { name: 'Audit (advisory)', command: audit }
+          - { name: Audit, command: audit }
+          - { name: 'Audit (advisory)', command: audit-advisory }
           - { name: Build, command: build }
           - { name: E2E, command: end-to-end }
     steps:

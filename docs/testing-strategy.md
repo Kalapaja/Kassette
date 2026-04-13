@@ -155,8 +155,8 @@ Chromium launches with `--disable-features=HttpsFirstBalancedMode,HttpsUpgrades`
 ## CI Pipeline
 
 ```
-PR / Main:  Seven parallel jobs (matrix) — lint, format-check, typecheck,
-            test, audit (advisory), build, end-to-end
+PR / Main:  Eight parallel jobs (matrix) — lint, format-check, typecheck,
+            test, audit, audit (advisory), build, end-to-end
 
 Release:    dagger call release-zip   [build + SRI hash + zip]
 ```
@@ -170,14 +170,18 @@ Each job runs a single `dagger call <command>` against the shared remote engine.
 | **ESLint**     | `dagger call lint`               | Code quality (@angular-eslint + typescript-eslint, zero warnings)   |
 | **Prettier**   | `dagger call format-check`       | Formatting consistency                                              |
 | **TypeScript** | `dagger call typecheck`          | Type errors (`tsc --noEmit -p tsconfig.app.json`)                   |
-| **pnpm audit** | `dagger call audit`              | Known vulnerabilities in production deps (advisory — exit always 0) |
+| **pnpm audit** | `dagger call audit`              | **Critical** vulnerabilities in production deps — blocking          |
+| **pnpm audit** | `dagger call audit-advisory`     | High/moderate vulnerabilities — advisory (exit always 0)            |
 | **CodeQL**     | `.github/workflows/codeql.yml`   | JavaScript/TypeScript security patterns                             |
 | **Semgrep**    | `.github/workflows/semgrep.yml`  | SAST with default + security-audit rulesets                         |
 | **Gitleaks**   | `.github/workflows/gitleaks.yml` | Secret detection in commits                                         |
 
-### Why audit is advisory
+### Audit policy
 
-`pnpm audit` runs in a shell wrapper that swallows the exit code, so the Dagger function always succeeds (see `.dagger/src/index.ts`). This is because transitive dependencies (notably `axios` via `@reown/appkit`) have known CVEs we can't control. The CI matrix entry is named `Audit (advisory)` so a green check is not misread as "no vulnerabilities" — read the job logs to see actual findings. Tighten to blocking once the dep tree is clean.
+Two jobs run in parallel:
+
+- **`audit`** is blocking on **critical** advisories. Critical CVEs are rare and serious enough to warrant breaking CI. When a transitive dep can't be patched directly, pin it via `pnpm.overrides` in `package.json`.
+- **`audit-advisory`** surfaces **high/moderate** advisories without blocking. Daily CVE churn in transitive deps would otherwise red-flag unrelated PRs. Read the job log to see findings.
 
 ## Adding Tests
 
