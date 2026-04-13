@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures contain hardcoded public blockchain addresses (ERC-20 contracts, sentinels) that trip the generic-api-key entropy rule."
+paths = [
+    '''.*\.spec\.ts$''',
+    '''src/app/testing/.*''',
+    '''src/mocks/.*''',
+]
