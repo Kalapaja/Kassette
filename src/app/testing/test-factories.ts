@@ -6,7 +6,7 @@ import type {
   BungeeSwapDetails,
   ZeroExSwapDetails,
 } from '@/app/types/swap.types';
-import type { QuoteResult } from '@/app/types/payment-step.types';
+import type { QuoteResult, TokenOption } from '@/app/types/payment-step.types';
 
 // ─── Base swap fields shared across all executors ───
 
@@ -176,5 +176,27 @@ export function makeMockPendingTxService() {
     load: vi.fn(),
     remove: vi.fn(),
     cleanupExpired: vi.fn(),
+  };
+}
+
+// ─── Token option factory ───
+
+export function makeMockTokenOption(overrides: Partial<TokenOption> = {}): TokenOption {
+  return {
+    chainId: 137,
+    chainName: 'Polygon',
+    chainLogoUrl: '',
+    tokenAddress: '0x0' as `0x${string}`,
+    symbol: 'USDC',
+    decimals: 6,
+    logoUrl: '',
+    usdPrice: 1,
+    requiredAmount: '0',
+    balance: 0n,
+    balanceHuman: '0',
+    sufficient: false,
+    fiatParts: { currency: '$', integer: '0', decimal: '.00' },
+    valueParts: { currency: '$', integer: '0', decimal: '.00' },
+    ...overrides,
   };
 }

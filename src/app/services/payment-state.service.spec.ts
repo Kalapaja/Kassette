@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { PaymentStateService } from './payment-state.service';
 import type { PaymentStep } from '@/app/types/payment-step.types';
 import { VALID_TRANSITIONS } from '@/app/types/payment-step.types';
+import { makeMockTokenOption } from '@/app/testing/test-factories';
 
 describe('PaymentStateService', () => {
   let service: PaymentStateService;
@@ -626,20 +627,15 @@ describe('PaymentStateService', () => {
       });
 
       it('finds the matching token from the tokens list', () => {
-        const mockToken = {
-          chainId: 137,
-          chainName: 'Polygon',
+        const mockToken = makeMockTokenOption({
           chainLogoUrl: 'https://example.com/polygon.png',
           tokenAddress: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' as `0x${string}`,
-          symbol: 'USDC',
-          decimals: 6,
           logoUrl: 'https://example.com/usdc.png',
-          usdPrice: 1.0,
           requiredAmount: '25.50',
           balance: 100000000n,
           balanceHuman: '100.00',
           sufficient: true,
-        };
+        });
 
         service.tokens.set([mockToken]);
         service.selectedChainId.set(137);
@@ -651,20 +647,10 @@ describe('PaymentStateService', () => {
       });
 
       it('matches token address case-insensitively', () => {
-        const mockToken = {
-          chainId: 137,
-          chainName: 'Polygon',
-          chainLogoUrl: '',
+        const mockToken = makeMockTokenOption({
           tokenAddress: '0x3C499C542CEF5E3811E1192CE70D8CC03D5C3359' as `0x${string}`,
-          symbol: 'USDC',
-          decimals: 6,
-          logoUrl: '',
-          usdPrice: 1.0,
           requiredAmount: '25.50',
-          balance: 0n,
-          balanceHuman: '0',
-          sufficient: false,
-        };
+        });
 
         service.tokens.set([mockToken]);
         service.selectedChainId.set(137);
@@ -745,20 +731,14 @@ describe('PaymentStateService', () => {
       service.isLoadingTokens.set(true);
       service.quoteError.set('quote failed');
       service.tokens.set([
-        {
+        makeMockTokenOption({
           chainId: 1,
           chainName: 'Ethereum',
-          chainLogoUrl: '',
-          tokenAddress: '0x0' as `0x${string}`,
           symbol: 'ETH',
           decimals: 18,
-          logoUrl: '',
           usdPrice: 3000,
           requiredAmount: '0.01',
-          balance: 0n,
-          balanceHuman: '0',
-          sufficient: false,
-        },
+        }),
       ]);
 
       service.reset();

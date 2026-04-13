@@ -53,18 +53,18 @@ Layer caching (BuildKit) is the primary mechanism — it works even on cold engi
 
 Single file, single `@object()` class at `.dagger/src/index.ts`:
 
-| CLI command    | What it does                                                   |
-| -------------- | -------------------------------------------------------------- |
-| `lint`         | ESLint with zero warnings tolerance                            |
-| `format-check` | Prettier formatting check                                      |
-| `typecheck`    | `tsc --noEmit -p tsconfig.app.json`                            |
-| `test`         | Vitest with coverage thresholds                                |
-| `audit`          | `pnpm audit --prod --audit-level=critical` — **blocking on critical**          |
-| `audit-advisory` | `pnpm audit --prod --audit-level=moderate` — advisory, exit code always 0      |
-| `build`          | Production Angular build, returns `dist/browser` Directory                     |
-| `end-to-end`     | Playwright E2E against static-served production build                          |
-| `release-zip`    | Build + SRI hash + zip (requires `--version` arg)                              |
-| `checks`         | lint + format-check + typecheck + test + audit + build (no e2e, no advisory)   |
+| CLI command      | What it does                                                                 |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `lint`           | ESLint with zero warnings tolerance                                          |
+| `format-check`   | Prettier formatting check                                                    |
+| `typecheck`      | `tsc --noEmit -p tsconfig.app.json`                                          |
+| `test`           | Vitest with coverage thresholds                                              |
+| `audit`          | `pnpm audit --prod --audit-level=critical` — **blocking on critical**        |
+| `audit-advisory` | `pnpm audit --prod --audit-level=moderate` — advisory, exit code always 0    |
+| `build`          | Production Angular build, returns `dist/browser` Directory                   |
+| `end-to-end`     | Playwright E2E against static-served production build                        |
+| `release-zip`    | Build + SRI hash + zip (requires `--version` arg)                            |
+| `checks`         | lint + format-check + typecheck + test + audit + build (no e2e, no advisory) |
 
 ### Naming
 
