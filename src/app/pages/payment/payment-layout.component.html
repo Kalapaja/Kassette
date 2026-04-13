@@ -1175,9 +1175,9 @@
               <kp-balance-item
                 [name]="o.symbol"
                 [amount]="o.balanceHuman"
-                [fiatParts]="formatFiatForToken(o.requiredAmount, o.usdPrice)"
+                [fiatParts]="o.fiatParts"
                 [cryptoValue]="isStablecoin(o) ? '' : o.requiredAmount"
-                [valueParts]="formatFiatForBalance(o.balanceHuman, o.usdPrice)"
+                [valueParts]="o.valueParts"
                 [balanceLabel]="ts.t('aria.balance')"
                 [valueLabel]="ts.t('aria.value')"
                 [selected]="

@@ -1,13 +1,4 @@
-// Polyfill `window` for Node environment — must run before any imports that
-// depend on `window` (e.g. runtime.ts → environment.ts → ankr.ts).
 import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
 import '@angular/compiler';
 import {
   Injector,

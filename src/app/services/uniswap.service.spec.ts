@@ -1,13 +1,5 @@
-import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@angular/compiler';
-import { describe, it, expect, beforeEach } from 'vitest';
 import { UniswapService } from './uniswap.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';

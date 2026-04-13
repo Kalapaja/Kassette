@@ -1,13 +1,5 @@
-import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@angular/compiler';
-import { describe, it, expect, beforeEach } from 'vitest';
 import { PaymentService } from './payment.service';
 
 // ─── Mock wagmi/core ───

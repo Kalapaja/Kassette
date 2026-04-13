@@ -1,13 +1,5 @@
-import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import '@angular/compiler';
-import { describe, it, expect, beforeEach } from 'vitest';
 import { QuoteService } from './quote.service';
 import type { QuoteParams } from './quote.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
@@ -128,6 +120,27 @@ describe('QuoteService', () => {
 
     it('handles zero price gracefully (returns recipientAmount)', () => {
       expect(QuoteService.convertToSourceAmount(1_000_000n, 18, 0)).toBe(1_000_000n);
+    });
+
+    it('handles negative price gracefully (returns recipientAmount)', () => {
+      expect(QuoteService.convertToSourceAmount(1_000_000n, 18, -5)).toBe(1_000_000n);
+    });
+
+    it('handles extremely small price below precision threshold (returns recipientAmount)', () => {
+      // Price so small that Math.round(price * 10^8) === 0 — exercises the priceScaled === 0n guard
+      expect(QuoteService.convertToSourceAmount(1_000_000n, 18, 1e-10)).toBe(1_000_000n);
+    });
+
+    it('handles small but representable price correctly', () => {
+      // 1 USDC at $0.001/token → 1000 tokens = 1000 * 10^18 wei
+      const result = QuoteService.convertToSourceAmount(1_000_000n, 18, 0.001);
+      expect(result).toBe(1_000_000_000_000_000_000_000n);
+    });
+
+    it('handles large amounts without overflow', () => {
+      // 1M USDC at $2000/ETH → 500 ETH
+      const result = QuoteService.convertToSourceAmount(1_000_000_000_000n, 18, 2000);
+      expect(result).toBe(500_000_000_000_000_000_000n);
     });
   });
 

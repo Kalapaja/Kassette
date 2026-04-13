@@ -1,3 +1,4 @@
+import type { FiatParts } from '../i18n/format';
 import type { Invoice } from './invoice.types';
 import type { PublicSwap } from './swap.types';
 
@@ -84,6 +85,8 @@ export interface TokenOption {
   balance: bigint;
   balanceHuman: string;
   sufficient: boolean;
+  fiatParts: FiatParts;
+  valueParts: FiatParts;
 }
 
 // ─── Order Item ───

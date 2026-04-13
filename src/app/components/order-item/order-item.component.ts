@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 import type { FiatParts } from '../../i18n/format';
 
 @Component({
@@ -57,17 +57,17 @@ export class OrderItemComponent {
   price = input<string>('');
   priceParts = input<FiatParts | null>(null);
 
-  protected currencySymbol(): string {
+  protected readonly currencySymbol = computed(() => {
     const [currency] = this.price().split(/(\d+)/);
     return currency;
-  }
+  });
 
-  protected numericParts(): string {
+  protected readonly numericParts = computed(() => {
     const [, ...rest] = this.price().split(/(\d+)/);
     return rest.join('');
-  }
+  });
 
-  protected priceMatch(): RegExpMatchArray | null {
+  protected readonly priceMatch = computed(() => {
     return this.numericParts().match(/^(\d+)(\.?\d*)$/);
-  }
+  });
 }

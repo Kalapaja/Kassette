@@ -11,12 +11,6 @@ const { mockCreatePublicClient } = vi.hoisted(() => ({
   })),
 }));
 
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
 vi.mock('viem', async () => {
   const actual = await vi.importActual('viem');
   return {
@@ -38,6 +32,7 @@ import { PaymentLayoutComponent } from './payment-layout.component';
 import { PaymentStateService } from '@/app/services/payment-state.service';
 import { createComponentHarness } from '@/app/testing/test-harness';
 import type { PendingTxRecord } from '@/app/services/pending-tx.service';
+import { makeMockInvoiceService, makeMockPendingTxService } from '@/app/testing/test-factories';
 
 // ─── Test helpers ───
 
@@ -72,17 +67,8 @@ function makeInvoice(overrides: Record<string, unknown> = {}) {
 
 function createTestHarness() {
   const state = new PaymentStateService();
-  const invoiceService = {
-    registerSwap: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  };
-  const pendingTxService = {
-    save: vi.fn(),
-    load: vi.fn(),
-    remove: vi.fn(),
-    cleanupExpired: vi.fn(),
-  };
+  const invoiceService = makeMockInvoiceService();
+  const pendingTxService = makeMockPendingTxService();
   const chainService = {
     getChain: vi.fn().mockReturnValue({
       rpcUrl: 'https://rpc.test',

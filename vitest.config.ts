@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.spec.ts'],
     globals: false,
+    setupFiles: ['src/app/testing/vitest-setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'json', 'lcov', 'html'],

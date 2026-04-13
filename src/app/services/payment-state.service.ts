@@ -200,6 +200,24 @@ export class PaymentStateService {
     };
   }
 
+  // ─── Token selection reset ───
+
+  /**
+   * Resets token selection state back to idle.
+   * Used when the bottom sheet is closed on mobile.
+   */
+  resetTokenSelection(): void {
+    this.currentStep.set('idle');
+    this.searchQuery.set('');
+    this.searching.set(false);
+    this.selectedChainId.set(null);
+    this.selectedTokenAddress.set(null);
+    this.selectedTokenSymbol.set('');
+    this.selectedTokenLogoUrl.set('');
+    this.selectedChainLogoUrl.set('');
+    this.selectedTokenDecimals.set(6);
+  }
+
   // ─── Reset ───
 
   /**

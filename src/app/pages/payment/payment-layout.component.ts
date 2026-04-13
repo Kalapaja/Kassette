@@ -159,8 +159,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     return formatFiat(t, this.ts.locale());
   });
 
+  private readonly allTokenOptions = computed(() => this.computeTokenOptions());
+
   readonly filteredTokenOptions = computed(() => {
-    const options = this.computeTokenOptions();
+    const options = this.allTokenOptions();
     const query = this.state.searchQuery();
     if (!query) return options;
     const q = query.toLowerCase();
@@ -169,18 +171,19 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     );
   });
 
-  readonly txExplorerUrl = computed(() => {
+  private readonly selectedChain = computed(() => {
     const chainId = this.state.selectedChainId();
-    const chain = chainId ? this.chainService.getChain(chainId) : null;
-    const explorerUrl = chain?.explorerUrl ?? 'https://etherscan.io';
+    return chainId ? this.chainService.getChain(chainId) : null;
+  });
+
+  readonly txExplorerUrl = computed(() => {
+    const explorerUrl = this.selectedChain()?.explorerUrl ?? 'https://etherscan.io';
     const txHash = this.state.txHash();
     return txHash ? `${explorerUrl}/tx/${txHash}` : '#';
   });
 
   readonly explorerName = computed(() => {
-    const chainId = this.state.selectedChainId();
-    const chain = chainId ? this.chainService.getChain(chainId) : null;
-    const explorerUrl = chain?.explorerUrl ?? 'https://etherscan.io';
+    const explorerUrl = this.selectedChain()?.explorerUrl ?? 'https://etherscan.io';
     return this.getExplorerName(explorerUrl);
   });
 
@@ -294,15 +297,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (this.layout.isDesktop()) return;
     const step = this.state.currentStep();
     if (step === 'token-select' || step === 'ready-to-pay' || step === 'quoting') {
-      this.state.currentStep.set('idle');
-      this.state.searchQuery.set('');
-      this.state.searching.set(false);
-      this.state.selectedChainId.set(null);
-      this.state.selectedTokenAddress.set(null);
-      this.state.selectedTokenSymbol.set('');
-      this.state.selectedTokenLogoUrl.set('');
-      this.state.selectedChainLogoUrl.set('');
-      this.state.selectedTokenDecimals.set(6);
+      this.state.resetTokenSelection();
     }
   }
 
@@ -484,6 +479,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const invoice = this.state.invoice();
     if (!invoice) return [];
     const usdAmount = parseFloat(getRemainingAmount(invoice));
+    const locale = this.ts.locale();
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
@@ -501,6 +497,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       const requiredHuman = ((usdAmount / price) * 1.03).toFixed(precision);
       const requiredAmount = parseUnits(requiredHuman, token.decimals);
       const balanceHuman = formatUnits(balance, token.decimals);
+      const balanceFormatted = parseFloat(balanceHuman).toFixed(precision);
 
       options.push({
         chainId: token.chainId,
@@ -513,8 +510,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         usdPrice: price,
         requiredAmount: requiredHuman,
         balance,
-        balanceHuman: parseFloat(balanceHuman).toFixed(precision),
+        balanceHuman: balanceFormatted,
         sufficient: balance >= requiredAmount,
+        fiatParts: formatFiat(parseFloat(requiredHuman) * price, locale),
+        valueParts: formatFiat(parseFloat(balanceFormatted) * price, locale),
       });
     }
 

@@ -25,6 +25,10 @@ import {
 const NODE_VERSION = "24"
 const PNPM_VERSION = "10.32.1"
 
+// NOTE: The ignore list below is duplicated across @argument decorators because
+// Dagger's TypeScript introspector statically parses decorator arguments and
+// cannot resolve const references (it errors with "getDecoratorArgument").
+
 @object()
 export class Kassette {
   /**

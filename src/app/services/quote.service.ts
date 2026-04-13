@@ -23,8 +23,6 @@ export interface QuoteParams {
 export class QuoteService {
   private readonly _swapService = inject(SwapService);
 
-  destroy(): void {}
-
   static isDirectTransfer(chainId: number, tokenAddress: `0x${string}`): boolean {
     return (
       chainId === POLYGON_CHAIN_ID &&
@@ -71,6 +69,7 @@ export class QuoteService {
     // Use 10^8 precision to avoid floating-point in bigint division
     const PRICE_PRECISION = 100_000_000n;
     const priceScaled = BigInt(Math.round(sourceUsdPrice * Number(PRICE_PRECISION)));
+    if (priceScaled === 0n) return usdcAmount; // Price too small to represent — fallback to 1:1
     return (
       (usdcAmount * 10n ** BigInt(sourceDecimals) * PRICE_PRECISION) /
       (priceScaled * 10n ** BigInt(USDC_DECIMALS))

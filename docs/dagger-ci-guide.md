@@ -53,17 +53,17 @@ Layer caching (BuildKit) is the primary mechanism — it works even on cold engi
 
 Single file, single `@object()` class at `.dagger/src/index.ts`:
 
-| CLI command    | What it does                                               |
-| -------------- | ---------------------------------------------------------- |
-| `lint`         | ESLint with zero warnings tolerance                        |
-| `format-check` | Prettier formatting check                                  |
-| `typecheck`    | `tsc --noEmit -p tsconfig.app.json`                        |
-| `test`         | Vitest with coverage thresholds                            |
-| `audit`        | `pnpm audit --prod` (non-blocking)                         |
-| `build`        | Production Angular build, returns `dist/browser` Directory |
-| `end-to-end`   | Playwright E2E against static-served production build      |
-| `release-zip`  | Build + SRI hash + zip (requires `--version` arg)          |
-| `checks`       | All of the above (except e2e and release-zip) in parallel  |
+| CLI command    | What it does                                                   |
+| -------------- | -------------------------------------------------------------- |
+| `lint`         | ESLint with zero warnings tolerance                            |
+| `format-check` | Prettier formatting check                                      |
+| `typecheck`    | `tsc --noEmit -p tsconfig.app.json`                            |
+| `test`         | Vitest with coverage thresholds                                |
+| `audit`        | `pnpm audit --prod` — **advisory only, exit code is always 0** |
+| `build`        | Production Angular build, returns `dist/browser` Directory     |
+| `end-to-end`   | Playwright E2E against static-served production build          |
+| `release-zip`  | Build + SRI hash + zip (requires `--version` arg)              |
+| `checks`       | All of the above (except e2e and release-zip) in parallel      |
 
 ### Naming
 
@@ -73,7 +73,7 @@ Dagger converts TypeScript camelCase to kebab-case CLI commands. Avoid abbreviat
 
 ### Job structure (`.github/workflows/ci.yml`)
 
-Six independent checks run as parallel GitHub Actions jobs via matrix strategy:
+Seven independent checks run as parallel GitHub Actions jobs via matrix strategy:
 
 ```yaml
 matrix:
@@ -82,13 +82,16 @@ matrix:
     - { name: Format, command: format-check }
     - { name: Typecheck, command: typecheck }
     - { name: Test, command: test }
-    - { name: Audit, command: audit }
+    - { name: 'Audit (advisory)', command: audit }
     - { name: Build, command: build }
+    - { name: E2E, command: end-to-end }
 ```
 
 Each job: checkout -> setup-dagger -> `dagger call ${{ matrix.command }}`.
 
 Per-job visibility in the PR checks list — the failing check name tells you exactly what broke.
+
+**Audit is advisory**: the `audit` matrix entry is named `Audit (advisory)` because the Dagger function always exits 0 (see [Dagger Functions](#dagger-functions) — `audit` row). A green check means "audit ran", not "no vulnerabilities". Read the job logs to see findings.
 
 ### Composite action (`.github/actions/setup-dagger/`)
 

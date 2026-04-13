@@ -74,7 +74,7 @@ pnpm release:tag                    # Create signed tag from package.json versio
 
 ## Architecture
 
-- **Entry point:** `src/main.ts` — bootstraps Angular app, conditionally starts MSW
+- **Entry point:** `src/main.ts` — bootstraps Angular app, starts MSW iff `!environment.production`. The `production` flag alone now determines MSW (a previous `mocks` flag was removed). `environment.ts` (dev) sets `production: false`; `environment.prod.ts` and `environment.e2e.ts` both set `production: true`. E2E uses production-flag semantics specifically so the bundle ships without MSW — Playwright handles mocking at the network layer instead.
 - **Root component:** `src/app/app.component.ts` — shell with `<router-outlet>`
 - **Main page:** `src/app/pages/payment/payment-layout.component.ts` — THE main component with all step rendering via `@switch`
 - **Components:** `src/app/components/` — 10 standalone Angular components, prefixed with `kp-` (e.g., `kp-button`, `kp-input`)

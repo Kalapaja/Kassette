@@ -28,8 +28,9 @@ jobs:
           - { name: Format, command: format-check }
           - { name: Typecheck, command: typecheck }
           - { name: Test, command: test }
-          - { name: Audit, command: audit }
+          - { name: 'Audit (advisory)', command: audit }
           - { name: Build, command: build }
+          - { name: E2E, command: end-to-end }
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-dagger
