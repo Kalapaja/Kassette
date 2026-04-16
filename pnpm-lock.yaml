@@ -139,8 +139,8 @@ importers:
         specifier: ^2.1.5
         version: 2.1.5
       msw:
-        specifier: ^2.12.10
-        version: 2.12.10(@types/node@25.6.0)(typescript@5.9.3)
+        specifier: ^2.13.3
+        version: 2.13.3(@types/node@25.6.0)(typescript@5.9.3)
       postcss:
         specifier: ^8.5.6
         version: 8.5.6
@@ -158,7 +158,7 @@ importers:
         version: 8.58.1(eslint@10.2.0(jiti@2.6.1))(typescript@5.9.3)
       vitest:
         specifier: ^4.1.4
-        version: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
+        version: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
 
 packages:
 
@@ -1136,9 +1136,11 @@ packages:
 
   '@metamask/sdk-analytics@0.0.5':
     resolution: {integrity: sha512-fDah+keS1RjSUlC8GmYXvx6Y26s3Ax1U9hGpWb6GSY5SAdmTSIqp2CvYy6yW0WgLhnYhW+6xERuD0eVqV63QIQ==}
+    deprecated: No longer maintained, superseded by @metamask/connect-analytics
 
   '@metamask/sdk-communication-layer@0.33.1':
     resolution: {integrity: sha512-0bI9hkysxcfbZ/lk0T2+aKVo1j0ynQVTuB3sJ5ssPWlz+Z3VwveCkP1O7EVu1tsVVCb0YV5WxK9zmURu2FIiaA==}
+    deprecated: No longer maintained, superseded by https://docs.metamask.io/metamask-connect
     peerDependencies:
       cross-fetch: ^4.0.0
       eciesjs: '*'
@@ -1148,9 +1150,11 @@ packages:
 
   '@metamask/sdk-install-modal-web@0.32.1':
     resolution: {integrity: sha512-MGmAo6qSjf1tuYXhCu2EZLftq+DSt5Z7fsIKr2P+lDgdTPWgLfZB1tJKzNcwKKOdf6q9Qmmxn7lJuI/gq5LrKw==}
+    deprecated: No longer maintained, superseded by https://docs.metamask.io/metamask-connect
 
   '@metamask/sdk@0.34.0':
     resolution: {integrity: sha512-8dkJUShZ5zFqYjNmhJaqKgDzZVne+F2rNjMQJ3pxs89n3oOUNuJ8dsTo08Grf9vlQ6Ldpdt2RTwqbrxKWyyqlw==}
+    deprecated: No longer maintained, superseded by https://docs.metamask.io/metamask-connect
 
   '@metamask/superstruct@3.2.1':
     resolution: {integrity: sha512-fLgJnDOXFmuVlB38rUN5SmU7hAFQcCjrg3Vrxz67KTY7YHFnSNEKvX4avmEBdOI0yTCxZjwMCFEqsC8k2+Wd3g==}
@@ -3561,8 +3565,8 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
-  graphql@16.13.0:
-    resolution: {integrity: sha512-uSisMYERbaB9bkA9M4/4dnqyktaEkf1kMHNKq/7DHyxVeWqHQ2mBmVqm5u6/FVHwF3iCNalKcg82Zfl+tffWoA==}
+  graphql@16.13.2:
+    resolution: {integrity: sha512-5bJ+nf/UCpAjHM8i06fl7eLyVC9iuNAjm9qzkiu2ZGhM0VscSvS6WDPfAwkdkBuoXGM9FJSbKl6wylMwP9Ktig==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   h3@1.15.11:
@@ -4197,8 +4201,8 @@ packages:
   msgpackr@1.11.8:
     resolution: {integrity: sha512-bC4UGzHhVvgDNS7kn9tV8fAucIYUBuGojcaLiz7v+P63Lmtm0Xeji8B/8tYKddALXxJLpwIeBmUN3u64C4YkRA==}
 
-  msw@2.12.10:
-    resolution: {integrity: sha512-G3VUymSE0/iegFnuipujpwyTM2GuZAKXNeerUSrG2+Eg391wW63xFs5ixWsK9MWzr1AGoSkYGmyAzNgbR3+urw==}
+  msw@2.13.3:
+    resolution: {integrity: sha512-/F49bxavkNGfreMlrKmTxZs6YorjfMbbDLd89Q3pWi+cXGtQQNXXaHt4MkXN7li91xnQJ24HWXqW9QDm5id33w==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
@@ -4670,8 +4674,8 @@ packages:
     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==}
     engines: {node: '>= 4'}
 
-  rettime@0.10.1:
-    resolution: {integrity: sha512-uyDrIlUEH37cinabq0AX4QbgV4HbFZ/gqoiunWQ1UqBtRvTTytwhNYjE++pO/MjPTZL5KQCf2bEoJ/BJNVQ5Kw==}
+  rettime@0.11.7:
+    resolution: {integrity: sha512-DoAm1WjR1eH7z8sHPtvvUMIZh4/CSKkGCz6CxPqOrEAnOGtOuHSnSE9OC+razqxKuf4ub7pAYyl/vZV0vGs5tg==}
 
   rfdc@1.4.1:
     resolution: {integrity: sha512-q1b3N5QkRUWUl7iyylaaj3kOpIT0N2i9MqIEQXP73GVsN9cw3fdx8X63cEmWhJGi2PPCF23Ijp7ktmd39rawIA==}
@@ -4900,6 +4904,10 @@ packages:
     resolution: {integrity: sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==}
     engines: {node: '>=12'}
 
+  strip-ansi@7.2.0:
+    resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
+    engines: {node: '>=12'}
+
   superstruct@2.0.2:
     resolution: {integrity: sha512-uV+TFRZdXsqXTL2pRvujROjdZQ4RAlBUS5BTh9IGm+jTqQntYThciG/qu57Gs69yjnVUSqdxF9YLmSnpupBW9A==}
     engines: {node: '>=14.0.0'}
@@ -4947,15 +4955,8 @@ packages:
     resolution: {integrity: sha512-Bf+ILmBgretUrdJxzXM0SgXLZ3XfiaUuOj/IKQHuTXip+05Xn+uyEYdVg0kYDipTBcLrCVyUzAPz7QmArb0mmw==}
     engines: {node: '>=14.0.0'}
 
-  tldts-core@7.0.23:
-    resolution: {integrity: sha512-0g9vrtDQLrNIiCj22HSe9d4mLVG3g5ph5DZ8zCKBr4OtrspmNB6ss7hVyzArAeE88ceZocIEGkyW1Ime7fxPtQ==}
-
   tldts-core@7.0.28:
     resolution: {integrity: sha512-7W5Efjhsc3chVdFhqtaU0KtK32J37Zcr9RKtID54nG+tIpcY79CQK/veYPODxtD/LJ4Lue66jvrQzIX2Z2/pUQ==}
-
-  tldts@7.0.23:
-    resolution: {integrity: sha512-ASdhgQIBSay0R/eXggAkQ53G4nTJqTXqC2kbaBbdDwM7SkjyZyO0OaaN1/FH7U/yCeqOHDwFO5j8+Os/IS1dXw==}
-    hasBin: true
 
   tldts@7.0.28:
     resolution: {integrity: sha512-+Zg3vWhRUv8B1maGSTFdev9mjoo8Etn2Ayfs4cnjlD3CsGkxXX4QyW3j2WJ0wdjYcYmy7Lx2RDsZMhgCWafKIw==}
@@ -4964,10 +4965,6 @@ packages:
   toidentifier@1.0.1:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
-
-  tough-cookie@6.0.0:
-    resolution: {integrity: sha512-kXuRi1mtaKMrsLUxz3sQYvVl37B0Ns6MzfrtV5DvJceE9bPyspOqk9xxv7XbZWcfLWbFmm997vl83qUWVJA64w==}
-    engines: {node: '>=16'}
 
   tough-cookie@6.0.1:
     resolution: {integrity: sha512-LktZQb3IeoUWB9lqR5EWTHgW/VTITCXg4D21M+lvybRVdylLrRMnqaIONLVb5mav8vM19m44HIcGq4qASeu2Qw==}
@@ -5000,8 +4997,8 @@ packages:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
 
-  type-fest@5.4.4:
-    resolution: {integrity: sha512-JnTrzGu+zPV3aXIUhnyWJj4z/wigMsdYajGLIYakqyOW1nPllzXEJee0QQbHj+CTIQtXGlAjuK0UY+2xTyjVAw==}
+  type-fest@5.5.0:
+    resolution: {integrity: sha512-PlBfpQwiUvGViBNX84Yxwjsdhd1TUlXr6zjX7eoirtCPIr08NAmxwa+fcYBTeRQxHo9YC9wwF3m9i700sHma8g==}
     engines: {node: '>=20'}
 
   type-is@2.0.1:
@@ -5699,7 +5696,7 @@ snapshots:
       lmdb: 3.5.1
       postcss: 8.5.6
       tailwindcss: 4.2.1
-      vitest: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
+      vitest: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
     transitivePeerDependencies:
       - '@types/node'
       - chokidar
@@ -8578,7 +8575,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.0.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
+      vitest: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
 
   '@vitest/expect@4.1.4':
     dependencies:
@@ -8589,13 +8586,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.4(msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))':
+  '@vitest/mocker@4.1.4(msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))':
     dependencies:
       '@vitest/spy': 4.1.4
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      msw: 2.12.10(@types/node@25.6.0)(typescript@5.9.3)
+      msw: 2.13.3(@types/node@25.6.0)(typescript@5.9.3)
       vite: 7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3)
 
   '@vitest/pretty-format@4.1.4':
@@ -10335,7 +10332,7 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  graphql@16.13.0: {}
+  graphql@16.13.2: {}
 
   h3@1.15.11:
     dependencies:
@@ -10967,24 +10964,24 @@ snapshots:
       msgpackr-extract: 3.0.3
     optional: true
 
-  msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3):
+  msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3):
     dependencies:
       '@inquirer/confirm': 5.1.21(@types/node@25.6.0)
       '@mswjs/interceptors': 0.41.3
       '@open-draft/deferred-promise': 2.2.0
       '@types/statuses': 2.0.6
       cookie: 1.1.1
-      graphql: 16.13.0
+      graphql: 16.13.2
       headers-polyfill: 4.0.3
       is-node-process: 1.2.0
       outvariant: 1.4.3
       path-to-regexp: 8.4.2
       picocolors: 1.1.1
-      rettime: 0.10.1
+      rettime: 0.11.7
       statuses: 2.0.2
       strict-event-emitter: 0.5.1
-      tough-cookie: 6.0.0
-      type-fest: 5.4.4
+      tough-cookie: 6.0.1
+      type-fest: 5.5.0
       until-async: 3.0.2
       yargs: 17.7.2
     optionalDependencies:
@@ -11507,7 +11504,7 @@ snapshots:
 
   retry@0.12.0: {}
 
-  rettime@0.10.1: {}
+  rettime@0.11.7: {}
 
   rfdc@1.4.1: {}
 
@@ -11812,7 +11809,7 @@ snapshots:
   string-width@8.2.0:
     dependencies:
       get-east-asian-width: 1.5.0
-      strip-ansi: 7.1.2
+      strip-ansi: 7.2.0
 
   string_decoder@1.1.1:
     dependencies:
@@ -11827,6 +11824,10 @@ snapshots:
       ansi-regex: 5.0.1
 
   strip-ansi@7.1.2:
+    dependencies:
+      ansi-regex: 6.2.2
+
+  strip-ansi@7.2.0:
     dependencies:
       ansi-regex: 6.2.2
 
@@ -11872,30 +11873,17 @@ snapshots:
 
   tinyrainbow@3.1.0: {}
 
-  tldts-core@7.0.23: {}
-
-  tldts-core@7.0.28:
-    optional: true
-
-  tldts@7.0.23:
-    dependencies:
-      tldts-core: 7.0.23
+  tldts-core@7.0.28: {}
 
   tldts@7.0.28:
     dependencies:
       tldts-core: 7.0.28
-    optional: true
 
   toidentifier@1.0.1: {}
-
-  tough-cookie@6.0.0:
-    dependencies:
-      tldts: 7.0.23
 
   tough-cookie@6.0.1:
     dependencies:
       tldts: 7.0.28
-    optional: true
 
   tr46@0.0.3: {}
 
@@ -11924,7 +11912,7 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
 
-  type-fest@5.4.4:
+  type-fest@5.5.0:
     dependencies:
       tagged-tag: 1.0.0
 
@@ -12100,10 +12088,10 @@ snapshots:
       lightningcss: 1.31.1
       sass: 1.97.3
 
-  vitest@4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3)):
+  vitest@4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@29.0.2(@noble/hashes@1.8.0))(msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3)):
     dependencies:
       '@vitest/expect': 4.1.4
-      '@vitest/mocker': 4.1.4(msw@2.12.10(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
+      '@vitest/mocker': 4.1.4(msw@2.13.3(@types/node@25.6.0)(typescript@5.9.3))(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.97.3))
       '@vitest/pretty-format': 4.1.4
       '@vitest/runner': 4.1.4
       '@vitest/snapshot': 4.1.4
