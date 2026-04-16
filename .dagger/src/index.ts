@@ -149,6 +149,11 @@ export class Kassette {
    * Audit production dependencies for critical vulnerabilities. Blocking.
    * Critical advisories are rare and serious enough to warrant breaking CI;
    * use pnpm.overrides in package.json when a transitive dep can't be patched.
+   *
+   * TODO: drop the `pnpm dlx pnpm@11.0.0-rc.1` workaround once pnpm 11 ships
+   * stable and we bump `packageManager` to it. pnpm <=10.x hits the retired
+   * npm legacy audit endpoint (HTTP 410); only pnpm 11 calls the new bulk
+   * advisory endpoint. See pnpm/pnpm#11265.
    */
   @func()
   async audit(
@@ -156,13 +161,22 @@ export class Kassette {
     src: Directory,
   ): Promise<string> {
     return this.nodeBase(src)
-      .withExec(["pnpm", "audit", "--prod", "--audit-level=critical"])
+      .withExec([
+        "pnpm", "dlx",
+        "--config.minimumReleaseAge=0",
+        "pnpm@11.0.0-rc.1",
+        "--config.manage-package-manager-versions=false",
+        "audit", "--prod", "--audit-level=critical",
+      ])
       .stdout()
   }
 
   /**
    * Surface high/moderate advisories without blocking. Daily CVE churn in
    * transitive deps would otherwise break unrelated PRs.
+   *
+   * TODO: drop the `pnpm dlx pnpm@11.0.0-rc.1` workaround once pnpm 11 ships
+   * stable (see `audit` above for context).
    */
   @func()
   async auditAdvisory(
@@ -172,7 +186,7 @@ export class Kassette {
     return this.nodeBase(src)
       .withExec([
         "sh", "-c",
-        "pnpm audit --prod --audit-level=moderate 2>&1; echo \"audit exit code: $?\"",
+        "pnpm dlx --config.minimumReleaseAge=0 pnpm@11.0.0-rc.1 --config.manage-package-manager-versions=false audit --prod --audit-level=moderate 2>&1; echo \"audit exit code: $?\"",
       ])
       .stdout()
   }
