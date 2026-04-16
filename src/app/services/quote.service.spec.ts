@@ -1,7 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import '@angular/compiler';
+import { TestBed } from '@angular/core/testing';
 import { QuoteService } from './quote.service';
 import type { QuoteParams } from './quote.service';
+import { SwapService } from './swap.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { ZERO_ADDRESS } from '@/app/config/address.utils';
 import type { PublicSwap } from '@/app/types/swap.types';
@@ -173,8 +174,10 @@ describe('QuoteService', () => {
     let service: QuoteService;
 
     beforeEach(() => {
-      // Create instance without DI — detectPath is pure logic
-      service = Object.create(QuoteService.prototype);
+      TestBed.configureTestingModule({
+        providers: [{ provide: SwapService, useValue: { createSwap: vi.fn() } }],
+      });
+      service = TestBed.inject(QuoteService);
     });
 
     it('returns "direct" for Polygon USDC', () => {
@@ -218,12 +221,10 @@ describe('QuoteService', () => {
 
     beforeEach(() => {
       mockCreateSwap = vi.fn();
-      service = Object.create(QuoteService.prototype);
-      // Inject mock SwapService
-      (service as unknown as { _swapService: { createSwap: typeof mockCreateSwap } })._swapService =
-        {
-          createSwap: mockCreateSwap,
-        };
+      TestBed.configureTestingModule({
+        providers: [{ provide: SwapService, useValue: { createSwap: mockCreateSwap } }],
+      });
+      service = TestBed.inject(QuoteService);
     });
 
     // ─── Direct quotes ───

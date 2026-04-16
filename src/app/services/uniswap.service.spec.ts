@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import '@angular/compiler';
+import { TestBed } from '@angular/core/testing';
 import { UniswapService } from './uniswap.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
@@ -24,7 +24,8 @@ describe('UniswapService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new UniswapService();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(UniswapService);
     service.setConfig(FAKE_CONFIG);
   });
 

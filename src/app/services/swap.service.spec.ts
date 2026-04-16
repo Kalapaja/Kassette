@@ -1,5 +1,7 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import '@angular/compiler';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { SwapService } from './swap.service';
 import type { ApprovalTransaction, SwapTransaction } from '@/app/types/swap.types';
 
@@ -40,12 +42,20 @@ function makeSwapTx(chainId = 42161): SwapTransaction {
 
 describe('SwapService', () => {
   let service: SwapService;
+  let httpMock: HttpTestingController;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Create instance without DI — we only test wagmi interaction methods
-    service = Object.create(SwapService.prototype);
-    (service as any)._config = FAKE_CONFIG;
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(SwapService);
+    httpMock = TestBed.inject(HttpTestingController);
+    service.setConfig(FAKE_CONFIG);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
   });
 
   describe('chainId forwarding', () => {

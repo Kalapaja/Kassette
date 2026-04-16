@@ -86,6 +86,25 @@
           },
           "defaultConfiguration": "production"
         },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "kassette:build:development",
+            "runner": "vitest",
+            "tsConfig": "tsconfig.spec.json",
+            "include": ["src/**/*.spec.ts"],
+            "setupFiles": ["src/app/testing/vitest-setup.ts"],
+            "providersFile": "src/app/testing/test-providers.ts",
+            "coverage": true,
+            "coverageReporters": ["text", "json-summary", "json", "lcov", "html"],
+            "coverageThresholds": {
+              "statements": 34,
+              "branches": 30,
+              "functions": 25,
+              "lines": 35
+            }
+          }
+        },
         "serve": {
           "builder": "@angular/build:dev-server",
           "configurations": {

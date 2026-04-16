@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import '@angular/compiler';
+import { TestBed } from '@angular/core/testing';
 import { PaymentService } from './payment.service';
 
 // ─── Mock wagmi/core ───
@@ -24,7 +24,8 @@ describe('PaymentService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new PaymentService();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(PaymentService);
     service.setConfig(FAKE_CONFIG);
   });
 

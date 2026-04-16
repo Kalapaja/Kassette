@@ -41,36 +41,16 @@ describe('SUPPORTED_LOCALES', () => {
 });
 
 describe('detectLocale()', () => {
-  let store: Record<string, string>;
-  const originalLocalStorage = globalThis.localStorage;
-
+  // jsdom provides a real localStorage on `globalThis`; clear between tests.
   beforeEach(() => {
-    store = {};
-    // Provide an in-memory localStorage stub for Node.js environment
-    globalThis.localStorage = {
-      getItem: (key: string) => store[key] ?? null,
-      setItem: (key: string, value: string) => {
-        store[key] = value;
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-      clear: () => {
-        store = {};
-      },
-      get length() {
-        return Object.keys(store).length;
-      },
-      key: (index: number) => Object.keys(store)[index] ?? null,
-    };
+    localStorage.clear();
   });
 
   afterEach(() => {
-    globalThis.localStorage = originalLocalStorage;
+    localStorage.clear();
   });
 
   it('returns a valid locale when no preference set', () => {
-    localStorage.removeItem('kp-locale');
     // In test env, navigator.languages defaults based on system.
     // We just test that detectLocale returns a valid locale.
     const locale = detectLocale();
@@ -80,7 +60,6 @@ describe('detectLocale()', () => {
   it('returns stored locale from localStorage', () => {
     localStorage.setItem('kp-locale', 'es');
     expect(detectLocale()).toBe('es');
-    localStorage.removeItem('kp-locale');
   });
 
   it('ignores invalid localStorage value', () => {
@@ -88,6 +67,5 @@ describe('detectLocale()', () => {
     const locale = detectLocale();
     // Should not return "fr" — falls through to navigator or "en"
     expect(locale !== ('fr' as unknown)).toBe(true);
-    localStorage.removeItem('kp-locale');
   });
 });

@@ -1,7 +1,6 @@
 /**
- * Vitest global setup — ensures `window` exists in Node.js test environment.
- * Referenced from vitest.config.ts `setupFiles`.
+ * Vitest global setup — runs AFTER `@angular/build:unit-test` initializes the
+ * Angular TestBed with providers from `test-providers.ts`. Reserved for
+ * per-suite global hooks (e.g. resetting mocks). Keep minimal.
  */
-if (typeof globalThis.window === 'undefined') {
-  (globalThis as unknown as { window: typeof globalThis }).window = globalThis;
-}
+export {};

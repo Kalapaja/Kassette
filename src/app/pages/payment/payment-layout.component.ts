@@ -116,7 +116,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   private quoteRequestId = 0;
   private redirectTimer: ReturnType<typeof setInterval> | null = null;
-  private recoveryInterval: ReturnType<typeof setInterval> | null = null;
+  protected recoveryInterval: ReturnType<typeof setInterval> | null = null;
   private walletEffectCleanup: (() => void) | null = null;
 
   // ── Template view children ──
@@ -666,7 +666,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async executeDirect(): Promise<void> {
+  protected async executeDirect(): Promise<void> {
     this.state.transition('executing');
     const selectedTokenAddress = this.state.selectedTokenAddress()!;
     const selectedChainId = this.state.selectedChainId()!;
@@ -728,7 +728,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async executeZeroExSwap(
+  protected async executeZeroExSwap(
     swap: PublicSwap & { swap_details: ZeroExSwapDetails },
   ): Promise<void> {
     const details = swap.swap_details;
@@ -809,7 +809,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.startPolling(invoiceId);
   }
 
-  private async executeAcrossSwap(
+  protected async executeAcrossSwap(
     swap: PublicSwap & { swap_details: AcrossSwapDetails },
   ): Promise<void> {
     const details = swap.swap_details;
@@ -842,7 +842,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.startPolling(invoiceId);
   }
 
-  private async executeBungeeSwap(
+  protected async executeBungeeSwap(
     swap: PublicSwap & { swap_details: BungeeSwapDetails },
   ): Promise<void> {
     const details = swap.swap_details;
@@ -883,7 +883,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     return false;
   }
 
-  private async handlePendingTxRecovery(invoice: Invoice, record: PendingTxRecord): Promise<void> {
+  protected async handlePendingTxRecovery(
+    invoice: Invoice,
+    record: PendingTxRecord,
+  ): Promise<void> {
     const invoiceId = this.getInvoiceId();
 
     // Swap paths (Across/Bungee/ZeroEx) are fully tracked by the backend — no recovery needed.
@@ -958,7 +961,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     return token?.logoUrl ?? '';
   }
 
-  private async getTransactionReceipt(
+  protected async getTransactionReceipt(
     hash: `0x${string}`,
     chainId: number,
   ): Promise<TransactionReceipt | null> {
@@ -982,7 +985,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     );
   }
 
-  private startRecoveryMonitoring(): void {
+  protected startRecoveryMonitoring(): void {
     this.stopRecoveryMonitoring();
     this.recoveryInterval = setInterval(async () => {
       try {

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
 import { PaymentStateService } from './payment-state.service';
 import type { PaymentStep } from '@/app/types/payment-step.types';
 import { VALID_TRANSITIONS } from '@/app/types/payment-step.types';
@@ -8,7 +9,8 @@ describe('PaymentStateService', () => {
   let service: PaymentStateService;
 
   beforeEach(() => {
-    service = new PaymentStateService();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(PaymentStateService);
   });
 
   // ─── 1. Initial state ───

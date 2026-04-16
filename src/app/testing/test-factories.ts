@@ -138,6 +138,7 @@ export function makeZeroExQuoteResult(
 
 export function makeMockPaymentService() {
   return {
+    setConfig: vi.fn(),
     checkAllowance: vi.fn().mockResolvedValue(0n),
     submitApprove: vi.fn().mockResolvedValue('0xapprovehash'),
     submitTransfer: vi.fn().mockResolvedValue('0xtransferhash'),
@@ -150,6 +151,7 @@ export function makeMockPaymentService() {
 
 export function makeMockSwapService() {
   return {
+    setConfig: vi.fn(),
     executeZeroExApprovalIfNeeded: vi.fn().mockResolvedValue(undefined),
     executeZeroExTx: vi.fn().mockResolvedValue('0xswaphash'),
     executeAcrossApprovals: vi.fn().mockResolvedValue(undefined),
@@ -164,6 +166,14 @@ export function makeMockSwapService() {
 
 export function makeMockInvoiceService() {
   return {
+    fetchInvoice: vi.fn().mockResolvedValue({
+      id: 'inv-001',
+      status: 'Pending',
+      payment_address: '0xrecipient',
+      valid_till: '2099-12-31T23:59:59.000Z',
+      cart: { items: [] },
+      redirect_url: 'https://example.com',
+    }),
     registerSwap: vi.fn(),
     startPolling: vi.fn(),
     stopPolling: vi.fn(),

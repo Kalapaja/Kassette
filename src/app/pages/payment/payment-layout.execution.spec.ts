@@ -8,10 +8,32 @@ vi.mock('@wagmi/core', () => ({
   }),
 }));
 
-import '@angular/compiler';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+
 import { PaymentLayoutComponent } from './payment-layout.component';
+import type { PublicSwap } from '@/app/types/swap.types';
+import type {
+  ZeroExSwapDetails,
+  AcrossSwapDetails,
+  BungeeSwapDetails,
+} from '@/app/types/swap.types';
+import type { Invoice } from '@/app/types/invoice.types';
+import type { PendingTxRecord } from '@/app/services/pending-tx.service';
 import { PaymentStateService } from '@/app/services/payment-state.service';
-import { createComponentHarness } from '@/app/testing/test-harness';
+import { AppKitService } from '@/app/services/appkit.service';
+import { WalletStateService } from '@/app/services/wallet-state.service';
+import { InvoiceService } from '@/app/services/invoice.service';
+import { TokenService } from '@/app/services/token.service';
+import { BalanceService } from '@/app/services/balance.service';
+import { PaymentService } from '@/app/services/payment.service';
+import { PriceService } from '@/app/services/price.service';
+import { SwapService } from '@/app/services/swap.service';
+import { QuoteService } from '@/app/services/quote.service';
+import { PendingTxService } from '@/app/services/pending-tx.service';
+import { ChainService } from '@/app/services/chain.service';
+import { LayoutService } from '@/app/services/layout.service';
+import { TranslationService } from '@/app/services/translation.service';
 import { POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import {
@@ -25,29 +47,108 @@ import {
   makeMockPendingTxService,
 } from '@/app/testing/test-factories';
 
-// ─── Test helpers ───
+// ─── Test harness ───
 
-function createTestHarness() {
-  const state = new PaymentStateService();
+/** Exposes protected methods on PaymentLayoutComponent so tests can call them directly. */
+type PaymentLayoutHarness = PaymentLayoutComponent & {
+  executeDirect(): Promise<void>;
+  executeZeroExSwap(swap: PublicSwap & { swap_details: ZeroExSwapDetails }): Promise<void>;
+  executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void>;
+  executeBungeeSwap(swap: PublicSwap & { swap_details: BungeeSwapDetails }): Promise<void>;
+  handlePendingTxRecovery(invoice: Invoice, record: PendingTxRecord): Promise<void>;
+  startRecoveryMonitoring(): void;
+};
+
+type Harness = {
+  fixture: ComponentFixture<PaymentLayoutComponent>;
+  component: PaymentLayoutHarness;
+  state: PaymentStateService;
+  paymentService: ReturnType<typeof makeMockPaymentService>;
+  swapService: ReturnType<typeof makeMockSwapService>;
+  invoiceService: ReturnType<typeof makeMockInvoiceService>;
+  pendingTxService: ReturnType<typeof makeMockPendingTxService>;
+};
+
+function createTestHarness(): Harness {
   const paymentService = makeMockPaymentService();
   const swapService = makeMockSwapService();
   const invoiceService = makeMockInvoiceService();
   const pendingTxService = makeMockPendingTxService();
 
-  const component = createComponentHarness(PaymentLayoutComponent, {
-    state,
-    paymentService,
-    swapService,
-    invoiceService,
-    pendingTxService,
-    chainService: { getChain: vi.fn() },
-    tokenService: { findToken: vi.fn() },
-  } as any);
+  TestBed.configureTestingModule({
+    imports: [PaymentLayoutComponent],
+    providers: [
+      PaymentStateService,
+      { provide: PaymentService, useValue: paymentService },
+      { provide: SwapService, useValue: swapService },
+      { provide: InvoiceService, useValue: invoiceService },
+      { provide: PendingTxService, useValue: pendingTxService },
+      { provide: PriceService, useValue: { fetchPrices: vi.fn().mockResolvedValue(new Map()) } },
+      {
+        provide: BalanceService,
+        useValue: {
+          getBalances: vi.fn().mockResolvedValue(new Map()),
+          getCachedBalances: () => new Map(),
+          clearCache: vi.fn(),
+        },
+      },
+      {
+        provide: QuoteService,
+        useValue: { detectPath: vi.fn(), calculateQuote: vi.fn() },
+      },
+      {
+        provide: TokenService,
+        useValue: {
+          ready: Promise.resolve(),
+          getAllTokens: () => [],
+          findToken: vi.fn(),
+          init: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      {
+        provide: ChainService,
+        useValue: {
+          getChain: vi.fn(),
+          getAllChains: () => [],
+          init: vi.fn().mockResolvedValue(undefined),
+          ready: Promise.resolve(),
+        },
+      },
+      {
+        provide: AppKitService,
+        useValue: {
+          wagmiConfig: {},
+          init: vi.fn(),
+          openModal: vi.fn(),
+          disconnect: vi.fn(),
+        },
+      },
+      {
+        provide: WalletStateService,
+        useValue: {
+          isConnected: signal(false),
+          address: signal(null),
+          chainId: signal(null),
+          init: vi.fn(),
+        },
+      },
+      { provide: LayoutService, useValue: { isDesktop: signal(false) } },
+      {
+        provide: TranslationService,
+        useValue: { t: (key: string) => key, locale: signal('en'), setLocale: vi.fn() },
+      },
+    ],
+  }).overrideComponent(PaymentLayoutComponent, {
+    set: { template: '', styles: [] },
+  });
 
-  // `component` widened to `any` so tests can call private methods like
-  // executeZeroExSwap/executeAcrossSwap/executeDirect.
+  const fixture = TestBed.createComponent(PaymentLayoutComponent);
+  const component = fixture.componentInstance as PaymentLayoutHarness;
+  const state = TestBed.inject(PaymentStateService);
+
   return {
-    component: component as any,
+    fixture,
+    component,
     state,
     paymentService,
     swapService,
@@ -55,6 +156,8 @@ function createTestHarness() {
     pendingTxService,
   };
 }
+
+// ─── Location shim (component reads invoice_id from URL search params) ───
 
 const savedLocation = globalThis.location;
 
@@ -87,7 +190,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(chainId);
       state.selectedTokenAddress.set('0xc2132D05D31c914a87C6611C10748AEb04B58e8F' as `0x${string}`);
       state.selectedTokenSymbol.set('USDT');
@@ -176,7 +279,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(8453);
       state.selectedTokenAddress.set(
         isNative
@@ -223,7 +326,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(8453);
       state.selectedTokenAddress.set(
         isNative
@@ -269,7 +372,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(137);
       state.selectedTokenAddress.set(POLYGON_USDC_ADDRESS);
       state.selectedTokenSymbol.set('USDC');
