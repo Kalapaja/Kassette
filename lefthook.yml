@@ -21,4 +21,5 @@ pre-push:
     test:
       run: pnpm test
     version-tag:
+      use_stdin: true
       run: ./.githooks/pre-push-tag-check.sh
