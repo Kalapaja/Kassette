@@ -19,6 +19,6 @@ pre-push:
     typecheck:
       run: pnpm exec tsc --noEmit -p tsconfig.app.json
     test:
-      run: pnpm exec vitest run
+      run: pnpm test
     version-tag:
       run: ./.githooks/pre-push-tag-check.sh
