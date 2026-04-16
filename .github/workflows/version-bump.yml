@@ -38,7 +38,7 @@ jobs:
 
       - name: Setup pnpm
         if: steps.check.outputs.skip != 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Bump package.json
         if: steps.check.outputs.skip != 'true'
