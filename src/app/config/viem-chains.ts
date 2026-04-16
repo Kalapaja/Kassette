@@ -1,14 +1,5 @@
 import type { Chain } from 'viem';
-import {
-  arbitrum,
-  base,
-  bsc,
-  linea,
-  mainnet,
-  optimism,
-  polygon,
-  unichain,
-} from 'viem/chains';
+import { arbitrum, base, bsc, linea, mainnet, optimism, polygon, unichain } from 'viem/chains';
 
 export const VIEM_CHAINS: Record<number, Chain> = {
   1: mainnet,

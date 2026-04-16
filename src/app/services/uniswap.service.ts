@@ -2,10 +2,7 @@ import { Injectable } from '@angular/core';
 import type { Config } from '@wagmi/core';
 import { readContract, writeContract } from '@wagmi/core';
 import { encodeFunctionData } from 'viem';
-import {
-  POLYGON_CHAIN_ID,
-  POLYGON_USDC_ADDRESS,
-} from '@/app/config/payment';
+import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
 import {
   UNISWAP_QUOTER_V2,
@@ -35,10 +32,7 @@ export class UniswapService {
     return (amount * 105n) / 100n;
   }
 
-  static isSameChainSwap(
-    chainId: number,
-    tokenAddress: `0x${string}`,
-  ): boolean {
+  static isSameChainSwap(chainId: number, tokenAddress: `0x${string}`): boolean {
     return (
       chainId === POLYGON_CHAIN_ID &&
       tokenAddress.toLowerCase() !== POLYGON_USDC_ADDRESS.toLowerCase()
@@ -50,8 +44,7 @@ export class UniswapService {
       throw new Error('UniswapService: wagmi Config not set. Call setConfig() first.');
     }
 
-    const isNative =
-      params.tokenIn.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase();
+    const isNative = params.tokenIn.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase();
     const effectiveTokenIn = isNative ? WMATIC_ADDRESS : params.tokenIn;
 
     // Try all fee tiers in parallel, pick lowest amountIn
@@ -89,9 +82,7 @@ export class UniswapService {
       throw new Error('No Uniswap pool found for this token pair');
     }
 
-    const best = successful.reduce((a, b) =>
-      a.amountIn < b.amountIn ? a : b,
-    );
+    const best = successful.reduce((a, b) => (a.amountIn < b.amountIn ? a : b));
 
     return {
       amountIn: best.amountIn,

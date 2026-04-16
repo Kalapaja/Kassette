@@ -1,13 +1,5 @@
-import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
-import '@angular/compiler';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
 import { PaymentService } from './payment.service';
 
 // ─── Mock wagmi/core ───
@@ -18,8 +10,7 @@ const mockWaitForTransactionReceipt = vi.fn();
 vi.mock('@wagmi/core', () => ({
   readContract: (...args: unknown[]) => mockReadContract(...args),
   writeContract: (...args: unknown[]) => mockWriteContract(...args),
-  waitForTransactionReceipt: (...args: unknown[]) =>
-    mockWaitForTransactionReceipt(...args),
+  waitForTransactionReceipt: (...args: unknown[]) => mockWaitForTransactionReceipt(...args),
 }));
 
 const FAKE_CONFIG = {} as any;
@@ -33,7 +24,8 @@ describe('PaymentService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new PaymentService();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(PaymentService);
     service.setConfig(FAKE_CONFIG);
   });
 

@@ -5,7 +5,8 @@ import { TranslationService } from '@/app/services/translation.service';
   selector: 'kp-order-item',
   styleUrl: './order-item.component.css',
   host: {
-    class: 'flex items-start gap-4 w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
+    class:
+      'flex items-start gap-4 w-full box-border pb-2.5 border-b border-border-tetriary font-sans',
   },
   template: `
     @if (showImage()) {
@@ -16,18 +17,36 @@ import { TranslationService } from '@/app/services/translation.service';
     <div class="w-full">
       <h3 class="text-base font-semibold text-content-primary">{{ name() }}</h3>
       <ul class="text-sm text-content-primary space-y-2 mt-3">
-        <li class="flex flex-wrap gap-4">{{ ts.t('order.item.price') }} <span class="ml-auto">{{ currency() }}{{ price().toFixed(2) }}</span></li>
-        <li class="flex flex-wrap gap-4">{{ ts.t('order.item.quantity') }} <span class="ml-auto">{{ quantity() }}</span></li>
+        <li class="flex flex-wrap gap-4">
+          {{ ts.t('order.item.price') }}
+          <span class="ml-auto">{{ currency() }}{{ price().toFixed(2) }}</span>
+        </li>
+        <li class="flex flex-wrap gap-4">
+          {{ ts.t('order.item.quantity') }}
+          <span class="ml-auto">{{ quantity() }}</span>
+        </li>
         @if (hasDiscount()) {
-          <li class="flex flex-wrap gap-4">{{ ts.t('order.item.discount') }} <span class="ml-auto font-semibold text-sm">-{{ currency() }}{{ discount().toFixed(2) }} <span class="font-normal text-content-tetriary">({{ discountPercent() }}%)</span></span></li>
+          <li class="flex flex-wrap gap-4">
+            {{ ts.t('order.item.discount') }}
+            <span class="ml-auto font-semibold text-sm"
+              >-{{ currency() }}{{ discount().toFixed(2) }}
+              <span class="font-normal text-content-tetriary">({{ discountPercent() }}%)</span>
+            </span>
+          </li>
         }
         @if (hasTax()) {
-          <li class="flex flex-wrap gap-4">{{ ts.t('order.item.tax') }} <span class="ml-auto">{{ currency() }}{{ tax().toFixed(2) }}</span></li>
+          <li class="flex flex-wrap gap-4">
+            {{ ts.t('order.item.tax') }}
+            <span class="ml-auto">{{ currency() }}{{ tax().toFixed(2) }}</span>
+          </li>
         }
-        <li class="flex flex-wrap gap-4">{{ ts.t('order.item.totalPrice') }}
+        <li class="flex flex-wrap gap-4">
+          {{ ts.t('order.item.totalPrice') }}
           <span class="ml-auto font-semibold text-sm">
             @if (hasDiscount()) {
-              <span class="line-through text-content-tetriary font-normal mr-1">{{ currency() }}{{ subtotal() }}</span>
+              <span class="line-through text-content-tetriary font-normal mr-1"
+                >{{ currency() }}{{ subtotal() }}</span
+              >
             }
             {{ currency() }}{{ totalPrice() }}
           </span>

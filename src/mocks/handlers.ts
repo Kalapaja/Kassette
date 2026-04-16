@@ -39,7 +39,10 @@ const MOCK_INVOICE = {
  * Usage: http://localhost:3001/?invoice_id=...&mock_status=PartiallyPaid&mock_received=0.30
  */
 /** Predefined error scenarios for mock_error param. */
-const MOCK_ERRORS: Record<string, { category: string; code: string; message: string; status: number }> = {
+const MOCK_ERRORS: Record<
+  string,
+  { category: string; code: string; message: string; status: number }
+> = {
   liquidity: {
     category: 'SWAP_ERROR',
     code: 'INSUFFICIENT_LIQUIDITY',
@@ -78,7 +81,7 @@ function getInitialMockState(): { status: string; received: string } {
     const status = params.get('mock_status') ?? 'Waiting';
     const received =
       status === 'PartiallyPaid'
-        ? params.get('mock_received') ?? (parseFloat(MOCK_INVOICE.invoice.amount) / 2).toFixed(2)
+        ? (params.get('mock_received') ?? (parseFloat(MOCK_INVOICE.invoice.amount) / 2).toFixed(2))
         : '0';
     return { status, received };
   } catch {
@@ -111,7 +114,10 @@ export const handlers = [
     } else {
       mockTotalReceivedAmount = '0';
     }
-    return HttpResponse.json({ status: mockInvoiceStatus, total_received_amount: mockTotalReceivedAmount });
+    return HttpResponse.json({
+      status: mockInvoiceStatus,
+      total_received_amount: mockTotalReceivedAmount,
+    });
   }),
 
   /**
@@ -144,7 +150,14 @@ export const handlers = [
       const scenario = MOCK_ERRORS[mockError];
       if (scenario) {
         return HttpResponse.json(
-          { error: { category: scenario.category, code: scenario.code, message: scenario.message, details: {} } },
+          {
+            error: {
+              category: scenario.category,
+              code: scenario.code,
+              message: scenario.message,
+              details: {},
+            },
+          },
           { status: scenario.status },
         );
       }

@@ -1,8 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { parseUnits } from 'viem';
-
 import { DEFILLAMA_CHAIN_NAMES } from '../config/chains';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '../config/tokens';
 
@@ -16,10 +14,10 @@ const NATIVE_COINGECKO_IDS: Record<number, string> = {
   137: 'coingecko:polygon-ecosystem-token',
   56: 'coingecko:binancecoin',
   42161: 'coingecko:ethereum', // Arbitrum uses ETH
-  10: 'coingecko:ethereum',   // Optimism uses ETH
-  8453: 'coingecko:ethereum',  // Base uses ETH
+  10: 'coingecko:ethereum', // Optimism uses ETH
+  8453: 'coingecko:ethereum', // Base uses ETH
   59144: 'coingecko:ethereum', // Linea uses ETH
-  130: 'coingecko:ethereum',   // Unichain uses ETH
+  130: 'coingecko:ethereum', // Unichain uses ETH
 };
 
 interface TokenRef {
@@ -81,9 +79,7 @@ export class PriceService {
     // Split into batches that fit under URL length limit
     const batches = this._buildBatches(coinKeys);
 
-    const results = await Promise.allSettled(
-      batches.map((batch) => this._fetchBatch(batch)),
-    );
+    const results = await Promise.allSettled(batches.map((batch) => this._fetchBatch(batch)));
 
     for (const result of results) {
       if (result.status !== 'fulfilled') {
@@ -144,31 +140,5 @@ export class PriceService {
       console.error('[PriceService] Batch fetch error:', e);
     }
     return result;
-  }
-
-  calculateRequiredAmount(
-    usdAmount: number,
-    tokenPrice: number,
-    decimals: number,
-    slippage: number = 1.03,
-  ): bigint {
-    const humanAmount = (usdAmount / tokenPrice) * slippage;
-    const precision = Math.min(decimals, 6);
-    const truncated = humanAmount.toFixed(precision);
-    return parseUnits(truncated, decimals);
-  }
-
-  formatRequiredAmount(
-    usdAmount: number,
-    tokenPrice: number,
-    decimals: number,
-    slippage: number = 1.03,
-  ): string {
-    const humanAmount = (usdAmount / tokenPrice) * slippage;
-    return humanAmount.toFixed(Math.min(decimals, 6));
-  }
-
-  destroy(): void {
-    // no-op
   }
 }

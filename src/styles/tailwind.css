@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Force light mode regardless of system preference */
 html {
@@ -79,7 +79,7 @@ html {
   --color-chart-5: oklch(0.577 0.225 28.176);
 
   /* Typography */
-  --font-sans: "Alaska", sans-serif;
+  --font-sans: 'Alaska', sans-serif;
   --font-system: system-ui, sans-serif;
 
   /* Border radius */
@@ -131,11 +131,19 @@ html {
    KEYFRAMES
    ============================================ */
 @keyframes spin {
-  from { rotate: 0deg; }
-  to { rotate: 360deg; }
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }

@@ -6,3 +6,18 @@ dist/
 
 .DS_store
 .angular/
+.claude/settings.local.json
+
+# Test coverage
+/coverage/
+
+# Lint cache
+.eslintcache
+
+# Playwright
+/playwright-report/
+/test-results/
+
+# Dagger SDK (auto-generated)
+.dagger/sdk/
+.dagger/node_modules/

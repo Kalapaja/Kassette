@@ -107,9 +107,7 @@ describe('extractUserMessage', () => {
   });
 
   it('returns fallback for Error with wagmi-style hex message', () => {
-    const err = new Error(
-      'execution reverted: 0x1234567890abcdef insufficient funds',
-    );
+    const err = new Error('execution reverted: 0x1234567890abcdef insufficient funds');
 
     expect(extractUserMessage(err, fallback)).toBe(fallback);
   });

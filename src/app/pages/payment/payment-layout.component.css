@@ -9,7 +9,7 @@
 
 /* === Desktop === */
 @media (min-width: 1200px) {
-  :host(:not([data-step="idle"])) .cta {
+  :host(:not([data-step='idle'])) .cta {
     display: none;
   }
 }

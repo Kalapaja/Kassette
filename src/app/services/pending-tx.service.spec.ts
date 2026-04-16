@@ -1,30 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
 import { PendingTxService, type PendingTxRecord } from './pending-tx.service';
-
-/** Minimal in-memory localStorage mock. */
-function createMockLocalStorage(): Storage {
-  const store = new Map<string, string>();
-  return {
-    get length() {
-      return store.size;
-    },
-    clear() {
-      store.clear();
-    },
-    getItem(key: string) {
-      return store.get(key) ?? null;
-    },
-    setItem(key: string, value: string) {
-      store.set(key, value);
-    },
-    removeItem(key: string) {
-      store.delete(key);
-    },
-    key(index: number) {
-      return [...store.keys()][index] ?? null;
-    },
-  };
-}
 
 function makeRecord(overrides: Partial<PendingTxRecord> = {}): PendingTxRecord {
   return {
@@ -43,28 +19,21 @@ function makeRecord(overrides: Partial<PendingTxRecord> = {}): PendingTxRecord {
   };
 }
 
-let originalLocalStorage: Storage;
-
-beforeEach(() => {
-  originalLocalStorage = globalThis.localStorage;
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: createMockLocalStorage(),
-    writable: true,
-    configurable: true,
-  });
-});
-
-afterEach(() => {
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: originalLocalStorage,
-    writable: true,
-    configurable: true,
-  });
-});
-
 describe('PendingTxService', () => {
+  let service: PendingTxService;
+
+  beforeEach(() => {
+    // jsdom provides a real localStorage; just clear between tests.
+    localStorage.clear();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(PendingTxService);
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
   it('save() + load() round-trip preserves all fields', () => {
-    const service = new PendingTxService();
     const record = makeRecord();
 
     service.save(record);
@@ -74,16 +43,13 @@ describe('PendingTxService', () => {
   });
 
   it('load() returns null for non-existent invoice', () => {
-    const service = new PendingTxService();
-
     const result = service.load('does-not-exist');
 
     expect(result).toStrictEqual(null);
   });
 
   it('load() returns null on corrupt JSON in localStorage', () => {
-    const service = new PendingTxService();
-    globalThis.localStorage.setItem('kp-pending-tx:inv-bad', '{{not json}');
+    localStorage.setItem('kp-pending-tx:inv-bad', '{{not json}');
 
     const result = service.load('inv-bad');
 
@@ -91,7 +57,6 @@ describe('PendingTxService', () => {
   });
 
   it('remove() deletes the record', () => {
-    const service = new PendingTxService();
     const record = makeRecord({ invoiceId: 'inv-rm' });
 
     service.save(record);
@@ -103,16 +68,12 @@ describe('PendingTxService', () => {
   });
 
   it('remove() is idempotent — no error for non-existent key', () => {
-    const service = new PendingTxService();
-
     // Should not throw
     service.remove('never-existed');
     service.remove('never-existed');
   });
 
   it('cleanupExpired() removes expired records and keeps valid ones', () => {
-    const service = new PendingTxService();
-
     const expired = makeRecord({
       invoiceId: 'inv-expired',
       invoiceValidTill: '2020-01-01T00:00:00.000Z',
@@ -132,11 +93,9 @@ describe('PendingTxService', () => {
   });
 
   it('save() silently fails when localStorage throws', () => {
-    const service = new PendingTxService();
-
     // Replace setItem with a throwing stub
-    const original = globalThis.localStorage.setItem;
-    globalThis.localStorage.setItem = () => {
+    const original = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = () => {
       throw new DOMException('QuotaExceededError');
     };
 
@@ -144,6 +103,6 @@ describe('PendingTxService', () => {
     service.save(makeRecord({ invoiceId: 'inv-fail' }));
 
     // Restore so afterEach works cleanly
-    globalThis.localStorage.setItem = original;
+    localStorage.setItem = original;
   });
 });

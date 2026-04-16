@@ -1,14 +1,14 @@
-import { runtimeConfig } from "@/app/config/runtime";
+import { runtimeConfig } from '@/app/config/runtime';
 
 export const environment = {
   production: false,
   mocks: true,
-  projectId: runtimeConfig("projectId"),
-  merchantName: runtimeConfig("merchantName", "JPDesignShop"),
+  projectId: runtimeConfig('projectId'),
+  merchantName: runtimeConfig('merchantName', 'JPDesignShop'),
   merchantLogoUrl: runtimeConfig(
-    "merchantLogoUrl",
-    "https://api.dicebear.com/7.x/shapes/svg?seed=kalatori",
+    'merchantLogoUrl',
+    'https://api.dicebear.com/7.x/shapes/svg?seed=kalatori',
   ),
-  apiBaseUrl: "/public",
-  ankrApiToken: runtimeConfig("ankrApiToken"),
+  apiBaseUrl: '/public',
+  ankrApiToken: runtimeConfig('ankrApiToken'),
 };

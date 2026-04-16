@@ -56,6 +56,22 @@
               "extractLicenses": false,
               "sourceMap": true
             },
+            "e2e": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "2MB",
+                  "maximumError": "5MB"
+                }
+              ],
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.e2e.ts"
+                }
+              ]
+            },
             "no-mocks": {
               "optimization": false,
               "extractLicenses": false,
@@ -69,6 +85,25 @@
             }
           },
           "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "kassette:build:development",
+            "runner": "vitest",
+            "tsConfig": "tsconfig.spec.json",
+            "include": ["src/**/*.spec.ts"],
+            "setupFiles": ["src/app/testing/vitest-setup.ts"],
+            "providersFile": "src/app/testing/test-providers.ts",
+            "coverage": true,
+            "coverageReporters": ["text", "json-summary", "json", "lcov", "html"],
+            "coverageThresholds": {
+              "statements": 34,
+              "branches": 30,
+              "functions": 25,
+              "lines": 35
+            }
+          }
         },
         "serve": {
           "builder": "@angular/build:dev-server",
@@ -88,20 +123,6 @@
             "port": 3001,
             "host": "127.0.0.1",
             "proxyConfig": "proxy.conf.json"
-          }
-        },
-        "test": {
-          "builder": "@angular/build:karma",
-          "options": {
-            "tsConfig": "tsconfig.spec.json",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "public"
-              }
-            ],
-            "styles": [],
-            "scripts": []
           }
         }
       }

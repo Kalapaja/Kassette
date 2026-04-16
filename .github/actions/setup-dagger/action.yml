@@ -1,0 +1,41 @@
+name: Setup Dagger
+description: SSH agent + known hosts + Dagger CLI install for remote engine
+
+inputs:
+  ssh-private-key:
+    description: SSH private key for the remote Dagger host
+    required: true
+  known-host:
+    description: known_hosts entry for the remote Dagger host
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: webfactory/ssh-agent@v0.10.0
+      with:
+        ssh-private-key: ${{ inputs.ssh-private-key }}
+
+    - name: Trust remote Dagger host
+      shell: bash
+      env:
+        KNOWN_HOST: ${{ inputs.known-host }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$KNOWN_HOST" >> ~/.ssh/known_hosts
+
+    - name: Resolve Dagger version from .tool-versions
+      id: dagger
+      shell: bash
+      run: |
+        version=$(awk '/^dagger / {print $2}' .tool-versions)
+        if [ -z "$version" ]; then
+          echo "::error::Could not find 'dagger' entry in .tool-versions"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "_EXPERIMENTAL_DAGGER_RUNNER_HOST=docker-container://dagger-engine-v${version}" >> "$GITHUB_ENV"
+
+    - uses: dagger/dagger-for-github@v8.4.1
+      with:
+        version: ${{ steps.dagger.outputs.version }}

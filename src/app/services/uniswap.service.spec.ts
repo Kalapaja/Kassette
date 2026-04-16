@@ -1,13 +1,5 @@
-import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
-import '@angular/compiler';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
 import { UniswapService } from './uniswap.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
@@ -32,7 +24,8 @@ describe('UniswapService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new UniswapService();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(UniswapService);
     service.setConfig(FAKE_CONFIG);
   });
 
@@ -90,7 +83,7 @@ describe('UniswapService', () => {
       // Simulate 4 fee tiers returning different amounts; one rejects
       mockReadContract
         .mockResolvedValueOnce([200_000_000_000_000n, 0n, 0, 0n]) // fee 100
-        .mockRejectedValueOnce(new Error('No pool'))                // fee 500
+        .mockRejectedValueOnce(new Error('No pool')) // fee 500
         .mockResolvedValueOnce([150_000_000_000_000n, 0n, 0, 0n]) // fee 3000 (best)
         .mockResolvedValueOnce([180_000_000_000_000n, 0n, 0, 0n]); // fee 10000
 
@@ -208,9 +201,7 @@ describe('UniswapService', () => {
       const call = mockWriteContract.mock.calls[0];
       expect(call[1].functionName).toBe('multicall');
       // Should send ETH value
-      expect(call[1].value).toBe(
-        UniswapService.maxAmountWithSlippage(nativeQuote.amountIn),
-      );
+      expect(call[1].value).toBe(UniswapService.maxAmountWithSlippage(nativeQuote.amountIn));
       // multicall args should be array of two calldata entries
       expect(call[1].args[0]).toHaveLength(2);
     });

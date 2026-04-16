@@ -1,0 +1,41 @@
+name: Semgrep
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '14 6 * * 2' # Weekly Tuesday 06:14 UTC
+
+permissions:
+  contents: read
+  security-events: write # For SARIF upload
+
+jobs:
+  semgrep:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.actor != 'dependabot[bot]'
+
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Semgrep (OSS rules)
+        run: semgrep ci --sarif --output=semgrep.sarif || true
+        env:
+          # With SEMGREP_APP_TOKEN: connects to Semgrep AppSec Platform (diff-aware, PR comments).
+          # Without it: runs OSS community rules only.
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+          SEMGREP_RULES: p/default p/javascript p/typescript
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        continue-on-error: true

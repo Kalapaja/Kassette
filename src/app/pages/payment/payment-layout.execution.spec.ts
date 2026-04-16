@@ -1,11 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
 vi.mock('@wagmi/core', () => ({
   switchChain: vi.fn(),
   waitForTransactionReceipt: vi.fn().mockResolvedValue({
@@ -14,208 +8,156 @@ vi.mock('@wagmi/core', () => ({
   }),
 }));
 
-import '@angular/compiler';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+
 import { PaymentLayoutComponent } from './payment-layout.component';
-import { PaymentStateService } from '@/app/services/payment-state.service';
-import { POLYGON_USDC_ADDRESS } from '@/app/config/payment';
-import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
-import type { QuoteResult } from '@/app/types/payment-step.types';
+import type { PublicSwap } from '@/app/types/swap.types';
 import type {
-  PublicSwap,
+  ZeroExSwapDetails,
   AcrossSwapDetails,
   BungeeSwapDetails,
-  ZeroExSwapDetails,
 } from '@/app/types/swap.types';
+import type { Invoice } from '@/app/types/invoice.types';
+import type { PendingTxRecord } from '@/app/services/pending-tx.service';
+import { PaymentStateService } from '@/app/services/payment-state.service';
+import { AppKitService } from '@/app/services/appkit.service';
+import { WalletStateService } from '@/app/services/wallet-state.service';
+import { InvoiceService } from '@/app/services/invoice.service';
+import { TokenService } from '@/app/services/token.service';
+import { BalanceService } from '@/app/services/balance.service';
+import { PaymentService } from '@/app/services/payment.service';
+import { PriceService } from '@/app/services/price.service';
+import { SwapService } from '@/app/services/swap.service';
+import { QuoteService } from '@/app/services/quote.service';
+import { PendingTxService } from '@/app/services/pending-tx.service';
+import { ChainService } from '@/app/services/chain.service';
+import { LayoutService } from '@/app/services/layout.service';
+import { TranslationService } from '@/app/services/translation.service';
+import { POLYGON_USDC_ADDRESS } from '@/app/config/payment';
+import { NATIVE_TOKEN_ADDRESS } from '@/app/config/tokens';
+import {
+  makeZeroExSwap,
+  makeAcrossSwap,
+  makeBungeeSwap,
+  makeZeroExQuoteResult,
+  makeMockPaymentService,
+  makeMockSwapService,
+  makeMockInvoiceService,
+  makeMockPendingTxService,
+} from '@/app/testing/test-factories';
 
-// ─── Test helpers ───
+// ─── Test harness ───
 
-function createTestHarness() {
-  const state = new PaymentStateService();
-  const paymentService = {
-    checkAllowance: vi.fn().mockResolvedValue(0n),
-    submitApprove: vi.fn().mockResolvedValue('0xapprovehash'),
-    submitTransfer: vi.fn().mockResolvedValue('0xtransferhash'),
-    waitForReceipt: vi.fn().mockResolvedValue({
-      status: 'success',
-      transactionHash: '0xfinalhash',
-    }),
-  };
-  const swapService = {
-    executeZeroExApprovalIfNeeded: vi.fn().mockResolvedValue(undefined),
-    executeZeroExTx: vi.fn().mockResolvedValue('0xswaphash'),
-    executeAcrossApprovals: vi.fn().mockResolvedValue(undefined),
-    executeAcrossTx: vi.fn().mockResolvedValue('0xacrosshash'),
-    executeBungeeApprovalIfNeeded: vi.fn().mockResolvedValue(undefined),
-    signBungeeTypedData: vi.fn().mockResolvedValue('0xbungeesig'),
-    submitSwapTransaction: vi.fn().mockResolvedValue(undefined),
-    submitSwapSignature: vi.fn().mockResolvedValue(undefined),
-    supportsBatchCalls: vi.fn().mockResolvedValue(false),
-  };
-  const invoiceService = {
-    registerSwap: vi.fn(),
-    startPolling: vi.fn(),
-    stopPolling: vi.fn(),
-  };
-  const pendingTxService = {
-    save: vi.fn(),
-    load: vi.fn(),
-    remove: vi.fn(),
-  };
-  const ts = { t: vi.fn((key: string) => key) };
+/** Exposes protected methods on PaymentLayoutComponent so tests can call them directly. */
+type PaymentLayoutHarness = PaymentLayoutComponent & {
+  executeDirect(): Promise<void>;
+  executeZeroExSwap(swap: PublicSwap & { swap_details: ZeroExSwapDetails }): Promise<void>;
+  executeAcrossSwap(swap: PublicSwap & { swap_details: AcrossSwapDetails }): Promise<void>;
+  executeBungeeSwap(swap: PublicSwap & { swap_details: BungeeSwapDetails }): Promise<void>;
+  handlePendingTxRecovery(invoice: Invoice, record: PendingTxRecord): Promise<void>;
+  startRecoveryMonitoring(): void;
+};
 
-  const component = Object.create(PaymentLayoutComponent.prototype);
-  Object.assign(component, {
+type Harness = {
+  fixture: ComponentFixture<PaymentLayoutComponent>;
+  component: PaymentLayoutHarness;
+  state: PaymentStateService;
+  paymentService: ReturnType<typeof makeMockPaymentService>;
+  swapService: ReturnType<typeof makeMockSwapService>;
+  invoiceService: ReturnType<typeof makeMockInvoiceService>;
+  pendingTxService: ReturnType<typeof makeMockPendingTxService>;
+};
+
+function createTestHarness(): Harness {
+  const paymentService = makeMockPaymentService();
+  const swapService = makeMockSwapService();
+  const invoiceService = makeMockInvoiceService();
+  const pendingTxService = makeMockPendingTxService();
+
+  TestBed.configureTestingModule({
+    imports: [PaymentLayoutComponent],
+    providers: [
+      PaymentStateService,
+      { provide: PaymentService, useValue: paymentService },
+      { provide: SwapService, useValue: swapService },
+      { provide: InvoiceService, useValue: invoiceService },
+      { provide: PendingTxService, useValue: pendingTxService },
+      { provide: PriceService, useValue: { fetchPrices: vi.fn().mockResolvedValue(new Map()) } },
+      {
+        provide: BalanceService,
+        useValue: {
+          getBalances: vi.fn().mockResolvedValue(new Map()),
+          getCachedBalances: () => new Map(),
+          clearCache: vi.fn(),
+        },
+      },
+      {
+        provide: QuoteService,
+        useValue: { detectPath: vi.fn(), calculateQuote: vi.fn() },
+      },
+      {
+        provide: TokenService,
+        useValue: {
+          ready: Promise.resolve(),
+          getAllTokens: () => [],
+          findToken: vi.fn(),
+          init: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      {
+        provide: ChainService,
+        useValue: {
+          getChain: vi.fn(),
+          getAllChains: () => [],
+          init: vi.fn().mockResolvedValue(undefined),
+          ready: Promise.resolve(),
+        },
+      },
+      {
+        provide: AppKitService,
+        useValue: {
+          wagmiConfig: {},
+          init: vi.fn(),
+          openModal: vi.fn(),
+          disconnect: vi.fn(),
+        },
+      },
+      {
+        provide: WalletStateService,
+        useValue: {
+          isConnected: signal(false),
+          address: signal(null),
+          chainId: signal(null),
+          init: vi.fn(),
+        },
+      },
+      { provide: LayoutService, useValue: { isDesktop: signal(false) } },
+      {
+        provide: TranslationService,
+        useValue: { t: (key: string) => key, locale: signal('en'), setLocale: vi.fn() },
+      },
+    ],
+  }).overrideComponent(PaymentLayoutComponent, {
+    set: { template: '', styles: [] },
+  });
+
+  const fixture = TestBed.createComponent(PaymentLayoutComponent);
+  const component = fixture.componentInstance as PaymentLayoutHarness;
+  const state = TestBed.inject(PaymentStateService);
+
+  return {
+    fixture,
+    component,
     state,
     paymentService,
     swapService,
     invoiceService,
     pendingTxService,
-    chainService: { getChain: vi.fn() },
-    tokenService: { findToken: vi.fn() },
-    ts,
-    ngZone: { run: (fn: () => void) => fn() },
-    appKit: { wagmiConfig: {} },
-    recoveryInterval: null,
-    redirectTimer: null,
-  });
-
-  return { component, state, paymentService, swapService, invoiceService, pendingTxService };
-}
-
-function makeZeroExSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: ZeroExSwapDetails } {
-  return {
-    id: 'swap-001',
-    invoice_id: 'inv-001',
-    swap_executor: 'ZeroEx',
-    from_chain: 'Polygon',
-    to_chain: 'Polygon',
-    from_token_address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
-    to_token_address: POLYGON_USDC_ADDRESS,
-    from_amount_units: '1000000',
-    expected_to_amount_units: '1000000',
-    from_address: '0xuser',
-    to_address: '0xrecipient',
-    direction: 'Incoming',
-    from_chain_id: 137,
-    to_chain_id: 137,
-    status: 'Created',
-    estimated_to_amount: '1.00',
-    swap_details: {
-      id: 'zeroex-quote-1',
-      raw_transaction: {
-        allowance_target: '0xAllowanceTarget',
-        raw_transaction: {
-          to: '0xSwapContract',
-          data: '0xswapdata',
-          gas: '200000',
-          gas_price: '1000000000',
-          value: '0',
-        },
-      },
-      signature: null,
-      transaction_hash: null,
-    },
-    created_at: '2026-01-01T00:00:00Z',
-    valid_till: '2026-01-01T00:10:00Z',
-    ...overrides,
-  } as PublicSwap & { swap_details: ZeroExSwapDetails };
-}
-
-function makeAcrossSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: AcrossSwapDetails } {
-  return {
-    id: 'swap-002',
-    invoice_id: 'inv-001',
-    swap_executor: 'Across',
-    from_chain: 'Base',
-    to_chain: 'Polygon',
-    from_token_address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-    to_token_address: POLYGON_USDC_ADDRESS,
-    from_amount_units: '500000000000000',
-    expected_to_amount_units: '1000000',
-    from_address: '0xuser',
-    to_address: '0xrecipient',
-    direction: 'Incoming',
-    from_chain_id: 8453,
-    to_chain_id: 137,
-    status: 'Created',
-    estimated_to_amount: '1.00',
-    swap_details: {
-      id: 'across-quote-1',
-      raw_transaction: {
-        transaction: {
-          chain_id: 8453,
-          contract_address: '0xAcrossContract',
-          data: '0xacrossdata',
-          value: '500000000000000',
-          gas: '200000',
-          max_fee_per_gas: '1000000000',
-          max_priority_fee_per_gas: '100000000',
-        },
-        approval_transactions: [
-          { chain_id: 8453, to: '0xTokenAddr', data: '0xapprovedata' },
-        ],
-      },
-      transaction_hash: null,
-    },
-    created_at: '2026-01-01T00:00:00Z',
-    valid_till: '2026-01-01T00:10:00Z',
-    ...overrides,
-  } as PublicSwap & { swap_details: AcrossSwapDetails };
-}
-
-function makeBungeeSwap(overrides: Partial<PublicSwap> = {}): PublicSwap & { swap_details: BungeeSwapDetails } {
-  return {
-    id: 'swap-003',
-    invoice_id: 'inv-001',
-    swap_executor: 'Bungee',
-    from_chain: 'Base',
-    to_chain: 'Polygon',
-    from_token_address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-    to_token_address: POLYGON_USDC_ADDRESS,
-    from_amount_units: '500000000000000',
-    expected_to_amount_units: '1000000',
-    from_address: '0xuser',
-    to_address: '0xrecipient',
-    direction: 'Incoming',
-    from_chain_id: 8453,
-    to_chain_id: 137,
-    status: 'Created',
-    estimated_to_amount: '1.00',
-    swap_details: {
-      id: 'bungee-quote-1',
-      raw_transaction: {
-        quote_id: 'bungee-q1',
-        request_type: 'permit2',
-        approval_data: {
-          tokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-          spenderAddress: '0xPermit2Spender',
-          userAddress: '0xuser',
-          amount: '500000000000000',
-        },
-        sign_typed_data: {
-          domain: { name: 'Permit2', version: '1', chainId: 8453 },
-          types: { EIP712Domain: [], PermitWitnessTransferFrom: [] },
-          values: {} as any,
-        },
-      },
-      signature: null,
-      transaction_hash: null,
-    },
-    created_at: '2026-01-01T00:00:00Z',
-    valid_till: '2026-01-01T00:10:00Z',
-    ...overrides,
-  } as PublicSwap & { swap_details: BungeeSwapDetails };
-}
-
-function makeZeroExQuoteResult(swap?: PublicSwap & { swap_details: ZeroExSwapDetails }): QuoteResult {
-  const s = swap ?? makeZeroExSwap();
-  return {
-    path: 'swap',
-    userPayAmount: BigInt(s.from_amount_units),
-    userPayAmountHuman: '1.0',
-    swap: s,
   };
 }
+
+// ─── Location shim (component reads invoice_id from URL search params) ───
 
 const savedLocation = globalThis.location;
 
@@ -248,7 +190,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(chainId);
       state.selectedTokenAddress.set('0xc2132D05D31c914a87C6611C10748AEb04B58e8F' as `0x${string}`);
       state.selectedTokenSymbol.set('USDT');
@@ -283,7 +225,13 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       await component.executeZeroExSwap(swap);
 
       expect(swapService.executeZeroExTx).toHaveBeenCalledWith(
-        { to: '0xSwapContract', data: '0xswapdata', gas: '200000', gas_price: '1000000000', value: '0' },
+        {
+          to: '0xSwapContract',
+          data: '0xswapdata',
+          gas: '200000',
+          gas_price: '1000000000',
+          value: '0',
+        },
         137,
       );
     });
@@ -331,12 +279,12 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(8453);
       state.selectedTokenAddress.set(
         isNative
-          ? NATIVE_TOKEN_ADDRESS as `0x${string}`
-          : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+          ? (NATIVE_TOKEN_ADDRESS as `0x${string}`)
+          : ('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`),
       );
       state.selectedTokenSymbol.set(isNative ? 'ETH' : 'USDC');
       state.selectedTokenDecimals.set(isNative ? 18 : 6);
@@ -378,12 +326,12 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         payment_address: '0xrecipient',
         valid_till: '2026-12-31T23:59:59.000Z',
         cart: { items: [] },
-      } as any);
+      } as never);
       state.selectedChainId.set(8453);
       state.selectedTokenAddress.set(
         isNative
-          ? NATIVE_TOKEN_ADDRESS as `0x${string}`
-          : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+          ? (NATIVE_TOKEN_ADDRESS as `0x${string}`)
+          : ('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`),
       );
       state.selectedTokenSymbol.set(isNative ? 'ETH' : 'USDC');
       state.selectedTokenDecimals.set(isNative ? 18 : 6);
@@ -419,9 +367,12 @@ describe('PaymentLayoutComponent — execution chainId', () => {
     it('passes selectedChainId to submitTransfer and waitForReceipt', async () => {
       const { component, state, paymentService } = createTestHarness();
       state.invoice.set({
-        id: 'inv-001', status: 'Pending', payment_address: '0xrecipient',
-        valid_till: '2026-12-31T23:59:59.000Z', cart: { items: [] },
-      } as any);
+        id: 'inv-001',
+        status: 'Pending',
+        payment_address: '0xrecipient',
+        valid_till: '2026-12-31T23:59:59.000Z',
+        cart: { items: [] },
+      } as never);
       state.selectedChainId.set(137);
       state.selectedTokenAddress.set(POLYGON_USDC_ADDRESS);
       state.selectedTokenSymbol.set('USDC');
@@ -438,10 +389,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
         1_000_000n,
         137,
       );
-      expect(paymentService.waitForReceipt).toHaveBeenCalledWith(
-        expect.any(String),
-        137,
-      );
+      expect(paymentService.waitForReceipt).toHaveBeenCalledWith(expect.any(String), 137);
     });
   });
 });

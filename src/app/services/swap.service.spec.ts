@@ -1,13 +1,7 @@
-import { vi } from 'vitest';
-
-vi.hoisted(() => {
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as any).window = globalThis;
-  }
-});
-
-import '@angular/compiler';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { SwapService } from './swap.service';
 import type { ApprovalTransaction, SwapTransaction } from '@/app/types/swap.types';
 
@@ -15,12 +9,13 @@ import type { ApprovalTransaction, SwapTransaction } from '@/app/types/swap.type
 const mockSendTransaction = vi.fn();
 const mockWaitForTransactionReceipt = vi.fn();
 const mockSignTypedData = vi.fn();
+const mockGetCallsStatus = vi.fn();
 
 vi.mock('@wagmi/core', () => ({
   sendTransaction: (...args: unknown[]) => mockSendTransaction(...args),
-  waitForTransactionReceipt: (...args: unknown[]) =>
-    mockWaitForTransactionReceipt(...args),
+  waitForTransactionReceipt: (...args: unknown[]) => mockWaitForTransactionReceipt(...args),
   signTypedData: (...args: unknown[]) => mockSignTypedData(...args),
+  getCallsStatus: (...args: unknown[]) => mockGetCallsStatus(...args),
 }));
 
 const FAKE_CONFIG = {} as any;
@@ -47,12 +42,20 @@ function makeSwapTx(chainId = 42161): SwapTransaction {
 
 describe('SwapService', () => {
   let service: SwapService;
+  let httpMock: HttpTestingController;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Create instance without DI — we only test wagmi interaction methods
-    service = Object.create(SwapService.prototype);
-    (service as any)._config = FAKE_CONFIG;
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(SwapService);
+    httpMock = TestBed.inject(HttpTestingController);
+    service.setConfig(FAKE_CONFIG);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
   });
 
   describe('chainId forwarding', () => {
@@ -110,12 +113,8 @@ describe('SwapService', () => {
         10, // Optimism
       );
 
-      expect(mockCheckAllowance).toHaveBeenCalledWith(
-        '0xtoken', '0xspender', '0xowner', 10,
-      );
-      expect(mockSubmitApprove).toHaveBeenCalledWith(
-        '0xtoken', '0xspender', 1000n, 10,
-      );
+      expect(mockCheckAllowance).toHaveBeenCalledWith('0xtoken', '0xspender', '0xowner', 10);
+      expect(mockSubmitApprove).toHaveBeenCalledWith('0xtoken', '0xspender', 1000n, 10);
       expect(mockWaitForReceipt).toHaveBeenCalledWith('0xhash', 10);
     });
 
@@ -142,6 +141,67 @@ describe('SwapService', () => {
       expect(mockCheckAllowance).toHaveBeenCalled();
       expect(mockSubmitApprove).not.toHaveBeenCalled();
       expect(mockWaitForReceipt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('_waitForBatchResult', () => {
+    const callWait = (batchId: string) => (service as any)._waitForBatchResult(batchId);
+
+    it('returns tx hash on immediate success', async () => {
+      mockGetCallsStatus.mockResolvedValue({
+        status: 'success',
+        receipts: [{ transactionHash: '0xbatchhash' }],
+      });
+
+      const result = await callWait('batch-1');
+      expect(result).toBe('0xbatchhash');
+    });
+
+    it('returns last receipt hash when multiple receipts', async () => {
+      mockGetCallsStatus.mockResolvedValue({
+        status: 'success',
+        receipts: [{ transactionHash: '0xapprove' }, { transactionHash: '0xswap' }],
+      });
+
+      const result = await callWait('batch-1');
+      expect(result).toBe('0xswap');
+    });
+
+    it('throws on failure status', async () => {
+      mockGetCallsStatus.mockResolvedValue({ status: 'failure' });
+
+      await expect(callWait('batch-1')).rejects.toThrow('Batch transaction failed');
+    });
+
+    it('throws when success but no receipts', async () => {
+      mockGetCallsStatus.mockResolvedValue({ status: 'success', receipts: [] });
+
+      await expect(callWait('batch-1')).rejects.toThrow('no transaction hash');
+    });
+
+    it('polls until success after pending responses', async () => {
+      vi.useFakeTimers();
+      mockGetCallsStatus
+        .mockResolvedValueOnce({ status: 'pending' })
+        .mockResolvedValueOnce({ status: 'pending' })
+        .mockResolvedValueOnce({
+          status: 'success',
+          receipts: [{ transactionHash: '0xfinal' }],
+        });
+
+      const promise = callWait('batch-1');
+      // Advance through both 2-second polling intervals
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result).toBe('0xfinal');
+      expect(mockGetCallsStatus).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
+    });
+
+    it('throws when config is null', async () => {
+      (service as any)._config = null;
+      await expect(callWait('batch-1')).rejects.toThrow('Config not set');
     });
   });
 });

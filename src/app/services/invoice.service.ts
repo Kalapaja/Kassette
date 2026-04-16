@@ -14,9 +14,7 @@ export class InvoiceService implements OnDestroy {
 
   async fetchInvoice(invoiceId: string): Promise<Invoice> {
     const data = await firstValueFrom(
-      this.http.get<InvoiceResponse>(
-        `/public/invoice?invoice_id=${invoiceId}`,
-      ),
+      this.http.get<InvoiceResponse>(`/public/invoice?invoice_id=${invoiceId}`),
     );
     const invoice: Invoice = {
       ...data.invoice,
@@ -26,11 +24,7 @@ export class InvoiceService implements OnDestroy {
     return invoice;
   }
 
-  startPolling(
-    invoiceId: string,
-    intervalMs: number,
-    callback: (invoice: Invoice) => void,
-  ): void {
+  startPolling(invoiceId: string, intervalMs: number, callback: (invoice: Invoice) => void): void {
     this.stopPolling();
 
     const poll = async () => {
@@ -43,10 +37,7 @@ export class InvoiceService implements OnDestroy {
         }
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes('404')) {
-          if (
-            this._lastKnownInvoice &&
-            isActiveStatus(this._lastKnownInvoice.status)
-          ) {
+          if (this._lastKnownInvoice && isActiveStatus(this._lastKnownInvoice.status)) {
             callback({ ...this._lastKnownInvoice, status: 'Paid' });
           }
           this.stopPolling();
@@ -73,9 +64,7 @@ export class InvoiceService implements OnDestroy {
     transaction_hash: string;
   }): Promise<void> {
     try {
-      await firstValueFrom(
-        this.http.post('/public/swap/register', params),
-      );
+      await firstValueFrom(this.http.post('/public/swap/register', params));
     } catch (err) {
       console.warn('Swap registration error:', err);
     }

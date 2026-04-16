@@ -2,11 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-import {
-  ACROSS_API_BASE_URL,
-  POLYGON_CHAIN_ID,
-  POLYGON_USDC_ADDRESS,
-} from '@/app/config/payment';
+import { ACROSS_API_BASE_URL, POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { normalizeAddress } from '@/app/config/address.utils';
 import type { TokenConfig } from '@/app/config/tokens';
 
@@ -39,9 +35,7 @@ export class TokenService {
   private async _doInit(): Promise<void> {
     try {
       const data = await firstValueFrom(
-        this.http.get<AcrossTokenResponse[]>(
-          `${ACROSS_API_BASE_URL}/swap/tokens`,
-        ),
+        this.http.get<AcrossTokenResponse[]>(`${ACROSS_API_BASE_URL}/swap/tokens`),
       );
 
       this._tokens = data.map((t) => {
@@ -89,14 +83,9 @@ export class TokenService {
     return this._tokens.filter((t) => t.chainId === chainId);
   }
 
-  findToken(
-    chainId: number,
-    address: `0x${string}`,
-  ): TokenConfig | undefined {
+  findToken(chainId: number, address: `0x${string}`): TokenConfig | undefined {
     const normalized = normalizeAddress(address).toLowerCase();
     const key = `${chainId}:${normalized}`;
-    return this._tokens.find(
-      (t) => `${t.chainId}:${t.address.toLowerCase()}` === key,
-    );
+    return this._tokens.find((t) => `${t.chainId}:${t.address.toLowerCase()}` === key);
   }
 }

@@ -1,10 +1,5 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import {
-  readContract,
-  writeContract,
-  waitForTransactionReceipt,
-  type Config,
-} from '@wagmi/core';
+import { readContract, writeContract, waitForTransactionReceipt, type Config } from '@wagmi/core';
 import { erc20Abi, type Hash, type TransactionReceipt } from 'viem';
 
 @Injectable({ providedIn: 'root' })

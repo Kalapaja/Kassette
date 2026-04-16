@@ -1,12 +1,12 @@
 export type InvoiceStatus =
-  | "Waiting"
-  | "PartiallyPaid"
-  | "Paid"
-  | "OverPaid"
-  | "UnpaidExpired"
-  | "PartiallyPaidExpired"
-  | "AdminCanceled"
-  | "CustomerCanceled";
+  | 'Waiting'
+  | 'PartiallyPaid'
+  | 'Paid'
+  | 'OverPaid'
+  | 'UnpaidExpired'
+  | 'PartiallyPaidExpired'
+  | 'AdminCanceled'
+  | 'CustomerCanceled';
 
 export interface InvoiceCartItem {
   name: string;
@@ -40,24 +40,24 @@ export interface Invoice {
 }
 
 export interface InvoiceResponse {
-  invoice: Omit<Invoice, "total_received_amount">;
+  invoice: Omit<Invoice, 'total_received_amount'>;
   total_received_amount: string;
 }
 
 export function isActiveStatus(s: InvoiceStatus): boolean {
-  return s === "Waiting" || s === "PartiallyPaid";
+  return s === 'Waiting' || s === 'PartiallyPaid';
 }
 
 export function isFinalStatus(s: InvoiceStatus): boolean {
-  return s === "Paid" || s === "OverPaid";
+  return s === 'Paid' || s === 'OverPaid';
 }
 
 export function isExpiredStatus(s: InvoiceStatus): boolean {
-  return s === "UnpaidExpired" || s === "PartiallyPaidExpired";
+  return s === 'UnpaidExpired' || s === 'PartiallyPaidExpired';
 }
 
 export function isCanceledStatus(s: InvoiceStatus): boolean {
-  return s === "AdminCanceled" || s === "CustomerCanceled";
+  return s === 'AdminCanceled' || s === 'CustomerCanceled';
 }
 
 import { parseUnits, formatUnits } from 'viem';

@@ -1,0 +1,8 @@
+dist/
+coverage/
+.angular/
+.dagger/
+node_modules/
+pnpm-lock.yaml
+public/mockServiceWorker.js
+src/styles/font.css
