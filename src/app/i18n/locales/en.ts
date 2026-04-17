@@ -16,6 +16,7 @@ export const en = {
   // -- Main CTA --
   'button.pay': 'Pay',
   'button.connectAndPay': 'Connect Wallet & Pay',
+  'button.disconnect': 'Disconnect',
 
   // -- Footer --
   'footer.poweredBy': 'Powered by',

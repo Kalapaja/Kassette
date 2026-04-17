@@ -14,6 +14,7 @@ export const es: Record<keyof typeof en, string> = {
   'order.item.totalPrice': 'Precio total',
   'button.pay': 'Pagar',
   'button.connectAndPay': 'Conectar billetera y pagar',
+  'button.disconnect': 'Desconectar',
 
   'footer.poweredBy': 'Desarrollado por',
 

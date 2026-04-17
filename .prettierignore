@@ -6,3 +6,5 @@ node_modules/
 pnpm-lock.yaml
 public/mockServiceWorker.js
 src/styles/font.css
+dogfood-output/
+dogfood-output-focused/

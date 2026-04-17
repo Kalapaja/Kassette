@@ -160,6 +160,12 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     return formatFiat(t, this.ts.locale());
   });
 
+  readonly receivedFiatString = computed(() => {
+    const received = this.state.invoice()?.total_received_amount;
+    if (!received) return '';
+    return fiatPartsToString(formatFiat(parseFloat(received) || 0, this.ts.locale()));
+  });
+
   private readonly allTokenOptions = computed(() => this.computeTokenOptions());
 
   readonly filteredTokenOptions = computed(() => {
