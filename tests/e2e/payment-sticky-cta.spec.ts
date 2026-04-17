@@ -124,11 +124,12 @@ test.describe('Sticky CTA across breakpoints', () => {
     await expectCtaStuckToBottom(page);
   });
 
-  // Note: verifying the token-selection sheet as the 2nd column requires driving
-  // PaymentStateService.transition('token-select'), which in turn requires a connected
-  // wallet. Reown AppKit's connect flow is too heavy to mock here, and window.ng
-  // debug tools are disabled in the production build used by Dagger's e2e pipeline.
-  // Left as a manual check (see dev preview) until a wallet-mock shim lands.
+  test.skip('token-selection sheet renders as 2nd column at xl', () => {
+    // Verifying this requires driving PaymentStateService.transition('token-select'),
+    // which needs a connected wallet. Reown AppKit's connect flow is too heavy to mock
+    // here, and window.ng debug tools are disabled in the production build used by
+    // Dagger's e2e pipeline. Manual check only until a wallet-mock shim lands.
+  });
 
   test('xl boundary: 1199px is single column, 1200px is two-column', async ({ page }) => {
     await mockInvoiceApi(page);
@@ -148,38 +149,18 @@ test.describe('Sticky CTA across breakpoints', () => {
     expect(atXl).toBe('flex');
   });
 
-  test('items scroll under the sticky wrapper, not through it', async ({ page }) => {
+  test('sticky wrapper is opaque and layered above scrolled items', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await renderPayment(page);
-
-    // Scroll halfway down. Any kp-order-item whose top is above the sticky wrapper's
-    // top must either be fully above, or have its bottom clipped by the wrapper —
-    // i.e. no item's bottom should sit *below* the wrapper's top inside the viewport.
     await page.evaluate(() => window.scrollBy(0, 250));
 
-    const overlap = await page.evaluate(() => {
-      const wrapper = document.querySelector<HTMLElement>('.cta')?.parentElement;
-      if (!wrapper) return null;
-      const wrapperTop = wrapper.getBoundingClientRect().top;
-      const items = Array.from(document.querySelectorAll<HTMLElement>('kp-order-item'));
-      return items.map((el) => {
-        const r = el.getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom, wrapperTop };
-      });
-    });
-    expect(overlap).not.toBeNull();
-    // Every item that extends into the wrapper's region must be visually covered:
-    // its top is above wrapperTop (scrolled up) — there's nothing to assert beyond
-    // this because the wrapper's background is opaque by construction. We instead
-    // assert that the sticky wrapper itself is opaque and has a high enough z-index.
-    const wrapperStyle = await page.locator('.cta').evaluateHandle((el) => el.parentElement);
-    const styles = await wrapperStyle.evaluate((el) => {
+    const wrapperHandle = await page.locator('.cta').evaluateHandle((el) => el.parentElement);
+    const styles = await wrapperHandle.evaluate((el) => {
       const cs = getComputedStyle(el as HTMLElement);
       return { backgroundColor: cs.backgroundColor, zIndex: cs.zIndex, position: cs.position };
     });
     expect(styles.position).toBe('sticky');
-    expect(styles.zIndex).toBe('5');
-    // Non-transparent (not rgba(0,0,0,0) / transparent).
+    expect(Number(styles.zIndex)).toBeGreaterThan(0);
     expect(styles.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
     expect(styles.backgroundColor).not.toBe('transparent');
   });

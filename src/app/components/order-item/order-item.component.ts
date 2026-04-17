@@ -81,6 +81,7 @@ export class OrderItemComponent {
     return pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1);
   }
 
+  // Base = subtotal + tax, so the strikethrough value always equals totalPrice + discount.
   protected priceBeforeDiscount(): string {
     return (this.price() * this.quantity() + this.tax()).toFixed(2);
   }
