@@ -77,7 +77,7 @@ async function renderPayment(page: Page) {
 }
 
 test.describe('Sticky CTA across breakpoints', () => {
-  test('mobile (375x812): CTA stays stuck at top and after scroll', async ({ page }) => {
+  test('mobile (375x812): CTA stays stuck at bottom and after scroll', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await renderPayment(page);
 
@@ -137,16 +137,11 @@ test.describe('Sticky CTA across breakpoints', () => {
     await page.setViewportSize({ width: 1199, height: 800 });
     await page.goto(INVOICE_URL);
     await expect(page.getByText(`ORDER ${MOCK_INVOICE_ID}`)).toBeVisible({ timeout: 15_000 });
-    const below = await page
-      .locator('.desktop-layout')
-      .evaluate((el) => getComputedStyle(el).display);
-    expect(below).toBe('block');
+    const layout = page.locator('.desktop-layout');
+    await expect(layout).toHaveCSS('display', 'block');
 
     await page.setViewportSize({ width: 1200, height: 800 });
-    const atXl = await page
-      .locator('.desktop-layout')
-      .evaluate((el) => getComputedStyle(el).display);
-    expect(atXl).toBe('flex');
+    await expect(layout).toHaveCSS('display', 'flex');
   });
 
   test('sticky wrapper is opaque and layered above scrolled items', async ({ page }) => {
