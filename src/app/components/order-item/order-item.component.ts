@@ -45,7 +45,7 @@ import { TranslationService } from '@/app/services/translation.service';
           <span class="ml-auto font-semibold text-sm">
             @if (hasDiscount()) {
               <span class="line-through text-content-tetriary font-normal mr-1"
-                >{{ currency() }}{{ subtotal() }}</span
+                >{{ currency() }}{{ priceBeforeDiscount() }}</span
               >
             }
             {{ currency() }}{{ totalPrice() }}
@@ -75,14 +75,15 @@ export class OrderItemComponent {
   }
 
   protected discountPercent(): string {
-    const sub = this.price() * this.quantity();
-    if (sub === 0) return '0';
-    const pct = (this.discount() / sub) * 100;
+    const base = this.price() * this.quantity() + this.tax();
+    if (base === 0) return '0';
+    const pct = (this.discount() / base) * 100;
     return pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1);
   }
 
-  protected subtotal(): string {
-    return (this.price() * this.quantity()).toFixed(2);
+  // Base = subtotal + tax, so the strikethrough value always equals totalPrice + discount.
+  protected priceBeforeDiscount(): string {
+    return (this.price() * this.quantity() + this.tax()).toFixed(2);
   }
 
   protected totalPrice(): string {

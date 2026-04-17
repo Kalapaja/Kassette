@@ -496,29 +496,24 @@
         >
           {{ ts.t('order.yourOrder') }}
         </div>
-        <div class="relative">
-          <div class="flex flex-col gap-2.5 max-h-[40vh] md:max-h-[50vh] overflow-y-auto pb-[30px]">
-            <ng-content select="[slot=items]" />
-            @for (item of items; track item.name) {
-              <kp-order-item
-                [name]="item.name"
-                [description]="item.description || ''"
-                [quantity]="item.quantity"
-                [price]="item.price"
-                [discount]="item.discount ?? 0"
-                [tax]="item.tax ?? 0"
-                [currency]="item.currency"
-                [showImage]="showItemImages"
-              >
-                @if (item.image) {
-                  <img slot="image" [src]="item.image" [alt]="item.name" />
-                }
-              </kp-order-item>
-            }
-          </div>
-          <div
-            class="pointer-events-none absolute inset-x-0 bottom-0 h-[30px] bg-linear-to-t from-fill-primary to-transparent"
-          ></div>
+        <div class="flex flex-col gap-2.5">
+          <ng-content select="[slot=items]" />
+          @for (item of items; track item.name) {
+            <kp-order-item
+              [name]="item.name"
+              [description]="item.description || ''"
+              [quantity]="item.quantity"
+              [price]="item.price"
+              [discount]="item.discount ?? 0"
+              [tax]="item.tax ?? 0"
+              [currency]="item.currency"
+              [showImage]="showItemImages"
+            >
+              @if (item.image) {
+                <img slot="image" [src]="item.image" [alt]="item.name" />
+              }
+            </kp-order-item>
+          }
         </div>
         @if (shipping()) {
           <div class="flex items-center justify-between py-2.5 border-t border-border-tetriary">
@@ -536,56 +531,56 @@
         }
       </div>
 
-      @if (totalAmount()) {
-        <div
-          class="total flex items-center justify-between py-[5px] border-t border-content-primary mt-5 md:max-xl:sticky md:max-xl:bottom-[90px] md:max-xl:bg-fill-primary md:max-xl:pt-2.5 md:max-xl:z-4"
-        >
-          <span class="text-[20px] font-[421] leading-5 text-content-primary">{{
-            isPartiallyPaid() ? ts.t('order.remainingTotal') : ts.t('order.total')
-          }}</span>
-          <div class="flex items-end text-content-primary">
-            @if (totalFiatParts(); as parts) {
-              <span class="text-base font-[421] leading-5">{{ parts.currency }}</span>
-              <span class="text-[40px] font-[421] leading-[40px]">{{ parts.integer }}</span>
-              <span class="text-base font-normal leading-5">{{ parts.decimal }}</span>
-            }
-          </div>
-        </div>
-      }
-
-      @if (isPartiallyPaid()) {
-        <div class="mt-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm">
-          {{ ts.t('order.partialNotice', { received: state.invoice()!.total_received_amount }) }}
-        </div>
-      }
-
-      <div
-        class="cta mt-2.5 md:max-xl:sticky md:max-xl:bottom-5 md:max-xl:bg-fill-primary md:max-xl:pt-2.5 md:max-xl:z-5"
-      >
-        <kp-button weight="primary" (buttonClick)="onButtonClick()">
-          <svg
-            slot="icon"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
+      <div class="sticky bottom-0 bg-fill-primary pb-5 z-5 mt-5">
+        @if (totalAmount()) {
+          <div
+            class="total flex items-center justify-between py-[5px] border-t border-content-primary pt-2.5"
           >
-            <path
-              d="M15.0586 5.27441C16.0232 4.97762 17 5.6988 17 6.70801V15C17 15.8284 16.3284 16.5 15.5 16.5H6.5C5.67157 16.5 5 15.8284 5 15V9.47754C5 8.81917 5.42942 8.23772 6.05859 8.04395L15.0586 5.27441Z"
-              fill="black"
-              stroke="white"
-            />
-            <path
-              d="M6.5 8.29199H16.5C17.3284 8.29199 18 8.96357 18 9.79199V17.792C18 18.6204 17.3284 19.292 16.5 19.292H6.5C5.67157 19.292 5 18.6204 5 17.792V9.79199C5 8.96357 5.67157 8.29199 6.5 8.29199Z"
-              fill="black"
-              stroke="white"
-            />
-            <circle cx="14.5" cy="13.792" r="1" fill="white" />
-          </svg>
-          {{ state.connectedAccount() ? ts.t('button.pay') : ts.t('button.connectAndPay') }}
-        </kp-button>
+            <span class="text-[20px] font-[421] leading-5 text-content-primary">{{
+              isPartiallyPaid() ? ts.t('order.remainingTotal') : ts.t('order.total')
+            }}</span>
+            <div class="flex items-end text-content-primary">
+              @if (totalFiatParts(); as parts) {
+                <span class="text-base font-[421] leading-5">{{ parts.currency }}</span>
+                <span class="text-[40px] font-[421] leading-[40px]">{{ parts.integer }}</span>
+                <span class="text-base font-normal leading-5">{{ parts.decimal }}</span>
+              }
+            </div>
+          </div>
+        }
+
+        @if (isPartiallyPaid()) {
+          <div class="mt-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm">
+            {{ ts.t('order.partialNotice', { received: receivedFiatString() }) }}
+          </div>
+        }
+
+        <div class="cta mt-2.5 pt-2.5">
+          <kp-button weight="primary" (buttonClick)="onButtonClick()">
+            <svg
+              slot="icon"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.0586 5.27441C16.0232 4.97762 17 5.6988 17 6.70801V15C17 15.8284 16.3284 16.5 15.5 16.5H6.5C5.67157 16.5 5 15.8284 5 15V9.47754C5 8.81917 5.42942 8.23772 6.05859 8.04395L15.0586 5.27441Z"
+                fill="black"
+                stroke="white"
+              />
+              <path
+                d="M6.5 8.29199H16.5C17.3284 8.29199 18 8.96357 18 9.79199V17.792C18 18.6204 17.3284 19.292 16.5 19.292H6.5C5.67157 19.292 5 18.6204 5 17.792V9.79199C5 8.96357 5.67157 8.29199 6.5 8.29199Z"
+                fill="black"
+                stroke="white"
+              />
+              <circle cx="14.5" cy="13.792" r="1" fill="white" />
+            </svg>
+            {{ state.connectedAccount() ? ts.t('button.pay') : ts.t('button.connectAndPay') }}
+          </kp-button>
+        </div>
       </div>
 
       <a
@@ -932,9 +927,9 @@
                   stroke-linecap="round"
                 />
               </svg>
-              <span class="text-xs font-[421] leading-[14px] text-content-tetriary"
-                >Disconnect</span
-              >
+              <span class="text-xs font-[421] leading-[14px] text-content-tetriary">{{
+                ts.t('button.disconnect')
+              }}</span>
             </button>
           </div>
         </div>
