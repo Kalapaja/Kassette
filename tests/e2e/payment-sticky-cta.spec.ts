@@ -124,6 +124,12 @@ test.describe('Sticky CTA across breakpoints', () => {
     await expectCtaStuckToBottom(page);
   });
 
+  // Note: verifying the token-selection sheet as the 2nd column requires driving
+  // PaymentStateService.transition('token-select'), which in turn requires a connected
+  // wallet. Reown AppKit's connect flow is too heavy to mock here, and window.ng
+  // debug tools are disabled in the production build used by Dagger's e2e pipeline.
+  // Left as a manual check (see dev preview) until a wallet-mock shim lands.
+
   test('xl boundary: 1199px is single column, 1200px is two-column', async ({ page }) => {
     await mockInvoiceApi(page);
 
