@@ -105,7 +105,9 @@ test.describe('Sticky CTA across breakpoints', () => {
     await expectCtaStuckToBottom(page);
   });
 
-  test('desktop xl (1400x700): two-column layout, CTA sticky in right column', async ({ page }) => {
+  test('desktop xl (1400x700): two-column layout, CTA sticky and items have internal scroll', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1400, height: 700 });
     await renderPayment(page);
 
@@ -119,6 +121,22 @@ test.describe('Sticky CTA across breakpoints', () => {
     expect(layout.flexDirection).toBe('row');
     expect(layout.children).toBe(2);
 
+    // Items list has its own internal scroll container (max-height + overflow-y).
+    const itemsScroll = await page.evaluate(() => {
+      const firstItem = document.querySelector<HTMLElement>('kp-order-item');
+      const container = firstItem?.parentElement;
+      if (!container) return null;
+      const cs = getComputedStyle(container);
+      return {
+        overflowY: cs.overflowY,
+        scrollable: container.scrollHeight > container.clientHeight,
+      };
+    });
+    expect(itemsScroll, 'items container must exist').not.toBeNull();
+    expect(['auto', 'scroll']).toContain(itemsScroll!.overflowY);
+    expect(itemsScroll!.scrollable, 'items must overflow at xl with 7 items').toBe(true);
+
+    // CTA wrapper stays stuck to the viewport bottom so the pay button is never cut off.
     await expectCtaStuckToBottom(page);
     await page.evaluate(() => window.scrollBy(0, 300));
     await expectCtaStuckToBottom(page);

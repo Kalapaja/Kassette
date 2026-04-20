@@ -122,6 +122,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   // ── Template view children ──
   searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   successAmount = viewChild<ElementRef<HTMLElement>>('successAmount');
+  itemsScrollContainer = viewChild<ElementRef<HTMLDivElement>>('itemsScrollContainer');
+
+  readonly cartOverflows = signal(false);
+  private itemsResizeObserver: ResizeObserver | null = null;
 
   // ── Computed signals for template ──
   readonly isPartiallyPaid = computed(() => this.state.invoice()?.status === 'PartiallyPaid');
@@ -199,7 +203,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.walletEffectCleanup = this.createWalletEffect();
 
     // Scale success amount text to fit container after each render (like Lit's updated())
-    afterEveryRender(() => this.scaleSuccessAmount());
+    afterEveryRender(() => {
+      this.scaleSuccessAmount();
+      this.observeCartOverflow();
+    });
   }
 
   // ── Lifecycle ──
@@ -236,6 +243,24 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (this.walletEffectCleanup) {
       this.walletEffectCleanup();
     }
+    this.itemsResizeObserver?.disconnect();
+    this.itemsResizeObserver = null;
+  }
+
+  private observeCartOverflow(): void {
+    const el = this.itemsScrollContainer()?.nativeElement;
+    if (!el) {
+      this.itemsResizeObserver?.disconnect();
+      this.itemsResizeObserver = null;
+      this.cartOverflows.set(false);
+      return;
+    }
+    this.cartOverflows.set(el.scrollHeight > el.clientHeight);
+    if (this.itemsResizeObserver) return;
+    this.itemsResizeObserver = new ResizeObserver(() => {
+      this.ngZone.run(() => this.cartOverflows.set(el.scrollHeight > el.clientHeight));
+    });
+    this.itemsResizeObserver.observe(el);
   }
 
   // ── Wallet connection effect ──

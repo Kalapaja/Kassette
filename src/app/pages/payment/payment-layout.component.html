@@ -496,23 +496,33 @@
         >
           {{ ts.t('order.yourOrder') }}
         </div>
-        <div class="flex flex-col gap-2.5">
-          <ng-content select="[slot=items]" />
-          @for (item of items; track item.name) {
-            <kp-order-item
-              [name]="item.name"
-              [description]="item.description || ''"
-              [quantity]="item.quantity"
-              [price]="item.price"
-              [discount]="item.discount ?? 0"
-              [tax]="item.tax ?? 0"
-              [currency]="item.currency"
-              [showImage]="showItemImages"
-            >
-              @if (item.image) {
-                <img slot="image" [src]="item.image" [alt]="item.name" />
-              }
-            </kp-order-item>
+        <div class="xl:relative">
+          <div
+            #itemsScrollContainer
+            class="flex flex-col gap-2.5 xl:max-h-[50vh] xl:overflow-y-auto xl:pb-[30px]"
+          >
+            <ng-content select="[slot=items]" />
+            @for (item of items; track item.name) {
+              <kp-order-item
+                [name]="item.name"
+                [description]="item.description || ''"
+                [quantity]="item.quantity"
+                [price]="item.price"
+                [discount]="item.discount ?? 0"
+                [tax]="item.tax ?? 0"
+                [currency]="item.currency"
+                [showImage]="showItemImages"
+              >
+                @if (item.image) {
+                  <img slot="image" [src]="item.image" [alt]="item.name" />
+                }
+              </kp-order-item>
+            }
+          </div>
+          @if (cartOverflows()) {
+            <div
+              class="pointer-events-none absolute inset-x-0 bottom-0 h-[30px] bg-linear-to-t from-fill-primary to-transparent hidden xl:block"
+            ></div>
           }
         </div>
         @if (shipping()) {
