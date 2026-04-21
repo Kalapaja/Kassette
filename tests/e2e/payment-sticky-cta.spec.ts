@@ -169,12 +169,11 @@ test.describe('Sticky CTA across breakpoints', () => {
   });
 
   test('xl fade gate: fade absent when items fit (1-item cart)', async ({ page }) => {
-    // mock_cart_size=1 is honored by both the MSW dev mock and the Playwright
-    // route handler below, so the test works against `pnpm dev` and the
-    // production E2E build alike.
-    await page.route(/\/public\/invoice/, (route) => {
-      const url = new URL(route.request().url());
-      const n = parseInt(url.searchParams.get('mock_cart_size') ?? '7', 10);
+    // Dual channel: `mock_cart_size=1` on the page URL is honored by the
+    // MSW dev mock (local `pnpm dev`); the Playwright route below hardcodes
+    // the same size for the production E2E build where MSW is absent.
+    const cartSize = 1;
+    await page.route(/\/public\/invoice/, (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -182,15 +181,17 @@ test.describe('Sticky CTA across breakpoints', () => {
           ...MOCK_INVOICE_RESPONSE,
           invoice: {
             ...MOCK_INVOICE_RESPONSE.invoice,
-            cart: { items: MOCK_INVOICE_RESPONSE.invoice.cart.items.slice(0, n) },
+            cart: {
+              items: MOCK_INVOICE_RESPONSE.invoice.cart.items.slice(0, cartSize),
+            },
           },
         }),
-      });
-    });
+      }),
+    );
     await page.setViewportSize({ width: 1400, height: 700 });
-    await page.goto(`${INVOICE_URL}&mock_cart_size=1`);
+    await page.goto(`${INVOICE_URL}&mock_cart_size=${cartSize}`);
     await expect(page.getByText(`ORDER ${MOCK_INVOICE_ID}`)).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('kp-order-item')).toHaveCount(1);
+    await expect(page.locator('kp-order-item')).toHaveCount(cartSize);
     await expect(page.locator('.pointer-events-none.absolute.bg-linear-to-t')).toHaveCount(0);
   });
 
