@@ -247,18 +247,31 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.itemsResizeObserver = null;
   }
 
+  private setCartOverflows(next: boolean): void {
+    if (this.cartOverflows() !== next) this.cartOverflows.set(next);
+  }
+
+  private measureCartOverflow(el: HTMLElement): boolean {
+    // Subtract the reserved bottom padding so an empty scroll area
+    // (items fit exactly) doesn't register as overflowing.
+    const paddingBottom = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+    return el.scrollHeight - paddingBottom > el.clientHeight;
+  }
+
   private observeCartOverflow(): void {
     const el = this.itemsScrollContainer()?.nativeElement;
     if (!el) {
       this.itemsResizeObserver?.disconnect();
       this.itemsResizeObserver = null;
-      this.cartOverflows.set(false);
+      this.setCartOverflows(false);
       return;
     }
-    this.cartOverflows.set(el.scrollHeight > el.clientHeight);
+    this.setCartOverflows(this.measureCartOverflow(el));
     if (this.itemsResizeObserver) return;
-    this.itemsResizeObserver = new ResizeObserver(() => {
-      this.ngZone.run(() => this.cartOverflows.set(el.scrollHeight > el.clientHeight));
+    const ResizeObserverCtor = globalThis.ResizeObserver;
+    if (!ResizeObserverCtor) return;
+    this.itemsResizeObserver = new ResizeObserverCtor(() => {
+      this.ngZone.run(() => this.setCartOverflows(this.measureCartOverflow(el)));
     });
     this.itemsResizeObserver.observe(el);
   }

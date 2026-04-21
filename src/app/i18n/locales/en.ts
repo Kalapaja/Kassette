@@ -77,6 +77,7 @@ export const en = {
   'aria.balance': 'balance',
   'aria.value': 'value',
   'aria.languageSwitcher': 'Language',
+  'aria.orderItems': 'Order items',
 
   // -- Recovery --
   'recovery.pendingFound': 'Previous payment attempt found',

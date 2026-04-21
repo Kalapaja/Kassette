@@ -500,6 +500,9 @@
           <div
             #itemsScrollContainer
             class="flex flex-col gap-2.5 xl:max-h-[50vh] xl:overflow-y-auto xl:pb-[30px]"
+            [attr.tabindex]="cartOverflows() ? 0 : null"
+            [attr.role]="cartOverflows() ? 'region' : null"
+            [attr.aria-label]="cartOverflows() ? ts.t('aria.orderItems') : null"
           >
             <ng-content select="[slot=items]" />
             @for (item of items; track item.name) {

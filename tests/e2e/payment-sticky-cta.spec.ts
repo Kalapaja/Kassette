@@ -162,6 +162,38 @@ test.describe('Sticky CTA across breakpoints', () => {
     await expect(layout).toHaveCSS('display', 'flex');
   });
 
+  test('xl fade gate: fade visible when items overflow (7-item cart)', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await renderPayment(page);
+    await expect(page.locator('.pointer-events-none.absolute.bg-linear-to-t')).toHaveCount(1);
+  });
+
+  test('xl fade gate: fade absent when items fit (1-item cart)', async ({ page }) => {
+    // mock_cart_size=1 is honored by both the MSW dev mock and the Playwright
+    // route handler below, so the test works against `pnpm dev` and the
+    // production E2E build alike.
+    await page.route(/\/public\/invoice/, (route) => {
+      const url = new URL(route.request().url());
+      const n = parseInt(url.searchParams.get('mock_cart_size') ?? '7', 10);
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...MOCK_INVOICE_RESPONSE,
+          invoice: {
+            ...MOCK_INVOICE_RESPONSE.invoice,
+            cart: { items: MOCK_INVOICE_RESPONSE.invoice.cart.items.slice(0, n) },
+          },
+        }),
+      });
+    });
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await page.goto(`${INVOICE_URL}&mock_cart_size=1`);
+    await expect(page.getByText(`ORDER ${MOCK_INVOICE_ID}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('kp-order-item')).toHaveCount(1);
+    await expect(page.locator('.pointer-events-none.absolute.bg-linear-to-t')).toHaveCount(0);
+  });
+
   test('sticky wrapper is opaque and layered above scrolled items', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await renderPayment(page);

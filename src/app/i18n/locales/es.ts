@@ -66,6 +66,7 @@ export const es: Record<keyof typeof en, string> = {
   'aria.balance': 'saldo',
   'aria.value': 'valor',
   'aria.languageSwitcher': 'Idioma',
+  'aria.orderItems': 'Artículos del pedido',
 
   'recovery.pendingFound': 'Se encontro un intento de pago anterior',
   'recovery.doubleChargeWarning':
