@@ -122,6 +122,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   // ── Template view children ──
   searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   successAmount = viewChild<ElementRef<HTMLElement>>('successAmount');
+  itemsScrollContainer = viewChild<ElementRef<HTMLDivElement>>('itemsScrollContainer');
+
+  readonly cartOverflows = signal(false);
+  private itemsResizeObserver: ResizeObserver | null = null;
 
   // ── Computed signals for template ──
   readonly isPartiallyPaid = computed(() => this.state.invoice()?.status === 'PartiallyPaid');
@@ -199,7 +203,10 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     this.walletEffectCleanup = this.createWalletEffect();
 
     // Scale success amount text to fit container after each render (like Lit's updated())
-    afterEveryRender(() => this.scaleSuccessAmount());
+    afterEveryRender(() => {
+      this.scaleSuccessAmount();
+      this.observeCartOverflow();
+    });
   }
 
   // ── Lifecycle ──
@@ -236,6 +243,37 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (this.walletEffectCleanup) {
       this.walletEffectCleanup();
     }
+    this.itemsResizeObserver?.disconnect();
+    this.itemsResizeObserver = null;
+  }
+
+  private setCartOverflows(next: boolean): void {
+    if (this.cartOverflows() !== next) this.cartOverflows.set(next);
+  }
+
+  private measureCartOverflow(el: HTMLElement): boolean {
+    // Subtract the reserved bottom padding so an empty scroll area
+    // (items fit exactly) doesn't register as overflowing.
+    const paddingBottom = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+    return el.scrollHeight - paddingBottom > el.clientHeight;
+  }
+
+  private observeCartOverflow(): void {
+    const el = this.itemsScrollContainer()?.nativeElement;
+    if (!el) {
+      this.itemsResizeObserver?.disconnect();
+      this.itemsResizeObserver = null;
+      this.setCartOverflows(false);
+      return;
+    }
+    this.setCartOverflows(this.measureCartOverflow(el));
+    if (this.itemsResizeObserver) return;
+    const ResizeObserverCtor = globalThis.ResizeObserver;
+    if (!ResizeObserverCtor) return;
+    this.itemsResizeObserver = new ResizeObserverCtor(() => {
+      this.ngZone.run(() => this.setCartOverflows(this.measureCartOverflow(el)));
+    });
+    this.itemsResizeObserver.observe(el);
   }
 
   // ── Wallet connection effect ──

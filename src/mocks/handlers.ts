@@ -153,11 +153,25 @@ export const handlers = [
   /**
    * GET /public/invoice/:invoiceId — returns the mock invoice
    * with the current (possibly overridden) status.
+   *
+   * `?mock_cart_size=N` (read from the page URL) caps the cart to the
+   * first N items — useful for exercising layout that depends on cart overflow.
    */
   http.get('/public/invoice', () => {
+    const pageParams = new URLSearchParams(globalThis.location?.search ?? '');
+    const rawCartSize = pageParams.get('mock_cart_size');
+    const cartSize = rawCartSize ? Math.max(0, parseInt(rawCartSize, 10) || 0) : undefined;
+    const items =
+      cartSize !== undefined
+        ? MOCK_INVOICE.invoice.cart.items.slice(0, cartSize)
+        : MOCK_INVOICE.invoice.cart.items;
     return HttpResponse.json({
       ...MOCK_INVOICE,
-      invoice: { ...MOCK_INVOICE.invoice, status: mockInvoiceStatus },
+      invoice: {
+        ...MOCK_INVOICE.invoice,
+        status: mockInvoiceStatus,
+        cart: { ...MOCK_INVOICE.invoice.cart, items },
+      },
       total_received_amount: mockTotalReceivedAmount,
     });
   }),

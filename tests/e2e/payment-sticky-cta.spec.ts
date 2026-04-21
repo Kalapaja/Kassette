@@ -105,7 +105,9 @@ test.describe('Sticky CTA across breakpoints', () => {
     await expectCtaStuckToBottom(page);
   });
 
-  test('desktop xl (1400x700): two-column layout, CTA sticky in right column', async ({ page }) => {
+  test('desktop xl (1400x700): two-column layout, CTA sticky and items have internal scroll', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1400, height: 700 });
     await renderPayment(page);
 
@@ -119,6 +121,22 @@ test.describe('Sticky CTA across breakpoints', () => {
     expect(layout.flexDirection).toBe('row');
     expect(layout.children).toBe(2);
 
+    // Items list has its own internal scroll container (max-height + overflow-y).
+    const itemsScroll = await page.evaluate(() => {
+      const firstItem = document.querySelector<HTMLElement>('kp-order-item');
+      const container = firstItem?.parentElement;
+      if (!container) return null;
+      const cs = getComputedStyle(container);
+      return {
+        overflowY: cs.overflowY,
+        scrollable: container.scrollHeight > container.clientHeight,
+      };
+    });
+    expect(itemsScroll, 'items container must exist').not.toBeNull();
+    expect(['auto', 'scroll']).toContain(itemsScroll!.overflowY);
+    expect(itemsScroll!.scrollable, 'items must overflow at xl with 7 items').toBe(true);
+
+    // CTA wrapper stays stuck to the viewport bottom so the pay button is never cut off.
     await expectCtaStuckToBottom(page);
     await page.evaluate(() => window.scrollBy(0, 300));
     await expectCtaStuckToBottom(page);
@@ -142,6 +160,39 @@ test.describe('Sticky CTA across breakpoints', () => {
 
     await page.setViewportSize({ width: 1200, height: 800 });
     await expect(layout).toHaveCSS('display', 'flex');
+  });
+
+  test('xl fade gate: fade visible when items overflow (7-item cart)', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await renderPayment(page);
+    await expect(page.locator('.pointer-events-none.absolute.bg-linear-to-t')).toHaveCount(1);
+  });
+
+  test('xl fade gate: fade absent when items fit (1-item cart)', async ({ page }) => {
+    // Dual channel: `mock_cart_size=1` on the page URL is honored by the
+    // MSW dev mock (local `pnpm dev`); the Playwright route below hardcodes
+    // the same size for the production E2E build where MSW is absent.
+    const cartSize = 1;
+    await page.route(/\/public\/invoice/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...MOCK_INVOICE_RESPONSE,
+          invoice: {
+            ...MOCK_INVOICE_RESPONSE.invoice,
+            cart: {
+              items: MOCK_INVOICE_RESPONSE.invoice.cart.items.slice(0, cartSize),
+            },
+          },
+        }),
+      }),
+    );
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await page.goto(`${INVOICE_URL}&mock_cart_size=${cartSize}`);
+    await expect(page.getByText(`ORDER ${MOCK_INVOICE_ID}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('kp-order-item')).toHaveCount(cartSize);
+    await expect(page.locator('.pointer-events-none.absolute.bg-linear-to-t')).toHaveCount(0);
   });
 
   test('sticky wrapper is opaque and layered above scrolled items', async ({ page }) => {
