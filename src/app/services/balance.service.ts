@@ -1,5 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { createPublicClient, erc20Abi, http, type PublicClient } from 'viem';
 
 import { isNativeAddress } from '@/app/config/address.utils';
@@ -12,9 +14,12 @@ import {
   type AnkrJsonRpcResponse,
 } from '@/app/config/ankr';
 import type { ChainConfig } from '@/app/config/chains';
+import { getReownRpcUrl } from '@/app/config/rpc';
+import { SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { ChainService } from '@/app/services/chain.service';
+import { WalletStateService } from '@/app/services/wallet-state.service';
 import { firstValueFrom, TimeoutError, timeout } from 'rxjs';
 
 const MAX_CONCURRENCY = 2;
@@ -23,8 +28,17 @@ const MAX_CONCURRENCY = 2;
 export class BalanceService {
   private readonly http = inject(HttpClient);
   private readonly chainService = inject(ChainService);
+  private readonly walletState = inject(WalletStateService);
   private _clients: Map<number, PublicClient> = new Map();
+  private _solanaConnection: Connection | null = null;
   private _cache: Map<string, bigint> = new Map();
+
+  /** Raw lamport balance of the connected Solana wallet (0n if unknown). */
+  private _solanaLamports = 0n;
+
+  getSolanaLamports(): bigint {
+    return this._solanaLamports;
+  }
 
   private _getOrCreateClient(chainId: number): PublicClient | undefined {
     let client = this._clients.get(chainId);
@@ -53,14 +67,27 @@ export class BalanceService {
   ): Promise<Map<string, bigint>> {
     const results = new Map<string, bigint>();
 
-    // Split tokens: Ankr-supported chains vs Unichain
-    const unichainTokens = tokens.filter((t) => t.chainId === UNICHAIN_CHAIN_ID);
+    // Split tokens by namespace
+    const solanaTokens = tokens.filter((t) => t.chainId === SOLANA_CHAIN_ID);
+    const evmTokens = tokens.filter((t) => t.chainId !== SOLANA_CHAIN_ID);
 
-    // Run Ankr + Unichain RPC in parallel
-    const [ankrResult, unichainResult] = await Promise.allSettled([
-      this._fetchViaAnkr(userAddress, tokens),
+    // Split EVM tokens: Ankr-supported chains vs Unichain
+    const unichainTokens = evmTokens.filter((t) => t.chainId === UNICHAIN_CHAIN_ID);
+
+    // Run Ankr + Unichain RPC + Solana in parallel
+    const [ankrResult, unichainResult, solanaResult] = await Promise.allSettled([
+      this._fetchViaAnkr(userAddress, evmTokens),
       this._fetchChainViaRpc(UNICHAIN_CHAIN_ID, userAddress, unichainTokens),
+      this._fetchSolanaBalances(this.walletState.solanaAddress(), solanaTokens),
     ]);
+
+    if (solanaResult.status === 'fulfilled') {
+      for (const [key, value] of solanaResult.value) {
+        results.set(key, value);
+      }
+    } else {
+      console.warn('[BalanceService] Solana fetch failed:', solanaResult.reason);
+    }
 
     // Merge Unichain results (always from RPC)
     if (unichainResult.status === 'fulfilled') {
@@ -75,12 +102,12 @@ export class BalanceService {
         results.set(key, value);
       }
     } else {
-      // Ankr failed — fall back to per-chain RPC for all non-Unichain chains
+      // Ankr failed — fall back to per-chain RPC for EVM chains except Unichain
       console.warn(
         '[BalanceService] Ankr API failed, falling back to per-chain RPC:',
         ankrResult.reason,
       );
-      const rpcTokens = tokens.filter((t) => t.chainId !== UNICHAIN_CHAIN_ID);
+      const rpcTokens = evmTokens.filter((t) => t.chainId !== UNICHAIN_CHAIN_ID);
       const fallbackResults = await this._fetchAllViaRpc(userAddress, rpcTokens);
       for (const [key, value] of fallbackResults) {
         results.set(key, value);
@@ -233,7 +260,7 @@ export class BalanceService {
   ): Promise<void> {
     const contracts = tokens.map((token) => ({
       abi: erc20Abi,
-      address: token.address,
+      address: token.address as `0x${string}`,
       functionName: 'balanceOf' as const,
       args: [userAddress] as const,
     }));
@@ -252,6 +279,68 @@ export class BalanceService {
     }
   }
 
+  private _getSolanaConnection(): Connection {
+    this._solanaConnection ??= new Connection(getReownRpcUrl(SOLANA_CHAIN_ID), 'confirmed');
+    return this._solanaConnection;
+  }
+
+  private async _fetchSolanaBalances(
+    owner: string | undefined,
+    tokens: TokenConfig[],
+  ): Promise<Map<string, bigint>> {
+    const results = new Map<string, bigint>();
+    if (!owner || tokens.length === 0) {
+      this._solanaLamports = 0n;
+      return results;
+    }
+
+    let ownerPk: PublicKey;
+    try {
+      ownerPk = new PublicKey(owner);
+    } catch (err) {
+      console.warn('[Solana] invalid owner pubkey, skipping balance fetch:', err);
+      return results;
+    }
+
+    const connection = this._getSolanaConnection();
+
+    const [lamportsResult, parsedResult] = await Promise.allSettled([
+      connection.getBalance(ownerPk, 'confirmed'),
+      connection.getParsedTokenAccountsByOwner(ownerPk, { programId: TOKEN_PROGRAM_ID }),
+    ]);
+
+    const lamports = lamportsResult.status === 'fulfilled' ? BigInt(lamportsResult.value) : 0n;
+    this._solanaLamports = lamports;
+
+    // Build a mint → amount map from the parsed accounts.
+    const mintToAmount = new Map<string, bigint>();
+    if (parsedResult.status === 'fulfilled') {
+      for (const entry of parsedResult.value.value) {
+        const info = entry.account.data.parsed?.info;
+        const mint: string | undefined = info?.mint;
+        const amountStr: string | undefined = info?.tokenAmount?.amount;
+        if (!mint || !amountStr) continue;
+        // If the same mint appears across multiple accounts, accumulate.
+        const prev = mintToAmount.get(mint) ?? 0n;
+        mintToAmount.set(mint, prev + BigInt(amountStr));
+      }
+    } else {
+      console.warn('[Solana] getParsedTokenAccountsByOwner failed:', parsedResult.reason);
+    }
+
+    for (const token of tokens) {
+      const key = getTokenKey(SOLANA_CHAIN_ID, token.address);
+      if (token.address === WSOL_MINT) {
+        // WSOL catalog entry represents native SOL spendable balance.
+        results.set(key, lamports);
+      } else {
+        results.set(key, mintToAmount.get(token.address) ?? 0n);
+      }
+    }
+
+    return results;
+  }
+
   getCachedBalances(): Map<string, bigint> {
     return new Map(this._cache);
   }
@@ -262,6 +351,8 @@ export class BalanceService {
 
   destroy(): void {
     this._clients.clear();
+    this._solanaConnection = null;
+    this._solanaLamports = 0n;
     this._cache.clear();
   }
 }

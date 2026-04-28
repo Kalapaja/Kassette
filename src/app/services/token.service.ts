@@ -4,7 +4,8 @@ import { firstValueFrom } from 'rxjs';
 
 import { ACROSS_API_BASE_URL, POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { normalizeAddress } from '@/app/config/address.utils';
-import type { TokenConfig } from '@/app/config/tokens';
+import { SOLANA_CHAIN_ID } from '@/app/config/solana';
+import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 
 interface AcrossTokenResponse {
   address: string;
@@ -39,7 +40,8 @@ export class TokenService {
       );
 
       this._tokens = data.map((t) => {
-        const address = normalizeAddress(t.address);
+        // Solana mints are base58 and case-sensitive — never lowercase them.
+        const address = t.chainId === SOLANA_CHAIN_ID ? t.address : normalizeAddress(t.address);
 
         return {
           chainId: t.chainId,
@@ -83,9 +85,8 @@ export class TokenService {
     return this._tokens.filter((t) => t.chainId === chainId);
   }
 
-  findToken(chainId: number, address: `0x${string}`): TokenConfig | undefined {
-    const normalized = normalizeAddress(address).toLowerCase();
-    const key = `${chainId}:${normalized}`;
-    return this._tokens.find((t) => `${t.chainId}:${t.address.toLowerCase()}` === key);
+  findToken(chainId: number, address: string): TokenConfig | undefined {
+    const key = getTokenKey(chainId, address);
+    return this._tokens.find((t) => getTokenKey(t.chainId, t.address) === key);
   }
 }

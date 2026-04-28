@@ -1,5 +1,6 @@
-import { Injectable, OnDestroy } from '@angular/core';
+import { inject, Injectable, OnDestroy } from '@angular/core';
 import { createAppKit } from '@reown/appkit';
+import { SolanaAdapter } from '@reown/appkit-adapter-solana';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import {
   mainnet,
@@ -10,17 +11,28 @@ import {
   base,
   linea,
   unichain,
+  solana,
 } from '@reown/appkit/networks';
 import type { AppKit } from '@reown/appkit';
 import type { Config } from '@wagmi/core';
 import { disconnect as wagmiDisconnect } from '@wagmi/core';
 
+import { WalletStateService } from '@/app/services/wallet-state.service';
+
+interface OpenOptions {
+  namespace?: 'eip155' | 'solana';
+}
+
 @Injectable({ providedIn: 'root' })
 export class AppKitService implements OnDestroy {
   private appKit: AppKit | null = null;
   private wagmiAdapter: WagmiAdapter | null = null;
+  private solanaAdapter: SolanaAdapter | null = null;
   private _wagmiConfig: Config | null = null;
   private initializedProjectId: string | null = null;
+  private unsubscribeSolanaAccount: (() => void) | null = null;
+
+  private walletState = inject(WalletStateService);
 
   /**
    * Returns the wagmi Config object created by the WagmiAdapter.
@@ -28,6 +40,14 @@ export class AppKitService implements OnDestroy {
    */
   get wagmiConfig(): Config | null {
     return this._wagmiConfig;
+  }
+
+  /**
+   * Get the underlying AppKit instance. Null until `init()` is called.
+   * Exposed so services can call `subscribeAccount`, `getProvider`, etc.
+   */
+  getAppKit(): AppKit | null {
+    return this.appKit;
   }
 
   /**
@@ -52,17 +72,36 @@ export class AppKitService implements OnDestroy {
     }
 
     try {
-      const networks = [mainnet, polygon, bsc, arbitrum, optimism, base, linea, unichain] as const;
+      const networks = [
+        mainnet,
+        polygon,
+        bsc,
+        arbitrum,
+        optimism,
+        base,
+        linea,
+        unichain,
+        solana,
+      ] as const;
 
       this.wagmiAdapter = new WagmiAdapter({
         projectId,
-        networks: [...networks],
+        networks: [mainnet, polygon, bsc, arbitrum, optimism, base, linea, unichain],
       });
 
       this._wagmiConfig = this.wagmiAdapter.wagmiConfig;
 
+      try {
+        this.solanaAdapter = new SolanaAdapter({});
+      } catch (err) {
+        console.warn('[AppKitService] Solana adapter failed to initialize:', err);
+        this.solanaAdapter = null;
+      }
+
       this.appKit = createAppKit({
-        adapters: [this.wagmiAdapter],
+        adapters: this.solanaAdapter
+          ? [this.wagmiAdapter, this.solanaAdapter]
+          : [this.wagmiAdapter],
         projectId,
         networks: [...networks],
         metadata: {
@@ -88,6 +127,20 @@ export class AppKitService implements OnDestroy {
       });
 
       this.initializedProjectId = projectId;
+
+      if (this.solanaAdapter) {
+        try {
+          this.unsubscribeSolanaAccount = this.appKit.subscribeAccount((state) => {
+            this.walletState.setSolanaAccount({
+              address: state.address,
+              isConnected: state.isConnected,
+              status: state.status,
+            });
+          }, 'solana');
+        } catch (err) {
+          console.warn('[AppKitService] Failed to subscribe to Solana account:', err);
+        }
+      }
     } catch (error) {
       console.error('[AppKitService] Failed to initialize:', error);
       this.initializedProjectId = null;
@@ -95,12 +148,14 @@ export class AppKitService implements OnDestroy {
   }
 
   /** Open the Reown AppKit wallet-connect modal. */
-  openModal(): void {
+  openModal(options?: OpenOptions): void {
     if (!this.appKit) {
       console.warn('[AppKitService] AppKit not initialized');
       return;
     }
-    this.appKit.open();
+    this.appKit.open(options ? { namespace: options.namespace } : undefined).catch((err) => {
+      console.warn('[AppKitService] open modal failed:', err);
+    });
   }
 
   /** Disconnect the wallet via both AppKit and wagmi. */
@@ -111,6 +166,7 @@ export class AppKitService implements OnDestroy {
     if (this._wagmiConfig) {
       await wagmiDisconnect(this._wagmiConfig);
     }
+    this.walletState.setSolanaAccount(null);
   }
 
   /** Tear down the AppKit instance and release resources. */
@@ -123,12 +179,22 @@ export class AppKitService implements OnDestroy {
   }
 
   private cleanup(): void {
+    if (this.unsubscribeSolanaAccount) {
+      try {
+        this.unsubscribeSolanaAccount();
+      } catch {
+        // ignore
+      }
+      this.unsubscribeSolanaAccount = null;
+    }
     if (this.appKit) {
       this.appKit.disconnect().catch(() => {});
       this.appKit = null;
     }
     this.wagmiAdapter = null;
+    this.solanaAdapter = null;
     this._wagmiConfig = null;
     this.initializedProjectId = null;
+    this.walletState.setSolanaAccount(null);
   }
 }

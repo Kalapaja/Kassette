@@ -47,7 +47,20 @@ URL: `http://localhost:3001/?scenario=partial`
 2. Polling resolves with "Partial payment received. Please contact support."
 3. No retry button (non-recoverable state)
 
-### 4. Swap Expired
+### 4. Solana Source (manual QA, requires real wallet)
+
+URL: `http://localhost:3001/?scenario=happy`
+
+1. Install a Solana wallet extension (Phantom, Solflare, Backpack) with a funded devnet or mainnet account holding an SPL token that is also in the Across catalog (e.g. USDC on Solana).
+2. Open the wallet-connect modal — Solana wallets appear alongside EVM options.
+3. Connect the Solana wallet. EVM wallet (if any) should **not** disconnect — both sessions coexist.
+4. Token list: Solana SPL and WSOL entries appear with real balances fetched via the Reown Blockchain API.
+5. Select a Solana token that has enough balance and enough SOL (≥0.003) to cover fees. Tokens failing either check show as dimmed with the reason.
+6. Quote arrives from the MSW mock (`POST /public/swap/create` with `from_chain_id: 34268394551451`). Note: the mock returns a placeholder base64 transaction — the wallet will reject it on sign. For true end-to-end testing, run against a real Kalatori daemon on `develop`.
+7. While sitting on `ready-to-pay`, wait 45 s and watch the network tab — a silent `POST /public/swap/create` refresh fires. The UI does not flicker.
+8. Click Pay — the latest quote is used, not the stale one.
+
+### 5. Swap Expired
 
 URL: `http://localhost:3001/?scenario=swap-expired`
 

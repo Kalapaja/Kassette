@@ -60,6 +60,7 @@ import {
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
 import { getTokenKey } from '@/app/config/tokens';
+import { SOLANA_CHAIN_ID, SOLANA_MIN_FEE_LAMPORTS, WSOL_MINT } from '@/app/config/solana';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
@@ -342,6 +343,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (this.layout.isDesktop()) return;
     const step = this.state.currentStep();
     if (step === 'token-select' || step === 'ready-to-pay' || step === 'quoting') {
+      this.quoteService.stopRefresh();
       this.state.resetTokenSelection();
     }
   }
@@ -349,6 +351,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   async onDisconnect(): Promise<void> {
     this.state.searchQuery.set('');
     this.state.searching.set(false);
+    this.quoteService.stopRefresh();
     await this.appKit.disconnect();
   }
 
@@ -529,6 +532,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (!invoice) return [];
     const usdAmount = parseFloat(getRemainingAmount(invoice));
     const locale = this.ts.locale();
+    const solanaLamports = this.balanceService.getSolanaLamports();
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
@@ -548,11 +552,15 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       const balanceHuman = formatUnits(balance, token.decimals);
       const balanceFormatted = parseFloat(balanceHuman).toFixed(precision);
 
+      const hasEnoughBalance = balance >= requiredAmount;
+      const isSolanaSpl = token.chainId === SOLANA_CHAIN_ID && token.address !== WSOL_MINT;
+      const insufficientForFees = isSolanaSpl && solanaLamports < SOLANA_MIN_FEE_LAMPORTS;
+
       options.push({
         chainId: token.chainId,
         chainName: chain.name,
         chainLogoUrl: chain.logoUrl,
-        tokenAddress: token.address,
+        tokenAddress: token.address as `0x${string}`,
         symbol: token.symbol,
         decimals: token.decimals,
         logoUrl: token.logoUrl,
@@ -560,7 +568,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         requiredAmount: requiredHuman,
         balance,
         balanceHuman: balanceFormatted,
-        sufficient: balance >= requiredAmount,
+        sufficient: hasEnoughBalance && !insufficientForFees,
+        insufficientForFees: insufficientForFees || undefined,
         fiatParts: formatFiat(parseFloat(requiredHuman) * price, locale),
         valueParts: formatFiat(parseFloat(balanceFormatted) * price, locale),
       });
@@ -760,8 +769,14 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private async executeSwap(): Promise<void> {
-    const quote = this.state.quote()!;
+    // Prefer the in-memory refreshed quote (Solana background refresh may have
+    // replaced the state snapshot with a newer one). Fall back to state.
+    const liveQuote = this.quoteService.currentQuote();
+    const quote = liveQuote ?? this.state.quote()!;
     const swap = quote.swap!;
+
+    // Stop any running Solana refresh once we've committed to executing.
+    this.quoteService.stopRefresh();
 
     if (isZeroExSwap(swap)) {
       await this.executeZeroExSwap(swap);
@@ -858,6 +873,21 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   ): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
+    const selectedChainId = this.state.selectedChainId()!;
+
+    // Solana-source Across swap: no ERC-20 approvals, sign+send via AppKit Solana.
+    if (selectedChainId === SOLANA_CHAIN_ID) {
+      this.state.transition('executing');
+      const signature = await this.swapService.executeAcrossSolana(
+        details.raw_transaction.transaction,
+      );
+      this.state.txHash.set(signature);
+      await this.swapService.submitSwapTransaction(swap.id, signature);
+      this.state.transition('polling');
+      this.startPolling(invoiceId);
+      return;
+    }
+
     const isNative = isNativeAddress(this.state.selectedTokenAddress()!);
 
     // Native tokens don't need ERC-20 approval
@@ -871,7 +901,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     this.state.txHash.set(txHash);
 
-    const selectedChainId = this.state.selectedChainId()!;
     const receipt = await waitForTransactionReceipt(this.appKit.wagmiConfig!, {
       hash: txHash as Hash,
       chainId: selectedChainId,
@@ -1001,7 +1030,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private resolveTokenLogo(chainId: number, tokenAddress: string): string {
-    const token = this.tokenService.findToken(chainId, tokenAddress as `0x${string}`);
+    const token = this.tokenService.findToken(chainId, tokenAddress);
     return token?.logoUrl ?? '';
   }
 

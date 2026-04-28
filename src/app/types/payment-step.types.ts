@@ -85,6 +85,11 @@ export interface TokenOption {
   balance: bigint;
   balanceHuman: string;
   sufficient: boolean;
+  /**
+   * True when the payer does not hold enough native gas/fee token to submit
+   * the transaction. For Solana SPL tokens this means SOL < min fee lamports.
+   */
+  insufficientForFees?: boolean;
   fiatParts: FiatParts;
   valueParts: FiatParts;
 }
