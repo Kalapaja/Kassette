@@ -153,19 +153,29 @@ export class AppKitService implements OnDestroy {
       console.warn('[AppKitService] AppKit not initialized');
       return;
     }
+    // Default to the Connect view so AppKit always shows the wallet picker
+    // instead of silently auto-reconnecting to the last-used WalletConnect
+    // pairing (which traps users on a disconnected wallet — e.g. asking for
+    // MetaMask after the user disconnected MetaMask and tried Phantom).
+    const openOptions = { view: 'Connect' as const, namespace: options?.namespace };
     // open() may return a Promise (newer AppKit) or void (older builds) —
     // wrap defensively so callers don't blow up on `.catch` against undefined.
-    Promise.resolve(this.appKit.open(options ? { namespace: options.namespace } : undefined)).catch(
-      (err) => {
-        console.warn('[AppKitService] open modal failed:', err);
-      },
-    );
+    Promise.resolve(this.appKit.open(openOptions)).catch((err) => {
+      console.warn('[AppKitService] open modal failed:', err);
+    });
   }
 
   /** Disconnect the wallet via both AppKit and wagmi. */
   async disconnect(): Promise<void> {
     if (this.appKit) {
       await this.appKit.disconnect();
+      // Wipe any cached WalletConnect pairing so the next open() lands on the
+      // wallet picker rather than auto-reconnecting to the previous wallet.
+      try {
+        this.appKit.resetWcConnection();
+      } catch (err) {
+        console.warn('[AppKitService] resetWcConnection failed:', err);
+      }
     }
     if (this._wagmiConfig) {
       await wagmiDisconnect(this._wagmiConfig);
