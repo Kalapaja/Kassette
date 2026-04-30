@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import type { Invoice } from '@/app/types/invoice.types';
 import { SOLANA_CHAIN_ID } from '@/app/config/solana';
+import { getTokenKey } from '@/app/config/tokens';
 import { WalletStateService } from '@/app/services/wallet-state.service';
 import {
   type PaymentStep,
@@ -131,9 +132,10 @@ export class PaymentStateService {
     const chainId = this.selectedChainId();
     const address = this.selectedTokenAddress();
     if (chainId === null || address === null) return undefined;
-    return this.tokens().find(
-      (t) => t.chainId === chainId && t.tokenAddress.toLowerCase() === address.toLowerCase(),
-    );
+    // Use namespace-aware key matching: Solana base58 mints are
+    // case-sensitive, EVM hex addresses are case-insensitive.
+    const target = getTokenKey(chainId, address);
+    return this.tokens().find((t) => getTokenKey(t.chainId, t.tokenAddress) === target);
   });
 
   /** True when an error is displayed. */

@@ -530,8 +530,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     await Promise.all([this.tokenService.ready, this.chainService.ready]);
     const allTokens = this.tokenService.getAllTokens();
 
-    // Only the active namespace's balances are fetched — EVM and Solana are
-    // mutually exclusive by product contract.
+    // Pass whichever account signals are populated. Multichain wallets
+    // (e.g. MetaMask Snap) can have both EVM and Solana sessions live; we
+    // pre-fetch both balance maps so switching the active namespace inside
+    // the wallet doesn't trigger a re-fetch round-trip. BalanceService skips
+    // the side without an address.
     const evmAddress = this.state.evmAccount()?.address as `0x${string}` | undefined;
     const solanaAddress = this.state.solanaAccount()?.address;
 
