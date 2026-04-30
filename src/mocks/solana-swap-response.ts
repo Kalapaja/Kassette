@@ -16,7 +16,9 @@ const MOCK_SOLANA_TX_BASE64 =
   'AQABAwEBAQECAgIDAwMAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 
 const MOCK_SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-const MOCK_SOLANA_OWNER = 'DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru';
+// Placeholder base58 owner — distinct from the spoke-pool below for readability.
+const MOCK_SOLANA_OWNER = '7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2';
+// Across SVM spoke-pool address (from `/api/suggested-fees` for Solana origin).
 const SVM_SPOKE_POOL = 'DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru';
 
 /**

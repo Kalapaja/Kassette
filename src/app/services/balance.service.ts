@@ -5,7 +5,7 @@ import { createPublicClient, erc20Abi, http, type PublicClient } from 'viem';
 
 import { isNativeAddress } from '@/app/config/address.utils';
 import { getReownRpcUrl } from '@/app/config/rpc';
-import { SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
+import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { WalletStateService } from '@/app/services/wallet-state.service';
@@ -229,7 +229,10 @@ export class BalanceService {
 
     for (const token of tokens) {
       const key = getTokenKey(SOLANA_CHAIN_ID, token.address);
-      if (token.address === WSOL_MINT) {
+      // Across exposes native SOL twice — as the System Program id and as
+      // WSOL. Both share the wallet's lamport balance; everything else is an
+      // SPL token account.
+      if (token.address === WSOL_MINT || token.address === SOL_NATIVE_ADDRESS) {
         results.set(key, lamports);
       } else {
         results.set(key, mintToAmount.get(token.address) ?? 0n);

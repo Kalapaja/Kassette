@@ -32,7 +32,7 @@ vi.mock('@solana/spl-token', () => ({
 
 import { BalanceService } from './balance.service';
 import { WalletStateService } from './wallet-state.service';
-import { SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
+import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 
 const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -100,6 +100,16 @@ describe('BalanceService — Solana', () => {
     expect(map.get(wsolKey)).toBe(5_000_000n);
     expect(map.get(usdcKey)).toBe(1_234_567n);
     expect(service.getSolanaLamports()).toBe(5_000_000n);
+  });
+
+  it('returns lamports for the native SOL catalog entry too (System Program id)', async () => {
+    getBalanceMock.mockResolvedValue(7_500_000);
+    getParsedTokenAccountsByOwnerMock.mockResolvedValue({ value: [] });
+
+    const tokens = [token({ address: SOL_NATIVE_ADDRESS, symbol: 'SOL', decimals: 9 })];
+
+    const map = await service.getBalances(EVM_USER, tokens);
+    expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOL_NATIVE_ADDRESS))).toBe(7_500_000n);
   });
 
   it('sums multiple SPL accounts sharing the same mint', async () => {
