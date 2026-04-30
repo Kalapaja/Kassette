@@ -56,7 +56,7 @@ describe('BalanceService', () => {
         .spyOn(service as unknown as RpcMethods, '_fetchAllViaRpc')
         .mockResolvedValue(new Map([[ethKey, 1000000000000000000n]]));
 
-      const results = await service.getBalances(USER_ADDRESS, [ethToken]);
+      const results = await service.getBalances({ evmAddress: USER_ADDRESS }, [ethToken]);
 
       expect(fetchAllViaRpc).toHaveBeenCalledWith(USER_ADDRESS, [ethToken]);
       expect(results.get(ethKey)).toBe(1000000000000000000n);
@@ -79,7 +79,10 @@ describe('BalanceService', () => {
         ]),
       );
 
-      const results = await service.getBalances(USER_ADDRESS, [ethToken, maticToken]);
+      const results = await service.getBalances({ evmAddress: USER_ADDRESS }, [
+        ethToken,
+        maticToken,
+      ]);
 
       expect(results.get(ethKey)).toBe(1000000000000000000n);
       expect(results.get(maticKey)).toBe(2000000000000000000n);
@@ -97,7 +100,7 @@ describe('BalanceService', () => {
         new Map([[unichainKey, 5000000000000000000n]]),
       );
 
-      const results = await service.getBalances(USER_ADDRESS, [unichainToken]);
+      const results = await service.getBalances({ evmAddress: USER_ADDRESS }, [unichainToken]);
 
       expect(results.get(unichainKey)).toBe(5000000000000000000n);
     });
@@ -112,7 +115,7 @@ describe('BalanceService', () => {
         new Map([[ethKey, 1000n]]),
       );
 
-      await service.getBalances(USER_ADDRESS, [ethToken]);
+      await service.getBalances({ evmAddress: USER_ADDRESS }, [ethToken]);
       expect(service.getCachedBalances().get(ethKey)).toBe(1000n);
     });
 
@@ -128,7 +131,7 @@ describe('BalanceService', () => {
         new Map([[ethKey, 1000n]]),
       );
 
-      await service.getBalances(USER_ADDRESS, [ethToken]);
+      await service.getBalances({ evmAddress: USER_ADDRESS }, [ethToken]);
       service.clearCache();
 
       expect(service.getCachedBalances().size).toBe(0);

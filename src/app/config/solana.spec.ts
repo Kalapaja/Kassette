@@ -12,6 +12,7 @@ describe('config/solana', () => {
 
     it('returns false for every configured EVM chain', () => {
       for (const chainId of Object.keys(DEFILLAMA_CHAIN_NAMES).map(Number)) {
+        if (chainId === SOLANA_CHAIN_ID) continue;
         expect(isSolanaChainId(chainId)).toBe(false);
       }
     });

@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { DEFILLAMA_CHAIN_NAMES } from '../config/chains';
+import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID } from '../config/solana';
 import { getTokenKey, NATIVE_TOKEN_ADDRESS } from '../config/tokens';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -18,6 +19,7 @@ const NATIVE_COINGECKO_IDS: Record<number, string> = {
   8453: 'coingecko:ethereum', // Base uses ETH
   59144: 'coingecko:ethereum', // Linea uses ETH
   130: 'coingecko:ethereum', // Unichain uses ETH
+  [SOLANA_CHAIN_ID]: 'coingecko:solana',
 };
 
 interface TokenRef {
@@ -43,8 +45,12 @@ export class PriceService {
       const chainName = DEFILLAMA_CHAIN_NAMES[token.chainId];
       if (!chainName) continue;
 
-      const addr = token.address.toLowerCase();
-      const isNative = addr === NATIVE_TOKEN_ADDRESS.toLowerCase() || addr === ZERO_ADDRESS;
+      const isSolana = token.chainId === SOLANA_CHAIN_ID;
+      // Solana mints are base58 and case-sensitive — never lowercase them.
+      const addr = isSolana ? token.address : token.address.toLowerCase();
+      const isNative = isSolana
+        ? addr === SOL_NATIVE_ADDRESS
+        : addr === NATIVE_TOKEN_ADDRESS.toLowerCase() || addr === ZERO_ADDRESS;
 
       if (isNative) {
         const cgKey = NATIVE_COINGECKO_IDS[token.chainId];
@@ -65,13 +71,14 @@ export class PriceService {
         continue;
       }
 
-      const coinKey = `${chainName}:${token.address}`;
-      const coinKeyLower = coinKey.toLowerCase();
-      if (seen.has(coinKeyLower)) continue;
-      seen.add(coinKeyLower);
+      // For Solana SPL tokens we keep base58 case so the response key matches.
+      const coinKey = `${chainName}:${isSolana ? token.address : token.address}`;
+      const seenKey = isSolana ? coinKey : coinKey.toLowerCase();
+      if (seen.has(seenKey)) continue;
+      seen.add(seenKey);
 
       coinKeys.push(coinKey);
-      keyToTokenKey.set(coinKeyLower, getTokenKey(token.chainId, token.address));
+      keyToTokenKey.set(seenKey, getTokenKey(token.chainId, token.address));
     }
 
     if (coinKeys.length === 0) return prices;
@@ -87,8 +94,9 @@ export class PriceService {
         continue;
       }
       for (const [coinKey, price] of result.value) {
-        // Check ERC-20 mapping
-        const tokenKey = keyToTokenKey.get(coinKey.toLowerCase());
+        // ERC-20: lookup is case-insensitive (we lowercased on insert).
+        // Solana SPL: lookup uses original case (base58 is case-sensitive).
+        const tokenKey = keyToTokenKey.get(coinKey.toLowerCase()) ?? keyToTokenKey.get(coinKey);
         if (tokenKey) {
           prices.set(tokenKey, price);
           continue;

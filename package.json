@@ -5,8 +5,8 @@
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "ng": "ng",
-    "dev": "ng serve",
-    "dev:no-mocks": "ng serve -c no-mocks",
+    "dev": "dotenv -- node scripts/dev.mjs",
+    "dev:no-mocks": "dotenv -- node scripts/dev.mjs -c no-mocks",
     "build": "ng build -c production && node -e \"const fs=require('fs'),p=require('path'),d='dist/browser';fs.readdirSync(d).filter(f=>/\\.(js|css)$/.test(f)).forEach(f=>fs.renameSync(p.join(d,f),p.join(d,'assets',f)))\"",
     "test": "ng test --no-watch",
     "test:coverage": "ng test --no-watch --coverage",
@@ -58,6 +58,7 @@
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.4",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.6.0",

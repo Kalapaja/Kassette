@@ -48,6 +48,24 @@ The current recovery scope for Solana is **partial**:
 - `PendingTxService.getSolanaStatus(signature)` maps `confirmationStatus` + `err` to `'confirmed' | 'pending' | 'failed'`.
 - Wiring Solana submit-time `save()` and the `recovering`-step branch into `PaymentLayoutComponent` is pending a follow-up PR. Until then, a reload during a Solana payment falls back to the token-select step (no double-spend risk — the daemon is authoritative for invoice status).
 
+## Single-namespace contract
+
+EVM and Solana wallets are mutually exclusive — at most one is connected at
+a time. To switch from MetaMask to Phantom (or vice versa) the user
+disconnects and reconnects; `AppKitService.disconnect()` clears all
+namespaces atomically. The `PaymentLayoutComponent.createWalletEffect`
+enforces the invariant: if AppKit ever reports both adapters live, both
+state slots are cleared and `appKit.disconnect()` is called.
+
+Knock-on effects:
+
+- `PaymentStateService.activeNamespace()` returns `'eip155' | 'solana' | null`
+  and drives token-list scoping.
+- `BalanceService.getBalances({ evmAddress?, solanaAddress? }, tokens)`
+  fetches only the side that's populated.
+- `computeTokenOptions()` filters the catalog so the user only ever sees
+  tokens they can pay with from the active wallet.
+
 ## Pre-flight checks
 
 `computeTokenOptions()` runs two distinct checks for Solana:
@@ -75,9 +93,10 @@ accounts are out of scope (they'd unwrap manually before paying).
 `AppKitService.disconnect()` calls `appKit.resetWcConnection()` after the
 disconnect to wipe any cached WalletConnect pairing. Without it AppKit
 silently auto-reconnects to the last wallet on the next `open()`, trapping
-users on the wallet they just disconnected. `openModal()` also defaults to
-`view: 'Connect'` so the modal lands on the wallet picker, not on a
-reconnect spinner.
+users on the wallet they just disconnected. `openModal()` always opens the
+modal with `view: 'Connect'` so the user lands on the wallet picker rather
+than a reconnect spinner — required for "disconnect to switch namespace"
+flow under the single-namespace contract.
 
 ## Not in scope (yet)
 

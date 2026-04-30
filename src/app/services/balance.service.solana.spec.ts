@@ -31,13 +31,11 @@ vi.mock('@solana/spl-token', () => ({
 }));
 
 import { BalanceService } from './balance.service';
-import { WalletStateService } from './wallet-state.service';
 import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 
 const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const OWNER = 'DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru';
-const EVM_USER = '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`;
 
 function token(
   overrides: Partial<TokenConfig> & Pick<TokenConfig, 'address' | 'symbol'>,
@@ -52,7 +50,6 @@ function token(
 
 describe('BalanceService — Solana', () => {
   let service: BalanceService;
-  let walletState: WalletStateService;
 
   beforeEach(() => {
     getBalanceMock.mockReset();
@@ -60,12 +57,6 @@ describe('BalanceService — Solana', () => {
 
     TestBed.configureTestingModule({});
     service = TestBed.inject(BalanceService);
-    walletState = TestBed.inject(WalletStateService);
-    walletState.setSolanaAccount({
-      address: OWNER,
-      isConnected: true,
-      status: 'connected',
-    });
 
     // Stub EVM RPC so balance fetches don't try to hit the network.
     vi.spyOn(
@@ -92,7 +83,7 @@ describe('BalanceService — Solana', () => {
       token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 }),
     ];
 
-    const map = await service.getBalances(EVM_USER, tokens);
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
 
     const wsolKey = getTokenKey(SOLANA_CHAIN_ID, WSOL_MINT);
     const usdcKey = getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC);
@@ -108,7 +99,7 @@ describe('BalanceService — Solana', () => {
 
     const tokens = [token({ address: SOL_NATIVE_ADDRESS, symbol: 'SOL', decimals: 9 })];
 
-    const map = await service.getBalances(EVM_USER, tokens);
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
     expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOL_NATIVE_ADDRESS))).toBe(7_500_000n);
   });
 
@@ -119,7 +110,7 @@ describe('BalanceService — Solana', () => {
     });
 
     const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
-    const map = await service.getBalances(EVM_USER, tokens);
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
 
     expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC))).toBe(1500n);
   });
@@ -129,24 +120,23 @@ describe('BalanceService — Solana', () => {
     getParsedTokenAccountsByOwnerMock.mockRejectedValue(new Error('rpc down'));
 
     const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
-    const map = await service.getBalances(EVM_USER, tokens);
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
 
     expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC))).toBe(0n);
     expect(service.getSolanaLamports()).toBe(0n);
   });
 
-  it('skips Solana RPC calls entirely when owner is unknown', async () => {
-    walletState.setSolanaAccount(null);
+  it('skips Solana RPC calls entirely when no solanaAddress is supplied', async () => {
     const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
 
-    await service.getBalances(EVM_USER, tokens);
+    await service.getBalances({}, tokens);
 
     expect(getBalanceMock).not.toHaveBeenCalled();
     expect(getParsedTokenAccountsByOwnerMock).not.toHaveBeenCalled();
   });
 
   it('skips Solana RPC calls when the token list is empty', async () => {
-    await service.getBalances(EVM_USER, []);
+    await service.getBalances({ solanaAddress: OWNER }, []);
     expect(getBalanceMock).not.toHaveBeenCalled();
   });
 });

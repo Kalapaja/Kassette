@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { createPublicClient, erc20Abi, http, type PublicClient } from 'viem';
@@ -8,13 +8,21 @@ import { getReownRpcUrl } from '@/app/config/rpc';
 import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
-import { WalletStateService } from '@/app/services/wallet-state.service';
 
 const MAX_CONCURRENCY = 2;
 
+/**
+ * Caller-provided wallet addresses. Exactly one of the two is expected to be
+ * set in production (EVM and Solana are mutually exclusive); the service
+ * tolerates either being absent and skips that side's fetch.
+ */
+export interface BalanceFetchSpec {
+  evmAddress?: `0x${string}`;
+  solanaAddress?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BalanceService {
-  private readonly walletState = inject(WalletStateService);
   private _clients: Map<number, PublicClient> = new Map();
   private _solanaConnection: Connection | null = null;
   private _cache: Map<string, bigint> = new Map();
@@ -43,19 +51,21 @@ export class BalanceService {
     return client;
   }
 
-  async getBalances(
-    userAddress: `0x${string}`,
-    tokens: TokenConfig[],
-  ): Promise<Map<string, bigint>> {
+  async getBalances(spec: BalanceFetchSpec, tokens: TokenConfig[]): Promise<Map<string, bigint>> {
     const results = new Map<string, bigint>();
 
     const solanaTokens = tokens.filter((t) => t.chainId === SOLANA_CHAIN_ID);
     const evmTokens = tokens.filter((t) => t.chainId !== SOLANA_CHAIN_ID);
 
-    // EVM via per-chain Reown RPC + Solana via Reown Solana RPC, in parallel.
+    // EVM and Solana are queried in parallel only when both are present —
+    // in practice exactly one will be populated at a time.
     const [evmResult, solanaResult] = await Promise.allSettled([
-      this._fetchAllViaRpc(userAddress, evmTokens),
-      this._fetchSolanaBalances(this.walletState.solanaAddress(), solanaTokens),
+      spec.evmAddress
+        ? this._fetchAllViaRpc(spec.evmAddress, evmTokens)
+        : Promise.resolve(new Map()),
+      spec.solanaAddress
+        ? this._fetchSolanaBalances(spec.solanaAddress, solanaTokens)
+        : Promise.resolve(new Map<string, bigint>()),
     ]);
 
     if (evmResult.status === 'fulfilled') {

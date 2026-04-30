@@ -35,6 +35,18 @@ export class WalletStateService implements OnDestroy {
   /** True when the AppKit Solana namespace reports "connected". */
   readonly solanaIsConnected = computed(() => this.solanaStatus() === 'connected');
 
+  /**
+   * Which wallet namespace AppKit is currently treating as active. Multichain
+   * wallets (MetaMask Snap, etc.) can have *both* connections live; this
+   * signal disambiguates which one the user picked. Set by `AppKitService`
+   * via `subscribeCaipNetworkChange`.
+   */
+  readonly activeNamespace = signal<'eip155' | 'solana' | null>(null);
+
+  setActiveNamespace(ns: 'eip155' | 'solana' | null): void {
+    this.activeNamespace.set(ns);
+  }
+
   private unwatchAccount: (() => void) | null = null;
   private unwatchChainId: (() => void) | null = null;
 

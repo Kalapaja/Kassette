@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ACROSS_API_BASE_URL } from '@/app/config/payment';
 import type { ChainConfig } from '@/app/config/chains';
+import { SOLANA_CHAIN_ID } from '@/app/config/solana';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 
 interface AcrossChainResponse {
@@ -35,7 +36,21 @@ export class ChainService {
       );
 
       for (const chain of data) {
-        // Only include chains we have viem definitions for
+        if (chain.chainId === SOLANA_CHAIN_ID) {
+          // Solana isn't in viem (different VM), but Across exposes it via the
+          // synthetic chain id. Hand-roll the entry so the rest of the app can
+          // look it up like any other chain.
+          this._chains.set(chain.chainId, {
+            chainId: chain.chainId,
+            name: chain.name,
+            logoUrl: chain.logoUrl ?? '',
+            explorerUrl: chain.explorerUrl,
+            nativeCurrency: { name: 'Solana', symbol: 'SOL', decimals: 9 },
+          });
+          continue;
+        }
+
+        // Only include EVM chains we have viem definitions for
         const viemChain = VIEM_CHAINS[chain.chainId];
         if (!viemChain) continue;
 

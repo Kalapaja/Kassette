@@ -19,12 +19,6 @@ import { disconnect as wagmiDisconnect } from '@wagmi/core';
 
 import { WalletStateService } from '@/app/services/wallet-state.service';
 
-interface OpenOptions {
-  namespace?: 'eip155' | 'solana';
-  /** AppKit modal view to land on. Defaults to 'Connect' (wallet picker). */
-  view?: 'Connect' | 'Account' | 'AllWallets' | 'Networks';
-}
-
 @Injectable({ providedIn: 'root' })
 export class AppKitService implements OnDestroy {
   private appKit: AppKit | null = null;
@@ -33,6 +27,7 @@ export class AppKitService implements OnDestroy {
   private _wagmiConfig: Config | null = null;
   private initializedProjectId: string | null = null;
   private unsubscribeSolanaAccount: (() => void) | null = null;
+  private unsubscribeNetworkChange: (() => void) | null = null;
 
   private walletState = inject(WalletStateService);
 
@@ -143,26 +138,36 @@ export class AppKitService implements OnDestroy {
           console.warn('[AppKitService] Failed to subscribe to Solana account:', err);
         }
       }
+
+      // Track which namespace AppKit treats as active. Multichain wallets
+      // (e.g. MetaMask Snap) light up *both* eip155 and solana subscribe
+      // streams; this is the only signal that says which one the user is on.
+      try {
+        this.unsubscribeNetworkChange = this.appKit.subscribeCaipNetworkChange((network) => {
+          const ns = network?.chainNamespace;
+          this.walletState.setActiveNamespace(ns === 'eip155' || ns === 'solana' ? ns : null);
+        });
+      } catch (err) {
+        console.warn('[AppKitService] Failed to subscribe to network change:', err);
+      }
     } catch (error) {
       console.error('[AppKitService] Failed to initialize:', error);
       this.initializedProjectId = null;
     }
   }
 
-  /** Open the Reown AppKit wallet-connect modal. */
-  openModal(options?: OpenOptions): void {
+  /** Open the Reown AppKit wallet-connect modal on the wallet picker. */
+  openModal(): void {
     if (!this.appKit) {
       console.warn('[AppKitService] AppKit not initialized');
       return;
     }
-    // Default to the Connect view so AppKit always shows the wallet picker
-    // instead of silently auto-reconnecting to the last-used WalletConnect
-    // pairing (which traps users on a disconnected wallet — e.g. asking for
-    // MetaMask after the user disconnected MetaMask and tried Phantom).
-    const openOptions = { view: options?.view ?? 'Connect', namespace: options?.namespace };
+    // Pin the modal to the Connect view so AppKit always shows the wallet
+    // picker instead of silently auto-reconnecting to the last-used
+    // WalletConnect pairing (which would trap users on a disconnected wallet).
     // open() may return a Promise (newer AppKit) or void (older builds) —
     // wrap defensively so callers don't blow up on `.catch` against undefined.
-    Promise.resolve(this.appKit.open(openOptions)).catch((err) => {
+    Promise.resolve(this.appKit.open({ view: 'Connect' })).catch((err) => {
       console.warn('[AppKitService] open modal failed:', err);
     });
   }
@@ -183,6 +188,7 @@ export class AppKitService implements OnDestroy {
       await wagmiDisconnect(this._wagmiConfig);
     }
     this.walletState.setSolanaAccount(null);
+    this.walletState.setActiveNamespace(null);
   }
 
   /** Tear down the AppKit instance and release resources. */
@@ -195,6 +201,14 @@ export class AppKitService implements OnDestroy {
   }
 
   private cleanup(): void {
+    if (this.unsubscribeNetworkChange) {
+      try {
+        this.unsubscribeNetworkChange();
+      } catch {
+        // ignore
+      }
+      this.unsubscribeNetworkChange = null;
+    }
     if (this.unsubscribeSolanaAccount) {
       try {
         this.unsubscribeSolanaAccount();
@@ -212,5 +226,6 @@ export class AppKitService implements OnDestroy {
     this._wagmiConfig = null;
     this.initializedProjectId = null;
     this.walletState.setSolanaAccount(null);
+    this.walletState.setActiveNamespace(null);
   }
 }

@@ -282,23 +282,36 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   private createWalletEffect(): () => void {
     const effectRef = effect(() => {
-      // Track only wallet signals — step is read untracked
-      // so closing the sheet (step→idle) won't re-trigger this effect
-      const isConnected = this.walletState.isConnected();
-      const address = this.walletState.address();
-      const chainId = this.walletState.chainId();
+      // Track both EVM and Solana wallet signals. Multichain wallets
+      // (e.g. MetaMask Snap) can report both subscribe streams at the same
+      // time; we mirror them into state and let `state.activeNamespace`
+      // (driven by AppKit's network change subscription) pick the active one.
+      const evmConnected = this.walletState.isConnected();
+      const evmAddress = this.walletState.address();
+      const evmChainId = this.walletState.chainId();
+      const solanaConnected = this.walletState.solanaIsConnected();
+      const solanaAddress = this.walletState.solanaAddress();
+      const activeNs = this.walletState.activeNamespace();
 
-      if (isConnected && address) {
-        this.state.walletAddress.set(this.formatAddress(address));
-        this.state.connectedAccount.set({ address, chainId: chainId ?? 1 });
+      const evmAlive = evmConnected && !!evmAddress;
+      const solanaAlive = solanaConnected && !!solanaAddress;
+
+      this.state.evmAccount.set(
+        evmAlive ? { address: evmAddress!, chainId: evmChainId ?? 1 } : null,
+      );
+      this.state.solanaAccount.set(solanaAlive ? { address: solanaAddress! } : null);
+
+      if (evmAlive || solanaAlive) {
+        const displayAddress =
+          activeNs === 'solana' && solanaAlive ? solanaAddress! : (evmAddress ?? solanaAddress!);
+        this.state.walletAddress.set(this.formatAddress(displayAddress));
 
         const step = untracked(() => this.state.currentStep());
         if (step === 'idle') {
-          this.onWalletConnected({ address, chainId: chainId ?? 1 });
+          this.enterTokenSelect();
         }
-      } else if (!isConnected) {
+      } else {
         this.state.walletAddress.set('');
-        this.state.connectedAccount.set(null);
 
         const step = untracked(() => this.state.currentStep());
         if (
@@ -332,9 +345,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const account = this.state.connectedAccount();
-    if (account) {
-      this.onWalletConnected(account);
+    if (this.state.hasAnyConnection()) {
+      this.enterTokenSelect();
     } else {
       this.appKit.openModal();
     }
@@ -493,7 +505,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async onWalletConnected(account: { address: string; chainId: number }): Promise<void> {
+  private async enterTokenSelect(): Promise<void> {
     const config = this.appKit.wagmiConfig;
     if (config) {
       this.paymentService.setConfig(config);
@@ -501,17 +513,22 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
     this.state.transition('token-select');
     this.state.isLoadingTokens.set(true);
-    await this.loadBalancesAndPrices(account.address as `0x${string}`);
+    await this.loadBalancesAndPrices();
     this.state.isLoadingTokens.set(false);
   }
 
-  private async loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
+  private async loadBalancesAndPrices(): Promise<void> {
     await Promise.all([this.tokenService.ready, this.chainService.ready]);
     const allTokens = this.tokenService.getAllTokens();
 
+    // Only the active namespace's balances are fetched — EVM and Solana are
+    // mutually exclusive by product contract.
+    const evmAddress = this.state.evmAccount()?.address as `0x${string}` | undefined;
+    const solanaAddress = this.state.solanaAccount()?.address;
+
     const [pricesResult, balancesResult] = await Promise.allSettled([
       this.priceService.fetchPrices(allTokens),
-      this.balanceService.getBalances(address, allTokens),
+      this.balanceService.getBalances({ evmAddress, solanaAddress }, allTokens),
     ]);
 
     if (pricesResult.status === 'fulfilled') {
@@ -534,9 +551,15 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const usdAmount = parseFloat(getRemainingAmount(invoice));
     const locale = this.ts.locale();
     const solanaLamports = this.balanceService.getSolanaLamports();
+    const namespace = this.state.activeNamespace();
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
+      // Scope the catalog to the connected namespace — wallet families are
+      // mutually exclusive, so showing tokens of the other side is misleading.
+      if (namespace === 'eip155' && token.chainId === SOLANA_CHAIN_ID) continue;
+      if (namespace === 'solana' && token.chainId !== SOLANA_CHAIN_ID) continue;
+
       const key = getTokenKey(token.chainId, token.address);
       const price = this.state.prices().get(key);
       if (!price || price <= 0) continue;
@@ -654,6 +677,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     try {
       const invoice = this.state.invoice()!;
+      // The token list is scoped to the active namespace, so we always have a
+      // matching connected account here.
       const account = this.state.connectedAccount()!;
       const quote = await this.quoteService.calculateQuote({
         sourceToken: option.tokenAddress,
