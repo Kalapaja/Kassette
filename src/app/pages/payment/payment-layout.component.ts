@@ -677,9 +677,14 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     try {
       const invoice = this.state.invoice()!;
-      // The token list is scoped to the active namespace, so we always have a
-      // matching connected account here.
-      const account = this.state.connectedAccount()!;
+      // The token list is scoped to the active namespace, so a matching
+      // connected account *should* exist here. Guard anyway in case the user
+      // disconnects between picking and clicking.
+      const account = this.state.connectedAccount();
+      if (!account) {
+        this.state.transition('token-select');
+        return;
+      }
       const quote = await this.quoteService.calculateQuote({
         sourceToken: option.tokenAddress,
         sourceChainId: option.chainId,

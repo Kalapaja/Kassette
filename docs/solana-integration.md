@@ -48,23 +48,31 @@ The current recovery scope for Solana is **partial**:
 - `PendingTxService.getSolanaStatus(signature)` maps `confirmationStatus` + `err` to `'confirmed' | 'pending' | 'failed'`.
 - Wiring Solana submit-time `save()` and the `recovering`-step branch into `PaymentLayoutComponent` is pending a follow-up PR. Until then, a reload during a Solana payment falls back to the token-select step (no double-spend risk — the daemon is authoritative for invoice status).
 
-## Single-namespace contract
+## Active-namespace model
 
-EVM and Solana wallets are mutually exclusive — at most one is connected at
-a time. To switch from MetaMask to Phantom (or vice versa) the user
-disconnects and reconnects; `AppKitService.disconnect()` clears all
-namespaces atomically. The `PaymentLayoutComponent.createWalletEffect`
-enforces the invariant: if AppKit ever reports both adapters live, both
-state slots are cleared and `appKit.disconnect()` is called.
+From the user's perspective only one wallet is in play at a time. From the
+SDK's perspective the two signal streams can coexist — multichain wallets
+(MetaMask Snap, Backpack, etc.) light up _both_ `eip155` and `solana`
+subscribe streams. The component mirrors both into state and lets a single
+`activeNamespace` signal — driven by AppKit's `subscribeCaipNetworkChange`
+— pick which one is the user's current focus.
 
-Knock-on effects:
-
-- `PaymentStateService.activeNamespace()` returns `'eip155' | 'solana' | null`
-  and drives token-list scoping.
+- `WalletStateService.activeNamespace: signal<'eip155' | 'solana' | null>`
+  is set by `AppKitService` when AppKit emits a network change.
+- `PaymentStateService.activeNamespace` is computed from it. Falls back to
+  whichever account signal is set if AppKit hasn't emitted yet (preferring
+  EVM) so the first frame after connect isn't blank.
+- `PaymentStateService.connectedAccount` resolves to the EVM or Solana
+  account based on `activeNamespace`.
 - `BalanceService.getBalances({ evmAddress?, solanaAddress? }, tokens)`
-  fetches only the side that's populated.
-- `computeTokenOptions()` filters the catalog so the user only ever sees
-  tokens they can pay with from the active wallet.
+  takes an explicit account spec — caller decides which side to fetch.
+- `PaymentLayoutComponent.computeTokenOptions()` filters the catalog by
+  `activeNamespace` so the list only shows tokens the user can pay with
+  from the active wallet.
+
+To switch wallet families the user disconnects and reconnects;
+`AppKitService.disconnect()` clears all namespaces atomically and resets
+the WalletConnect pairing.
 
 ## Pre-flight checks
 

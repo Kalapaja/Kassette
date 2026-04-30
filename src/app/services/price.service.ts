@@ -71,8 +71,9 @@ export class PriceService {
         continue;
       }
 
-      // For Solana SPL tokens we keep base58 case so the response key matches.
-      const coinKey = `${chainName}:${isSolana ? token.address : token.address}`;
+      // For Solana SPL tokens we keep base58 case so the response key matches;
+      // EVM addresses are lowercased on lookup since they're case-insensitive.
+      const coinKey = `${chainName}:${token.address}`;
       const seenKey = isSolana ? coinKey : coinKey.toLowerCase();
       if (seen.has(seenKey)) continue;
       seen.add(seenKey);

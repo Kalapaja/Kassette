@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Valid `VITE_REWON_PROJECT_ID` in `.env` (required for Reown AppKit wallet modal)
+- Valid `VITE_REOWN_PROJECT_ID` in `.env` (required for Reown AppKit wallet modal)
 - A browser wallet (e.g. MetaMask) for wallet connection testing
 
 ## Start Dev Server
@@ -10,6 +10,11 @@
 ```bash
 pnpm dev
 ```
+
+`pnpm dev` runs `dotenv -- node scripts/dev.mjs`, which loads `.env` and
+forwards the whitelisted `VITE_*` keys into the Angular bundle as
+`import.meta.env.VITE_*` via esbuild `--define`. Without this the page
+boots with an empty projectId and Reown RPC returns 401.
 
 Open `http://localhost:3001/`. You should see:
 
