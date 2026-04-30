@@ -8,17 +8,17 @@ The Across Swap API treats Solana as a virtual chain and assigns it the syntheti
 
 ## Key files
 
-| File                                       | Purpose                                                                                                          |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `src/app/config/solana.ts`                 | Constants: `SOLANA_CHAIN_ID`, `SOLANA_CAIP2`, `WSOL_MINT`, `SOLANA_MIN_FEE_LAMPORTS`, `isSolanaChainId()` helper |
-| `src/app/config/rpc.ts`                    | `getReownRpcUrl(chainId)` — branches between `eip155:<id>` and `solana:<genesis>`                                |
-| `src/app/services/appkit.service.ts`       | Registers `SolanaAdapter` next to `WagmiAdapter`; subscribes to AppKit's `solana` account stream                 |
-| `src/app/services/wallet-state.service.ts` | Exposes `solanaAddress`, `solanaStatus`, `solanaIsConnected` signals                                             |
-| `src/app/services/balance.service.ts`      | `_fetchSolanaBalances()` — `getBalance` + `getParsedTokenAccountsByOwner` via Reown RPC                          |
-| `src/app/services/swap.service.ts`         | `executeAcrossSolana()` — deserialises base64 `VersionedTransaction`, `signAndSendTransaction`                   |
-| `src/app/services/quote.service.ts`        | 45 s background refresh for Solana quotes (Solana blockhash is ~57 s)                                            |
-| `src/app/services/pending-tx.service.ts`   | `namespace?: 'eip155' \| 'solana'` in `PendingTxRecord`, `getSolanaStatus()` helper                              |
-| `src/mocks/solana-swap-response.ts`        | MSW fixture for dev server                                                                                       |
+| File                                       | Purpose                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/config/solana.ts`                 | Constants: `SOLANA_CHAIN_ID`, `SOLANA_CAIP2`, `WSOL_MINT`, `SOL_NATIVE_ADDRESS`, `SOLANA_MIN_FEE_LAMPORTS`, `isSolanaChainId()` helper |
+| `src/app/config/rpc.ts`                    | `getReownRpcUrl(chainId)` — branches between `eip155:<id>` and `solana:<genesis>`                                                      |
+| `src/app/services/appkit.service.ts`       | Registers `SolanaAdapter` next to `WagmiAdapter`; subscribes to AppKit's `solana` account stream                                       |
+| `src/app/services/wallet-state.service.ts` | Exposes `solanaAddress`, `solanaStatus`, `solanaIsConnected` signals                                                                   |
+| `src/app/services/balance.service.ts`      | `_fetchSolanaBalances()` — `getBalance` + `getParsedTokenAccountsByOwner` via Reown RPC                                                |
+| `src/app/services/swap.service.ts`         | `executeAcrossSolana()` — deserialises base64 `VersionedTransaction`, `signAndSendTransaction`                                         |
+| `src/app/services/quote.service.ts`        | 45 s background refresh for Solana quotes (Solana blockhash is ~57 s)                                                                  |
+| `src/app/services/pending-tx.service.ts`   | `namespace?: 'eip155' \| 'solana'` in `PendingTxRecord`, `getSolanaStatus()` helper                                                    |
+| `src/mocks/solana-swap-response.ts`        | MSW fixture for dev server                                                                                                             |
 
 ## Token-key case rules
 
@@ -50,7 +50,34 @@ The current recovery scope for Solana is **partial**:
 
 ## Pre-flight checks
 
-`computeTokenOptions()` marks a Solana SPL token as `insufficient` when the payer does not hold at least `SOLANA_MIN_FEE_LAMPORTS` (0.003 SOL) to cover the Solana transaction fee. `insufficientForFees` is set as a distinct flag so the UI can surface the reason ("Not enough SOL for fees" vs "Not enough USDC"). WSOL entries skip this check because the transfer itself is SOL.
+`computeTokenOptions()` runs two distinct checks for Solana:
+
+- **SPL tokens (USDC, USDT, …)** — the wallet must hold at least
+  `SOLANA_MIN_FEE_LAMPORTS` (0.003 SOL) on top of the SPL balance to pay the
+  transaction fee. Surfaced as `insufficientForFees` so the UI can render the
+  exact reason ("Not enough SOL for fees" vs "Not enough USDC").
+- **Native SOL** — the same lamport pool covers transfer + fee, so the option
+  is dimmed only when `balance < requiredAmount + SOLANA_MIN_FEE_LAMPORTS`.
+  No separate `insufficientForFees` flag is set in this case.
+
+## SOL ↔ WSOL dedupe
+
+The Across catalog ships both native SOL (System Program id
+`11111111111111111111111111111111`) and WSOL
+(`So11111111111111111111111111111111111111112`). They share the wallet's
+lamport balance and quote identically, so showing both produces two visually
+identical rows. `TokenService` drops the WSOL entry on init and keeps native
+SOL — that's what wallets present in their UI. Users with explicit WSOL token
+accounts are out of scope (they'd unwrap manually before paying).
+
+## Wallet picker on disconnect
+
+`AppKitService.disconnect()` calls `appKit.resetWcConnection()` after the
+disconnect to wipe any cached WalletConnect pairing. Without it AppKit
+silently auto-reconnects to the last wallet on the next `open()`, trapping
+users on the wallet they just disconnected. `openModal()` also defaults to
+`view: 'Connect'` so the modal lands on the wallet picker, not on a
+reconnect spinner.
 
 ## Not in scope (yet)
 

@@ -21,6 +21,8 @@ import { WalletStateService } from '@/app/services/wallet-state.service';
 
 interface OpenOptions {
   namespace?: 'eip155' | 'solana';
+  /** AppKit modal view to land on. Defaults to 'Connect' (wallet picker). */
+  view?: 'Connect' | 'Account' | 'AllWallets' | 'Networks';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -157,7 +159,7 @@ export class AppKitService implements OnDestroy {
     // instead of silently auto-reconnecting to the last-used WalletConnect
     // pairing (which traps users on a disconnected wallet — e.g. asking for
     // MetaMask after the user disconnected MetaMask and tried Phantom).
-    const openOptions = { view: 'Connect' as const, namespace: options?.namespace };
+    const openOptions = { view: options?.view ?? 'Connect', namespace: options?.namespace };
     // open() may return a Promise (newer AppKit) or void (older builds) —
     // wrap defensively so callers don't blow up on `.catch` against undefined.
     Promise.resolve(this.appKit.open(openOptions)).catch((err) => {

@@ -28,7 +28,7 @@ describe('TokenService — Solana entries', () => {
     httpMock.verify();
   });
 
-  it('keeps Solana base58 addresses case-sensitive in the catalog', async () => {
+  it('keeps Solana base58 addresses case-sensitive and drops the WSOL duplicate of native SOL', async () => {
     const initPromise = service.init();
 
     const req = httpMock.expectOne(`${ACROSS_API_BASE_URL}/swap/tokens`);
@@ -53,7 +53,7 @@ describe('TokenService — Solana entries', () => {
 
     const solanaTokens = service.getTokensForChain(SOLANA_CHAIN_ID);
     expect(solanaTokens.some((t) => t.address === SOLANA_USDC)).toBe(true);
-    expect(solanaTokens.some((t) => t.address === WSOL)).toBe(true);
+    expect(solanaTokens.some((t) => t.address === WSOL)).toBe(false);
   });
 
   it('returns an empty array for SOLANA_CHAIN_ID when the catalog has no Solana entries', async () => {

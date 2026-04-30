@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ACROSS_API_BASE_URL, POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { normalizeAddress } from '@/app/config/address.utils';
-import { SOLANA_CHAIN_ID } from '@/app/config/solana';
+import { SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 
 interface AcrossTokenResponse {
@@ -39,19 +39,25 @@ export class TokenService {
         this.http.get<AcrossTokenResponse[]>(`${ACROSS_API_BASE_URL}/swap/tokens`),
       );
 
-      this._tokens = data.map((t) => {
-        // Solana mints are base58 and case-sensitive — never lowercase them.
-        const address = t.chainId === SOLANA_CHAIN_ID ? t.address : normalizeAddress(t.address);
+      this._tokens = data
+        // Across' Solana catalog ships both native SOL (System Program id) and
+        // WSOL — they share the wallet's lamport balance and quote identically
+        // for our flow. Hide WSOL so users don't see two visually identical
+        // rows; native SOL is what wallets present in their UI.
+        .filter((t) => !(t.chainId === SOLANA_CHAIN_ID && t.address === WSOL_MINT))
+        .map((t) => {
+          // Solana mints are base58 and case-sensitive — never lowercase them.
+          const address = t.chainId === SOLANA_CHAIN_ID ? t.address : normalizeAddress(t.address);
 
-        return {
-          chainId: t.chainId,
-          address,
-          symbol: t.symbol,
-          decimals: t.decimals,
-          logoUrl: t.logoUrl ?? '',
-          priceUsd: t.priceUsd ? parseFloat(t.priceUsd) : undefined,
-        };
-      });
+          return {
+            chainId: t.chainId,
+            address,
+            symbol: t.symbol,
+            decimals: t.decimals,
+            logoUrl: t.logoUrl ?? '',
+            priceUsd: t.priceUsd ? parseFloat(t.priceUsd) : undefined,
+          };
+        });
 
       // Ensure Polygon USDC is always present
       const hasPolygonUsdc = this._tokens.some(

@@ -60,7 +60,7 @@ import {
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
 import { getTokenKey } from '@/app/config/tokens';
-import { SOLANA_CHAIN_ID, SOLANA_MIN_FEE_LAMPORTS, WSOL_MINT } from '@/app/config/solana';
+import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, SOLANA_MIN_FEE_LAMPORTS } from '@/app/config/solana';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { getReownRpcUrl } from '@/app/config/rpc';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
@@ -553,9 +553,19 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       const balanceHuman = formatUnits(balance, token.decimals);
       const balanceFormatted = parseFloat(balanceHuman).toFixed(precision);
 
-      const hasEnoughBalance = balance >= requiredAmount;
-      const isSolanaSpl = token.chainId === SOLANA_CHAIN_ID && token.address !== WSOL_MINT;
-      const insufficientForFees = isSolanaSpl && solanaLamports < SOLANA_MIN_FEE_LAMPORTS;
+      // Solana fee accounting:
+      //  - native SOL: same lamport pool covers transfer + fee, so
+      //    the balance check absorbs the fee buffer.
+      //  - SPL tokens (USDC, etc.): a separate SOL stash pays the fee, so
+      //    surface "insufficient SOL for fees" as a distinct reason.
+      const isSolana = token.chainId === SOLANA_CHAIN_ID;
+      const isSolanaNative = isSolana && token.address === SOL_NATIVE_ADDRESS;
+      const totalNeeded = isSolanaNative
+        ? requiredAmount + SOLANA_MIN_FEE_LAMPORTS
+        : requiredAmount;
+      const hasEnoughBalance = balance >= totalNeeded;
+      const insufficientForFees =
+        isSolana && !isSolanaNative && solanaLamports < SOLANA_MIN_FEE_LAMPORTS;
 
       options.push({
         chainId: token.chainId,
