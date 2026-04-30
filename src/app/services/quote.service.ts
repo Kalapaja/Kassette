@@ -13,7 +13,8 @@ export type { PaymentPath, QuoteResult };
 const SOLANA_QUOTE_REFRESH_MS = 45_000;
 
 export interface QuoteParams {
-  sourceToken: `0x${string}`;
+  /** EVM hex address (`0x…`) or Solana base58 mint. */
+  sourceToken: string;
   sourceChainId: number;
   sourceDecimals: number;
   sourceUsdPrice: number; // USD price of the source token
@@ -34,14 +35,14 @@ export class QuoteService implements OnDestroy {
   private _refreshTimer: ReturnType<typeof setInterval> | null = null;
   private _refreshParams: QuoteParams | null = null;
 
-  static isDirectTransfer(chainId: number, tokenAddress: `0x${string}`): boolean {
+  static isDirectTransfer(chainId: number, tokenAddress: string): boolean {
     return (
       chainId === POLYGON_CHAIN_ID &&
       tokenAddress.toLowerCase() === POLYGON_USDC_ADDRESS.toLowerCase()
     );
   }
 
-  detectPath(chainId: number, tokenAddress: `0x${string}`): PaymentPath {
+  detectPath(chainId: number, tokenAddress: string): PaymentPath {
     if (QuoteService.isDirectTransfer(chainId, tokenAddress)) return 'direct';
     return 'swap';
   }

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Connection, VersionedTransaction } from '@solana/web3.js';
+import { VersionedTransaction } from '@solana/web3.js';
 import { firstValueFrom } from 'rxjs';
 import type { Config } from '@wagmi/core';
 import {
@@ -13,7 +13,6 @@ import {
 } from '@wagmi/core';
 import { encodeFunctionData, erc20Abi } from 'viem';
 
-import { getReownRpcUrl } from '@/app/config/rpc';
 import { SOLANA_CHAIN_ID } from '@/app/config/solana';
 import { AppKitService } from '@/app/services/appkit.service';
 import type {
@@ -46,7 +45,6 @@ export class SwapService {
   private readonly http = inject(HttpClient);
   private readonly appKit = inject(AppKitService);
   private _config: Config | null = null;
-  private _solanaConnection: Connection | null = null;
 
   setConfig(config: Config): void {
     this._config = config;
@@ -54,7 +52,6 @@ export class SwapService {
 
   destroy(): void {
     this._config = null;
-    this._solanaConnection = null;
   }
 
   async createSwap(params: CreateSwapParams): Promise<PublicSwap> {
@@ -142,8 +139,8 @@ export class SwapService {
    * base64-encoded in `swapTx.data`. We just deserialize, hand it to the
    * AppKit Solana provider to sign+send, and return the base58 signature.
    *
-   * Confirmation is fire-and-forget: the daemon invoice poll is authoritative
-   * for payment state (R3.5), so we don't block the UI on Solana finality.
+   * The daemon invoice poll is authoritative for payment state (R3.5), so
+   * we don't await Solana finality here.
    */
   async executeAcrossSolana(swapTx: SwapTransaction): Promise<string> {
     if (swapTx.chain_id !== SOLANA_CHAIN_ID) {
@@ -178,13 +175,6 @@ export class SwapService {
     }
 
     console.info('[Solana] signAndSend', { signature });
-
-    // Fire-and-forget confirmation. Daemon poll is authoritative.
-    this._solanaConnection ??= new Connection(getReownRpcUrl(SOLANA_CHAIN_ID), 'confirmed');
-    this._solanaConnection
-      .confirmTransaction(signature, 'confirmed')
-      .catch((e) => console.warn('[Solana] confirmTransaction post-submit error', e));
-
     return signature;
   }
 

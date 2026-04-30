@@ -43,9 +43,7 @@ export class PaymentStateService {
 
   readonly invoice = signal<Invoice | null>(DEFAULT_CONTEXT.invoice);
   readonly selectedChainId = signal<number | null>(DEFAULT_CONTEXT.selectedChainId);
-  readonly selectedTokenAddress = signal<`0x${string}` | null>(
-    DEFAULT_CONTEXT.selectedTokenAddress,
-  );
+  readonly selectedTokenAddress = signal<string | null>(DEFAULT_CONTEXT.selectedTokenAddress);
   readonly selectedTokenSymbol = signal<string>(DEFAULT_CONTEXT.selectedTokenSymbol);
   readonly selectedTokenLogoUrl = signal<string>(DEFAULT_CONTEXT.selectedTokenLogoUrl);
   readonly selectedChainLogoUrl = signal<string>(DEFAULT_CONTEXT.selectedChainLogoUrl);

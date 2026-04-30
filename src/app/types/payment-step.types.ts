@@ -51,7 +51,8 @@ export const VALID_TRANSITIONS: Record<PaymentStep, PaymentStep[]> = {
 export interface StepContext {
   invoice: Invoice | null;
   selectedChainId: number | null;
-  selectedTokenAddress: `0x${string}` | null;
+  /** EVM hex address (`0x…`) or Solana base58 mint. */
+  selectedTokenAddress: string | null;
   selectedTokenSymbol: string;
   selectedTokenLogoUrl: string;
   selectedChainLogoUrl: string;
@@ -76,7 +77,8 @@ export interface TokenOption {
   chainId: number;
   chainName: string;
   chainLogoUrl: string;
-  tokenAddress: `0x${string}`;
+  /** EVM hex address (`0x…`) or Solana base58 mint. */
+  tokenAddress: string;
   symbol: string;
   decimals: number;
   logoUrl: string;

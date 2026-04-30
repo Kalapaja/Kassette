@@ -72,7 +72,7 @@ export class AppKitService implements OnDestroy {
     }
 
     try {
-      const networks = [
+      const evmNetworks = [
         mainnet,
         polygon,
         bsc,
@@ -81,12 +81,12 @@ export class AppKitService implements OnDestroy {
         base,
         linea,
         unichain,
-        solana,
       ] as const;
+      const networks = [...evmNetworks, solana] as const;
 
       this.wagmiAdapter = new WagmiAdapter({
         projectId,
-        networks: [mainnet, polygon, bsc, arbitrum, optimism, base, linea, unichain],
+        networks: [...evmNetworks],
       });
 
       this._wagmiConfig = this.wagmiAdapter.wagmiConfig;

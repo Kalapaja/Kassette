@@ -4,7 +4,6 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 
 const deserializeMock = vi.fn();
-const confirmTransactionMock = vi.fn();
 
 vi.mock('@solana/web3.js', () => {
   // Use a class with a static method — plain-object exports trip the
@@ -14,13 +13,8 @@ vi.mock('@solana/web3.js', () => {
       return deserializeMock(bytes);
     }
   }
-  class Connection {
-    confirmTransaction(...args: unknown[]): unknown {
-      return confirmTransactionMock(...args);
-    }
-  }
   class PublicKey {}
-  return { VersionedTransaction, Connection, PublicKey };
+  return { VersionedTransaction, PublicKey };
 });
 
 vi.mock('@wagmi/core', () => ({
@@ -69,9 +63,7 @@ describe('SwapService — Solana dispatch', () => {
 
   beforeEach(() => {
     deserializeMock.mockReset();
-    confirmTransactionMock.mockReset();
     signAndSendMock.mockReset();
-    confirmTransactionMock.mockResolvedValue({ value: { err: null } });
 
     TestBed.configureTestingModule({
       providers: [
@@ -130,22 +122,6 @@ describe('SwapService — Solana dispatch', () => {
     signAndSendMock.mockRejectedValue(new Error('User rejected'));
 
     await expect(service.executeAcrossSolana(solanaSwapTx())).rejects.toThrow(/User rejected/);
-  });
-
-  it('fires confirmTransaction post-submit without awaiting it', async () => {
-    deserializeMock.mockReturnValue({});
-    signAndSendMock.mockResolvedValue(SIGNATURE);
-    // Make confirmTransaction take a long time
-    let resolve!: (v: unknown) => void;
-    const slow = new Promise((r) => {
-      resolve = r;
-    });
-    confirmTransactionMock.mockReturnValue(slow);
-
-    const sig = await service.executeAcrossSolana(solanaSwapTx());
-    expect(sig).toBe(SIGNATURE);
-    expect(confirmTransactionMock).toHaveBeenCalledWith(SIGNATURE, 'confirmed');
-    resolve({ value: { err: null } });
   });
 
   it('submitSwapTransaction sends base58 signature through the Across contract', async () => {

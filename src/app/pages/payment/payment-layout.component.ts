@@ -560,7 +560,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         chainId: token.chainId,
         chainName: chain.name,
         chainLogoUrl: chain.logoUrl,
-        tokenAddress: token.address as `0x${string}`,
+        tokenAddress: token.address,
         symbol: token.symbol,
         decimals: token.decimals,
         logoUrl: token.logoUrl,
@@ -728,7 +728,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const invoiceId = this.getInvoiceId();
 
     const hash = await this.paymentService.submitTransfer(
-      selectedTokenAddress,
+      selectedTokenAddress as `0x${string}`,
       invoice.payment_address as `0x${string}`,
       requiredAmount,
       selectedChainId,
@@ -760,7 +760,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoice_id: invoiceId,
       from_amount_units: requiredAmount.toString(),
       from_chain_id: selectedChainId,
-      from_asset_id: this.toBackendAssetId(selectedTokenAddress),
+      from_asset_id: this.toBackendAssetId(selectedTokenAddress as `0x${string}`),
       transaction_hash: receipt.transactionHash,
     });
     this.pendingTxService.remove(invoiceId);
@@ -793,7 +793,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
     const selectedChainId = this.state.selectedChainId()!;
-    const selectedTokenAddress = this.state.selectedTokenAddress()!;
+    // ZeroEx is EVM-only — narrow the widened state field for downstream calls.
+    const selectedTokenAddress = this.state.selectedTokenAddress()! as `0x${string}`;
     const isNative = isNativeAddress(selectedTokenAddress);
     const allowanceTarget = details.raw_transaction.allowance_target as `0x${string}`;
     const requiredAmount = BigInt(swap.from_amount_units);
@@ -980,7 +981,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoice,
       txHash: record.txHash,
       selectedChainId: record.chainId,
-      selectedTokenAddress: record.tokenAddress as `0x${string}`,
+      selectedTokenAddress: record.tokenAddress,
       selectedTokenSymbol: record.tokenSymbol,
       selectedTokenDecimals: record.tokenDecimals,
       requiredAmount: BigInt(record.amount),
@@ -1082,7 +1083,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
               invoice_id: invoiceId,
               from_amount_units: this.state.requiredAmount().toString(),
               from_chain_id: this.state.selectedChainId()!,
-              from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()!),
+              from_asset_id: this.toBackendAssetId(
+                this.state.selectedTokenAddress()! as `0x${string}`,
+              ),
               transaction_hash: this.state.txHash(),
             });
             this.pendingTxService.remove(invoiceId);
@@ -1183,7 +1186,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           invoice_id: invoiceId,
           from_amount_units: this.state.requiredAmount().toString(),
           from_chain_id: selectedChainId,
-          from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()!),
+          from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()! as `0x${string}`),
           transaction_hash: txHash,
         });
         this.pendingTxService.remove(invoiceId);

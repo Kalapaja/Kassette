@@ -10,7 +10,7 @@ const REOWN_RPC_BASE = 'https://rpc.walletconnect.org/v1';
  * Solana uses the pinned `solana:<genesis>` CAIP-2 from `config/solana.ts`.
  */
 export function getReownRpcUrl(chainId: number): string {
-  const projectId = runtimeConfig('projectId');
+  const projectId = runtimeConfig('projectId') || '';
   if (!projectId) {
     console.warn('[rpc] Missing projectId — Reown RPC requests will fail');
   }

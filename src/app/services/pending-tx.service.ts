@@ -19,8 +19,9 @@ export interface PendingTxRecord {
   paymentPath: 'direct' | 'swap';
   timestamp: string;
   invoiceValidTill: string;
-  // Legacy field — kept for backwards-compat with stale records from swap paths.
-  // Recovery flow discards any record where swapExecutor !== "direct".
+  // Legacy field from the old EVM swap recovery scheme. Newer records omit
+  // it; recovery still discards any persisted record where it is set to a
+  // non-"direct" value, treating those as already-tracked by the backend.
   swapExecutor?: string;
   /**
    * CAIP-2 namespace. Missing = legacy EVM record (R5.5).
