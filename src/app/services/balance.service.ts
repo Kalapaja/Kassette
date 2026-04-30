@@ -1,33 +1,19 @@
-import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { createPublicClient, erc20Abi, http, type PublicClient } from 'viem';
 
 import { isNativeAddress } from '@/app/config/address.utils';
-import {
-  ANKR_API_URL,
-  ANKR_CHAIN_MAP,
-  ANKR_TIMEOUT_MS,
-  UNICHAIN_CHAIN_ID,
-  type AnkrAsset,
-  type AnkrJsonRpcResponse,
-} from '@/app/config/ankr';
-import type { ChainConfig } from '@/app/config/chains';
 import { getReownRpcUrl } from '@/app/config/rpc';
 import { SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
-import { getTokenKey, NATIVE_TOKEN_ADDRESS, type TokenConfig } from '@/app/config/tokens';
+import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
-import { ChainService } from '@/app/services/chain.service';
 import { WalletStateService } from '@/app/services/wallet-state.service';
-import { firstValueFrom, TimeoutError, timeout } from 'rxjs';
 
 const MAX_CONCURRENCY = 2;
 
 @Injectable({ providedIn: 'root' })
 export class BalanceService {
-  private readonly http = inject(HttpClient);
-  private readonly chainService = inject(ChainService);
   private readonly walletState = inject(WalletStateService);
   private _clients: Map<number, PublicClient> = new Map();
   private _solanaConnection: Connection | null = null;
@@ -44,21 +30,17 @@ export class BalanceService {
     let client = this._clients.get(chainId);
     if (client) return client;
 
-    const chainConfig = this.chainService.getChain(chainId);
-    if (!chainConfig) return undefined;
+    const viemChain = VIEM_CHAINS[chainId];
+    if (!viemChain) return undefined;
 
-    client = this._createClient(chainConfig);
-    this._clients.set(chainId, client);
-    return client;
-  }
-
-  private _createClient(chainConfig: ChainConfig): PublicClient {
-    const viemChain = VIEM_CHAINS[chainConfig.chainId];
-    return createPublicClient({
+    client = createPublicClient({
       chain: viemChain,
-      transport: http(chainConfig.rpcUrl),
+      transport: http(getReownRpcUrl(chainId)),
       batch: { multicall: { wait: 50 } },
     }) as PublicClient;
+
+    this._clients.set(chainId, client);
+    return client;
   }
 
   async getBalances(
@@ -67,20 +49,22 @@ export class BalanceService {
   ): Promise<Map<string, bigint>> {
     const results = new Map<string, bigint>();
 
-    // Split tokens by namespace
     const solanaTokens = tokens.filter((t) => t.chainId === SOLANA_CHAIN_ID);
     const evmTokens = tokens.filter((t) => t.chainId !== SOLANA_CHAIN_ID);
 
-    // Split EVM tokens: Ankr-supported chains vs Unichain (Ankr lacks Unichain).
-    const unichainTokens = evmTokens.filter((t) => t.chainId === UNICHAIN_CHAIN_ID);
-    const ankrTokens = evmTokens.filter((t) => t.chainId !== UNICHAIN_CHAIN_ID);
-
-    // Run Ankr + Unichain RPC + Solana in parallel
-    const [ankrResult, unichainResult, solanaResult] = await Promise.allSettled([
-      this._fetchViaAnkr(userAddress, ankrTokens),
-      this._fetchChainViaRpc(UNICHAIN_CHAIN_ID, userAddress, unichainTokens),
+    // EVM via per-chain Reown RPC + Solana via Reown Solana RPC, in parallel.
+    const [evmResult, solanaResult] = await Promise.allSettled([
+      this._fetchAllViaRpc(userAddress, evmTokens),
       this._fetchSolanaBalances(this.walletState.solanaAddress(), solanaTokens),
     ]);
+
+    if (evmResult.status === 'fulfilled') {
+      for (const [key, value] of evmResult.value) {
+        results.set(key, value);
+      }
+    } else {
+      console.warn('[BalanceService] EVM fetch failed:', evmResult.reason);
+    }
 
     if (solanaResult.status === 'fulfilled') {
       for (const [key, value] of solanaResult.value) {
@@ -90,88 +74,7 @@ export class BalanceService {
       console.warn('[BalanceService] Solana fetch failed:', solanaResult.reason);
     }
 
-    // Merge Unichain results (always from RPC)
-    if (unichainResult.status === 'fulfilled') {
-      for (const [key, value] of unichainResult.value) {
-        results.set(key, value);
-      }
-    }
-
-    if (ankrResult.status === 'fulfilled') {
-      // Ankr succeeded — merge its results
-      for (const [key, value] of ankrResult.value) {
-        results.set(key, value);
-      }
-    } else {
-      // Ankr failed — fall back to per-chain RPC for the same Ankr-targeted set.
-      console.warn(
-        '[BalanceService] Ankr API failed, falling back to per-chain RPC:',
-        ankrResult.reason,
-      );
-      const fallbackResults = await this._fetchAllViaRpc(userAddress, ankrTokens);
-      for (const [key, value] of fallbackResults) {
-        results.set(key, value);
-      }
-    }
-
     this._cache = new Map(results);
-    return results;
-  }
-
-  private async _fetchViaAnkr(
-    userAddress: string,
-    tokens: TokenConfig[],
-  ): Promise<Map<string, bigint>> {
-    const body = {
-      id: 1,
-      jsonrpc: '2.0',
-      method: 'ankr_getAccountBalance',
-      params: {
-        walletAddress: userAddress,
-        blockchain: Object.keys(ANKR_CHAIN_MAP),
-        onlyWhitelisted: true,
-      },
-    };
-
-    let response: AnkrJsonRpcResponse;
-    try {
-      response = await firstValueFrom(
-        this.http.post<AnkrJsonRpcResponse>(ANKR_API_URL, body).pipe(timeout(ANKR_TIMEOUT_MS)),
-      );
-    } catch (err) {
-      if (err instanceof TimeoutError) {
-        throw new Error(`Ankr API timed out after ${ANKR_TIMEOUT_MS}ms`);
-      }
-      throw err;
-    }
-
-    if (!response?.result?.assets) {
-      throw new Error('Invalid Ankr response: missing result.assets');
-    }
-
-    return this._mapAnkrAssets(response.result.assets, tokens);
-  }
-
-  private _mapAnkrAssets(assets: AnkrAsset[], tokens: TokenConfig[]): Map<string, bigint> {
-    // Build lookup from caller's token list (Across API tokens)
-    const knownTokens = new Set(tokens.map((t) => getTokenKey(t.chainId, t.address)));
-
-    const results = new Map<string, bigint>();
-
-    for (const asset of assets) {
-      const chainId = ANKR_CHAIN_MAP[asset.blockchain];
-      if (chainId === undefined) continue;
-
-      const isNative = asset.tokenType === 'NATIVE' || !asset.contractAddress;
-      const address = isNative ? NATIVE_TOKEN_ADDRESS : (asset.contractAddress as `0x${string}`);
-
-      const key = getTokenKey(chainId, address);
-      if (!knownTokens.has(key)) continue;
-
-      const balance = BigInt(asset.balanceRawInteger || '0');
-      results.set(key, balance);
-    }
-
     return results;
   }
 
@@ -225,7 +128,6 @@ export class BalanceService {
 
     const balances = new Map<string, bigint>();
 
-    // Fetch native balance
     const nativePromise =
       nativeTokens.length > 0
         ? client
@@ -240,7 +142,6 @@ export class BalanceService {
             })
         : Promise.resolve();
 
-    // Fetch ERC-20 balances via multicall (single RPC call per chain)
     const multicallPromise =
       erc20Tokens.length > 0
         ? this._multicallBalances(client, chainId, erc20Tokens, userAddress, balances)
@@ -312,7 +213,6 @@ export class BalanceService {
     const lamports = lamportsResult.status === 'fulfilled' ? BigInt(lamportsResult.value) : 0n;
     this._solanaLamports = lamports;
 
-    // Build a mint → amount map from the parsed accounts.
     const mintToAmount = new Map<string, bigint>();
     if (parsedResult.status === 'fulfilled') {
       for (const entry of parsedResult.value.value) {
@@ -320,7 +220,6 @@ export class BalanceService {
         const mint: string | undefined = info?.mint;
         const amountStr: string | undefined = info?.tokenAmount?.amount;
         if (!mint || !amountStr) continue;
-        // If the same mint appears across multiple accounts, accumulate.
         const prev = mintToAmount.get(mint) ?? 0n;
         mintToAmount.set(mint, prev + BigInt(amountStr));
       }
@@ -331,7 +230,6 @@ export class BalanceService {
     for (const token of tokens) {
       const key = getTokenKey(SOLANA_CHAIN_ID, token.address);
       if (token.address === WSOL_MINT) {
-        // WSOL catalog entry represents native SOL spendable balance.
         results.set(key, lamports);
       } else {
         results.set(key, mintToAmount.get(token.address) ?? 0n);

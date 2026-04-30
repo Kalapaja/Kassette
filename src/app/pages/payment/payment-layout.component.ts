@@ -62,6 +62,7 @@ import { ChainService } from '@/app/services/chain.service';
 import { getTokenKey } from '@/app/config/tokens';
 import { SOLANA_CHAIN_ID, SOLANA_MIN_FEE_LAMPORTS, WSOL_MINT } from '@/app/config/solana';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
+import { getReownRpcUrl } from '@/app/config/rpc';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
@@ -1039,12 +1040,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     hash: `0x${string}`,
     chainId: number,
   ): Promise<TransactionReceipt | null> {
-    const chain = this.chainService.getChain(chainId);
-    if (!chain) return null;
     const viemChain = VIEM_CHAINS[chainId];
+    if (!viemChain) return null;
     const client = createPublicClient({
       chain: viemChain,
-      transport: http(chain.rpcUrl),
+      transport: http(getReownRpcUrl(chainId)),
     });
     try {
       return await client.getTransactionReceipt({ hash });
@@ -1153,12 +1153,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
 
       // 2. Get original tx details
-      const chain = this.chainService.getChain(selectedChainId);
-      if (!chain) return;
       const viemChain = VIEM_CHAINS[selectedChainId];
+      if (!viemChain) return;
       const client = createPublicClient({
         chain: viemChain,
-        transport: http(chain.rpcUrl),
+        transport: http(getReownRpcUrl(selectedChainId)),
       });
 
       const originalTx = await client.getTransaction({ hash: txHash as `0x${string}` });

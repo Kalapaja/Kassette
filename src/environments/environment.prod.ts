@@ -7,5 +7,4 @@ export const environment = {
   merchantName: runtimeConfig('merchantName'),
   merchantLogoUrl: runtimeConfig('merchantLogoUrl'),
   apiBaseUrl: '/public',
-  ankrApiToken: runtimeConfig('ankrApiToken'),
 };

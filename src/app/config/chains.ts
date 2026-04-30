@@ -3,7 +3,6 @@ export interface ChainConfig {
   name: string;
   logoUrl: string;
   explorerUrl: string;
-  rpcUrl: string;
   nativeCurrency: {
     name: string;
     symbol: string;

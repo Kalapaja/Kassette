@@ -114,7 +114,6 @@ async function createTestHarness(): Promise<Harness> {
   const chainService = {
     getChain: vi.fn().mockReturnValue({
       chainId: 137,
-      rpcUrl: 'https://rpc.test',
       logoUrl: 'https://logo.test/chain.png',
       explorerUrl: 'https://explorer.test',
     }),

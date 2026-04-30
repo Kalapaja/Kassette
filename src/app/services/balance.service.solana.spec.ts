@@ -1,7 +1,5 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 
 const getBalanceMock = vi.fn();
 const getParsedTokenAccountsByOwnerMock = vi.fn();
@@ -33,7 +31,6 @@ vi.mock('@solana/spl-token', () => ({
 }));
 
 import { BalanceService } from './balance.service';
-import { ChainService } from './chain.service';
 import { WalletStateService } from './wallet-state.service';
 import { SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
 import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
@@ -53,45 +50,29 @@ function token(
   };
 }
 
-const stubChainService = {
-  getChain: () => undefined,
-} as unknown as ChainService;
-
 describe('BalanceService — Solana', () => {
   let service: BalanceService;
   let walletState: WalletStateService;
-  let httpMock: HttpTestingController;
 
   beforeEach(() => {
     getBalanceMock.mockReset();
     getParsedTokenAccountsByOwnerMock.mockReset();
 
-    TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: ChainService, useValue: stubChainService },
-      ],
-    });
+    TestBed.configureTestingModule({});
     service = TestBed.inject(BalanceService);
     walletState = TestBed.inject(WalletStateService);
-    httpMock = TestBed.inject(HttpTestingController);
     walletState.setSolanaAccount({
       address: OWNER,
       isConnected: true,
       status: 'connected',
     });
-  });
 
-  afterEach(() => {
-    httpMock.verify();
+    // Stub EVM RPC so balance fetches don't try to hit the network.
+    vi.spyOn(
+      service as unknown as { _fetchAllViaRpc: () => Promise<Map<string, bigint>> },
+      '_fetchAllViaRpc',
+    ).mockResolvedValue(new Map());
   });
-
-  /** Fail the Ankr request synchronously so the EVM branch resolves immediately. */
-  function failAnkr() {
-    const reqs = httpMock.match(() => true);
-    for (const r of reqs) r.error(new ProgressEvent('error'), { status: 0, statusText: 'skip' });
-  }
 
   function splParsedAccount(mint: string, amount: string) {
     return {
@@ -111,9 +92,7 @@ describe('BalanceService — Solana', () => {
       token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 }),
     ];
 
-    const promise = service.getBalances(EVM_USER, tokens);
-    failAnkr();
-    const map = await promise;
+    const map = await service.getBalances(EVM_USER, tokens);
 
     const wsolKey = getTokenKey(SOLANA_CHAIN_ID, WSOL_MINT);
     const usdcKey = getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC);
@@ -130,9 +109,7 @@ describe('BalanceService — Solana', () => {
     });
 
     const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
-    const promise = service.getBalances(EVM_USER, tokens);
-    failAnkr();
-    const map = await promise;
+    const map = await service.getBalances(EVM_USER, tokens);
 
     expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC))).toBe(1500n);
   });
@@ -142,9 +119,7 @@ describe('BalanceService — Solana', () => {
     getParsedTokenAccountsByOwnerMock.mockRejectedValue(new Error('rpc down'));
 
     const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
-    const promise = service.getBalances(EVM_USER, tokens);
-    failAnkr();
-    const map = await promise;
+    const map = await service.getBalances(EVM_USER, tokens);
 
     expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC))).toBe(0n);
     expect(service.getSolanaLamports()).toBe(0n);
@@ -154,18 +129,14 @@ describe('BalanceService — Solana', () => {
     walletState.setSolanaAccount(null);
     const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
 
-    const promise = service.getBalances(EVM_USER, tokens);
-    failAnkr();
-    await promise;
+    await service.getBalances(EVM_USER, tokens);
 
     expect(getBalanceMock).not.toHaveBeenCalled();
     expect(getParsedTokenAccountsByOwnerMock).not.toHaveBeenCalled();
   });
 
   it('skips Solana RPC calls when the token list is empty', async () => {
-    const promise = service.getBalances(EVM_USER, []);
-    failAnkr();
-    await promise;
+    await service.getBalances(EVM_USER, []);
     expect(getBalanceMock).not.toHaveBeenCalled();
   });
 });
