@@ -155,7 +155,13 @@ async function createTestHarness(): Promise<Harness> {
       { provide: ChainService, useValue: chainService },
       {
         provide: AppKitService,
-        useValue: { wagmiConfig: {}, init: vi.fn(), openModal: vi.fn(), disconnect: vi.fn() },
+        useValue: {
+          wagmiConfig: {},
+          init: vi.fn(),
+          openModal: vi.fn(),
+          disconnect: vi.fn(),
+          getAppKit: () => null,
+        },
       },
       {
         provide: WalletStateService,

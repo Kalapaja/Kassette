@@ -291,6 +291,15 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       const evmChainId = this.walletState.chainId();
       const solanaConnected = this.walletState.solanaIsConnected();
       const solanaAddress = this.walletState.solanaAddress();
+      // Poll AppKit's active chain namespace whenever a wallet signal
+      // changes — `subscribeCaipNetworkChange` doesn't fire on the very
+      // first connect (only on subsequent network changes), so we'd
+      // otherwise miss the initial namespace until the user switches.
+      const appKit = this.appKit.getAppKit();
+      const polledNs = appKit?.getActiveChainNamespace?.();
+      if (polledNs === 'eip155' || polledNs === 'solana') {
+        this.walletState.setActiveNamespace(polledNs);
+      }
       const activeNs = this.walletState.activeNamespace();
 
       const evmAlive = evmConnected && !!evmAddress;

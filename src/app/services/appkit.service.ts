@@ -143,9 +143,15 @@ export class AppKitService implements OnDestroy {
       // (e.g. MetaMask Snap) light up *both* eip155 and solana subscribe
       // streams; this is the only signal that says which one the user is on.
       try {
-        this.unsubscribeNetworkChange = this.appKit.subscribeCaipNetworkChange((network) => {
-          const ns = network?.chainNamespace;
+        const pushNamespace = (ns: unknown): void => {
           this.walletState.setActiveNamespace(ns === 'eip155' || ns === 'solana' ? ns : null);
+        };
+        // Seed from the current state — `subscribeCaipNetworkChange` only
+        // fires on *change*, so a wallet that's already connected at init
+        // (e.g. AppKit auto-reconnected) wouldn't otherwise notify us.
+        pushNamespace(this.appKit.getActiveChainNamespace?.());
+        this.unsubscribeNetworkChange = this.appKit.subscribeCaipNetworkChange((network) => {
+          pushNamespace(network?.chainNamespace);
         });
       } catch (err) {
         console.warn('[AppKitService] Failed to subscribe to network change:', err);

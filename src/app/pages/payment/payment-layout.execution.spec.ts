@@ -121,6 +121,7 @@ function createTestHarness(): Harness {
           init: vi.fn(),
           openModal: vi.fn(),
           disconnect: vi.fn(),
+          getAppKit: () => null,
         },
       },
       {
