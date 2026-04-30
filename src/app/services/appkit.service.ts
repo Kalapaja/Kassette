@@ -153,9 +153,13 @@ export class AppKitService implements OnDestroy {
       console.warn('[AppKitService] AppKit not initialized');
       return;
     }
-    this.appKit.open(options ? { namespace: options.namespace } : undefined).catch((err) => {
-      console.warn('[AppKitService] open modal failed:', err);
-    });
+    // open() may return a Promise (newer AppKit) or void (older builds) —
+    // wrap defensively so callers don't blow up on `.catch` against undefined.
+    Promise.resolve(this.appKit.open(options ? { namespace: options.namespace } : undefined)).catch(
+      (err) => {
+        console.warn('[AppKitService] open modal failed:', err);
+      },
+    );
   }
 
   /** Disconnect the wallet via both AppKit and wagmi. */

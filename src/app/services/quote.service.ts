@@ -19,8 +19,9 @@ export interface QuoteParams {
   sourceDecimals: number;
   sourceUsdPrice: number; // USD price of the source token
   recipientAmount: bigint; // Invoice USDC amount in smallest units (6 decimals)
-  depositorAddress: `0x${string}`;
-  recipientAddress: `0x${string}`; // invoice.payment_address
+  /** EVM hex address (`0x…`) or Solana base58 owner. */
+  depositorAddress: string;
+  recipientAddress: `0x${string}`; // invoice.payment_address — always EVM
   invoiceId: string;
 }
 
@@ -50,10 +51,13 @@ export class QuoteService implements OnDestroy {
   async calculateQuote(params: QuoteParams): Promise<QuoteResult> {
     const path = this.detectPath(params.sourceChainId, params.sourceToken);
 
+    // Stop any pre-existing refresh upfront so a thrown _swapQuote() doesn't
+    // leave a previous Solana interval running with stale params.
+    this._stopRefresh();
+
     const quote = path === 'direct' ? this._directQuote(params) : await this._swapQuote(params);
 
     this._currentQuote.set(quote);
-    this._stopRefresh();
 
     // Solana Across quotes embed a short-lived blockhash — refresh silently.
     if (path === 'swap' && isSolanaChainId(params.sourceChainId)) {

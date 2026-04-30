@@ -45,14 +45,17 @@ function makeSolanaSwap(suffix: string): PublicSwap {
   };
 }
 
+const SOLANA_USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const SOLANA_OWNER = 'DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru';
+
 function params(overrides?: Partial<QuoteParams>): QuoteParams {
   return {
-    sourceToken: '0xEPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' as `0x${string}`,
+    sourceToken: SOLANA_USDC_MINT,
     sourceChainId: SOLANA_CHAIN_ID,
     sourceDecimals: 6,
     sourceUsdPrice: 1,
     recipientAmount: 1_000_000n,
-    depositorAddress: '0xowner' as `0x${string}`,
+    depositorAddress: SOLANA_OWNER,
     recipientAddress: '0xrecipient' as `0x${string}`,
     invoiceId: 'inv-1',
     ...overrides,

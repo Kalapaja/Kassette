@@ -71,12 +71,13 @@ export class BalanceService {
     const solanaTokens = tokens.filter((t) => t.chainId === SOLANA_CHAIN_ID);
     const evmTokens = tokens.filter((t) => t.chainId !== SOLANA_CHAIN_ID);
 
-    // Split EVM tokens: Ankr-supported chains vs Unichain
+    // Split EVM tokens: Ankr-supported chains vs Unichain (Ankr lacks Unichain).
     const unichainTokens = evmTokens.filter((t) => t.chainId === UNICHAIN_CHAIN_ID);
+    const ankrTokens = evmTokens.filter((t) => t.chainId !== UNICHAIN_CHAIN_ID);
 
     // Run Ankr + Unichain RPC + Solana in parallel
     const [ankrResult, unichainResult, solanaResult] = await Promise.allSettled([
-      this._fetchViaAnkr(userAddress, evmTokens),
+      this._fetchViaAnkr(userAddress, ankrTokens),
       this._fetchChainViaRpc(UNICHAIN_CHAIN_ID, userAddress, unichainTokens),
       this._fetchSolanaBalances(this.walletState.solanaAddress(), solanaTokens),
     ]);
@@ -102,13 +103,12 @@ export class BalanceService {
         results.set(key, value);
       }
     } else {
-      // Ankr failed — fall back to per-chain RPC for EVM chains except Unichain
+      // Ankr failed — fall back to per-chain RPC for the same Ankr-targeted set.
       console.warn(
         '[BalanceService] Ankr API failed, falling back to per-chain RPC:',
         ankrResult.reason,
       );
-      const rpcTokens = evmTokens.filter((t) => t.chainId !== UNICHAIN_CHAIN_ID);
-      const fallbackResults = await this._fetchAllViaRpc(userAddress, rpcTokens);
+      const fallbackResults = await this._fetchAllViaRpc(userAddress, ankrTokens);
       for (const [key, value] of fallbackResults) {
         results.set(key, value);
       }

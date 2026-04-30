@@ -650,7 +650,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         sourceDecimals: option.decimals,
         sourceUsdPrice: usdPrice,
         recipientAmount: parseUnits(getRemainingAmount(invoice), 6),
-        depositorAddress: account.address as `0x${string}`,
+        depositorAddress: account.address,
         recipientAddress: invoice.payment_address as `0x${string}`,
         invoiceId: invoice.id,
       });

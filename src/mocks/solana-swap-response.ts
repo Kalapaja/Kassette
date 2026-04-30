@@ -1,3 +1,5 @@
+import { formatUnits } from 'viem';
+
 import { SOLANA_CHAIN_ID } from '@/app/config/solana';
 
 /**
@@ -68,7 +70,7 @@ export function makeMockSolanaSwapResponse(
     from_chain_id: SOLANA_CHAIN_ID,
     to_chain_id: 137,
     status: 'Created',
-    estimated_to_amount: (Number(invoiceUnits) / 1e6).toFixed(2),
+    estimated_to_amount: parseFloat(formatUnits(invoiceUnits, 6)).toFixed(2),
     swap_details: {
       id: 'mock-across-solana-quote',
       raw_transaction: {
