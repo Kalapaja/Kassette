@@ -60,7 +60,9 @@ import {
 } from '@/app/types/swap.types';
 import { ChainService } from '@/app/services/chain.service';
 import { getTokenKey } from '@/app/config/tokens';
+import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, SOLANA_MIN_FEE_LAMPORTS } from '@/app/config/solana';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
+import { getReownRpcUrl } from '@/app/config/rpc';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
@@ -280,23 +282,48 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
   private createWalletEffect(): () => void {
     const effectRef = effect(() => {
-      // Track only wallet signals — step is read untracked
-      // so closing the sheet (step→idle) won't re-trigger this effect
-      const isConnected = this.walletState.isConnected();
-      const address = this.walletState.address();
-      const chainId = this.walletState.chainId();
+      // Track both EVM and Solana wallet signals. Multichain wallets
+      // (e.g. MetaMask Snap) can report both subscribe streams at the same
+      // time; we mirror them into state and let `state.activeNamespace`
+      // (driven by AppKit's network change subscription) pick the active one.
+      const evmConnected = this.walletState.isConnected();
+      const evmAddress = this.walletState.address();
+      const evmChainId = this.walletState.chainId();
+      const solanaConnected = this.walletState.solanaIsConnected();
+      const solanaAddress = this.walletState.solanaAddress();
+      // Poll AppKit's active chain namespace whenever a wallet signal
+      // changes — `subscribeCaipNetworkChange` doesn't fire on the very
+      // first connect (only on subsequent network changes), so we'd
+      // otherwise miss the initial namespace until the user switches.
+      const appKit = this.appKit.getAppKit();
+      const polledNs = appKit?.getActiveChainNamespace?.();
+      if (polledNs === 'eip155' || polledNs === 'solana') {
+        this.walletState.setActiveNamespace(polledNs);
+      }
+      const activeNs = this.walletState.activeNamespace();
 
-      if (isConnected && address) {
-        this.state.walletAddress.set(this.formatAddress(address));
-        this.state.connectedAccount.set({ address, chainId: chainId ?? 1 });
+      const evmAlive = evmConnected && !!evmAddress;
+      const solanaAlive = solanaConnected && !!solanaAddress;
+
+      this.state.evmAccount.set(
+        evmAlive ? { address: evmAddress!, chainId: evmChainId ?? 1 } : null,
+      );
+      this.state.solanaAccount.set(solanaAlive ? { address: solanaAddress! } : null);
+
+      if (evmAlive || solanaAlive) {
+        const displayAddress =
+          activeNs === 'solana' && solanaAlive ? solanaAddress! : (evmAddress ?? solanaAddress!);
+        this.state.walletAddress.set(this.formatAddress(displayAddress));
+        const activeNsForIcon = activeNs === 'solana' && solanaAlive ? 'solana' : 'eip155';
+        this.state.walletIcon.set(appKit?.getWalletInfo?.(activeNsForIcon)?.icon);
 
         const step = untracked(() => this.state.currentStep());
         if (step === 'idle') {
-          this.onWalletConnected({ address, chainId: chainId ?? 1 });
+          this.enterTokenSelect();
         }
-      } else if (!isConnected) {
+      } else {
         this.state.walletAddress.set('');
-        this.state.connectedAccount.set(null);
+        this.state.walletIcon.set(undefined);
 
         const step = untracked(() => this.state.currentStep());
         if (
@@ -330,9 +357,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const account = this.state.connectedAccount();
-    if (account) {
-      this.onWalletConnected(account);
+    if (this.state.hasAnyConnection()) {
+      this.enterTokenSelect();
     } else {
       this.appKit.openModal();
     }
@@ -342,6 +368,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (this.layout.isDesktop()) return;
     const step = this.state.currentStep();
     if (step === 'token-select' || step === 'ready-to-pay' || step === 'quoting') {
+      this.quoteService.stopRefresh();
       this.state.resetTokenSelection();
     }
   }
@@ -349,6 +376,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   async onDisconnect(): Promise<void> {
     this.state.searchQuery.set('');
     this.state.searching.set(false);
+    this.quoteService.stopRefresh();
     await this.appKit.disconnect();
   }
 
@@ -489,7 +517,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async onWalletConnected(account: { address: string; chainId: number }): Promise<void> {
+  private async enterTokenSelect(): Promise<void> {
     const config = this.appKit.wagmiConfig;
     if (config) {
       this.paymentService.setConfig(config);
@@ -497,17 +525,25 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     }
     this.state.transition('token-select');
     this.state.isLoadingTokens.set(true);
-    await this.loadBalancesAndPrices(account.address as `0x${string}`);
+    await this.loadBalancesAndPrices();
     this.state.isLoadingTokens.set(false);
   }
 
-  private async loadBalancesAndPrices(address: `0x${string}`): Promise<void> {
+  private async loadBalancesAndPrices(): Promise<void> {
     await Promise.all([this.tokenService.ready, this.chainService.ready]);
     const allTokens = this.tokenService.getAllTokens();
 
+    // Pass whichever account signals are populated. Multichain wallets
+    // (e.g. MetaMask Snap) can have both EVM and Solana sessions live; we
+    // pre-fetch both balance maps so switching the active namespace inside
+    // the wallet doesn't trigger a re-fetch round-trip. BalanceService skips
+    // the side without an address.
+    const evmAddress = this.state.evmAccount()?.address as `0x${string}` | undefined;
+    const solanaAddress = this.state.solanaAccount()?.address;
+
     const [pricesResult, balancesResult] = await Promise.allSettled([
       this.priceService.fetchPrices(allTokens),
-      this.balanceService.getBalances(address, allTokens),
+      this.balanceService.getBalances({ evmAddress, solanaAddress }, allTokens),
     ]);
 
     if (pricesResult.status === 'fulfilled') {
@@ -529,9 +565,16 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     if (!invoice) return [];
     const usdAmount = parseFloat(getRemainingAmount(invoice));
     const locale = this.ts.locale();
+    const solanaLamports = this.balanceService.getSolanaLamports();
+    const namespace = this.state.activeNamespace();
 
     const options: TokenOption[] = [];
     for (const token of this.tokenService.getAllTokens()) {
+      // Scope the catalog to the connected namespace — wallet families are
+      // mutually exclusive, so showing tokens of the other side is misleading.
+      if (namespace === 'eip155' && token.chainId === SOLANA_CHAIN_ID) continue;
+      if (namespace === 'solana' && token.chainId !== SOLANA_CHAIN_ID) continue;
+
       const key = getTokenKey(token.chainId, token.address);
       const price = this.state.prices().get(key);
       if (!price || price <= 0) continue;
@@ -548,6 +591,20 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       const balanceHuman = formatUnits(balance, token.decimals);
       const balanceFormatted = parseFloat(balanceHuman).toFixed(precision);
 
+      // Solana fee accounting:
+      //  - native SOL: same lamport pool covers transfer + fee, so
+      //    the balance check absorbs the fee buffer.
+      //  - SPL tokens (USDC, etc.): a separate SOL stash pays the fee, so
+      //    surface "insufficient SOL for fees" as a distinct reason.
+      const isSolana = token.chainId === SOLANA_CHAIN_ID;
+      const isSolanaNative = isSolana && token.address === SOL_NATIVE_ADDRESS;
+      const totalNeeded = isSolanaNative
+        ? requiredAmount + SOLANA_MIN_FEE_LAMPORTS
+        : requiredAmount;
+      const hasEnoughBalance = balance >= totalNeeded;
+      const insufficientForFees =
+        isSolana && !isSolanaNative && solanaLamports < SOLANA_MIN_FEE_LAMPORTS;
+
       options.push({
         chainId: token.chainId,
         chainName: chain.name,
@@ -560,7 +617,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         requiredAmount: requiredHuman,
         balance,
         balanceHuman: balanceFormatted,
-        sufficient: balance >= requiredAmount,
+        sufficient: hasEnoughBalance && !insufficientForFees,
+        insufficientForFees: insufficientForFees || undefined,
         fiatParts: formatFiat(parseFloat(requiredHuman) * price, locale),
         valueParts: formatFiat(parseFloat(balanceFormatted) * price, locale),
       });
@@ -634,14 +692,21 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     try {
       const invoice = this.state.invoice()!;
-      const account = this.state.connectedAccount()!;
+      // The token list is scoped to the active namespace, so a matching
+      // connected account *should* exist here. Guard anyway in case the user
+      // disconnects between picking and clicking.
+      const account = this.state.connectedAccount();
+      if (!account) {
+        this.state.transition('token-select');
+        return;
+      }
       const quote = await this.quoteService.calculateQuote({
         sourceToken: option.tokenAddress,
         sourceChainId: option.chainId,
         sourceDecimals: option.decimals,
         sourceUsdPrice: usdPrice,
         recipientAmount: parseUnits(getRemainingAmount(invoice), 6),
-        depositorAddress: account.address as `0x${string}`,
+        depositorAddress: account.address,
         recipientAddress: invoice.payment_address as `0x${string}`,
         invoiceId: invoice.id,
       });
@@ -719,7 +784,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const invoiceId = this.getInvoiceId();
 
     const hash = await this.paymentService.submitTransfer(
-      selectedTokenAddress,
+      selectedTokenAddress as `0x${string}`,
       invoice.payment_address as `0x${string}`,
       requiredAmount,
       selectedChainId,
@@ -751,7 +816,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoice_id: invoiceId,
       from_amount_units: requiredAmount.toString(),
       from_chain_id: selectedChainId,
-      from_asset_id: this.toBackendAssetId(selectedTokenAddress),
+      from_asset_id: this.toBackendAssetId(selectedTokenAddress as `0x${string}`),
       transaction_hash: receipt.transactionHash,
     });
     this.pendingTxService.remove(invoiceId);
@@ -760,8 +825,14 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private async executeSwap(): Promise<void> {
-    const quote = this.state.quote()!;
+    // Prefer the in-memory refreshed quote (Solana background refresh may have
+    // replaced the state snapshot with a newer one). Fall back to state.
+    const liveQuote = this.quoteService.currentQuote();
+    const quote = liveQuote ?? this.state.quote()!;
     const swap = quote.swap!;
+
+    // Stop any running Solana refresh once we've committed to executing.
+    this.quoteService.stopRefresh();
 
     if (isZeroExSwap(swap)) {
       await this.executeZeroExSwap(swap);
@@ -778,7 +849,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
     const selectedChainId = this.state.selectedChainId()!;
-    const selectedTokenAddress = this.state.selectedTokenAddress()!;
+    // ZeroEx is EVM-only — narrow the widened state field for downstream calls.
+    const selectedTokenAddress = this.state.selectedTokenAddress()! as `0x${string}`;
     const isNative = isNativeAddress(selectedTokenAddress);
     const allowanceTarget = details.raw_transaction.allowance_target as `0x${string}`;
     const requiredAmount = BigInt(swap.from_amount_units);
@@ -858,6 +930,21 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   ): Promise<void> {
     const details = swap.swap_details;
     const invoiceId = this.getInvoiceId();
+    const selectedChainId = this.state.selectedChainId()!;
+
+    // Solana-source Across swap: no ERC-20 approvals, sign+send via AppKit Solana.
+    if (selectedChainId === SOLANA_CHAIN_ID) {
+      this.state.transition('executing');
+      const signature = await this.swapService.executeAcrossSolana(
+        details.raw_transaction.transaction,
+      );
+      this.state.txHash.set(signature);
+      await this.swapService.submitSwapTransaction(swap.id, signature);
+      this.state.transition('polling');
+      this.startPolling(invoiceId);
+      return;
+    }
+
     const isNative = isNativeAddress(this.state.selectedTokenAddress()!);
 
     // Native tokens don't need ERC-20 approval
@@ -871,7 +958,6 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
 
     this.state.txHash.set(txHash);
 
-    const selectedChainId = this.state.selectedChainId()!;
     const receipt = await waitForTransactionReceipt(this.appKit.wagmiConfig!, {
       hash: txHash as Hash,
       chainId: selectedChainId,
@@ -951,7 +1037,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       invoice,
       txHash: record.txHash,
       selectedChainId: record.chainId,
-      selectedTokenAddress: record.tokenAddress as `0x${string}`,
+      selectedTokenAddress: record.tokenAddress,
       selectedTokenSymbol: record.tokenSymbol,
       selectedTokenDecimals: record.tokenDecimals,
       requiredAmount: BigInt(record.amount),
@@ -1001,7 +1087,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
   }
 
   private resolveTokenLogo(chainId: number, tokenAddress: string): string {
-    const token = this.tokenService.findToken(chainId, tokenAddress as `0x${string}`);
+    const token = this.tokenService.findToken(chainId, tokenAddress);
     return token?.logoUrl ?? '';
   }
 
@@ -1009,12 +1095,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     hash: `0x${string}`,
     chainId: number,
   ): Promise<TransactionReceipt | null> {
-    const chain = this.chainService.getChain(chainId);
-    if (!chain) return null;
     const viemChain = VIEM_CHAINS[chainId];
+    if (!viemChain) return null;
     const client = createPublicClient({
       chain: viemChain,
-      transport: http(chain.rpcUrl),
+      transport: http(getReownRpcUrl(chainId)),
     });
     try {
       return await client.getTransactionReceipt({ hash });
@@ -1053,7 +1138,9 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
               invoice_id: invoiceId,
               from_amount_units: this.state.requiredAmount().toString(),
               from_chain_id: this.state.selectedChainId()!,
-              from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()!),
+              from_asset_id: this.toBackendAssetId(
+                this.state.selectedTokenAddress()! as `0x${string}`,
+              ),
               transaction_hash: this.state.txHash(),
             });
             this.pendingTxService.remove(invoiceId);
@@ -1121,12 +1208,11 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       }
 
       // 2. Get original tx details
-      const chain = this.chainService.getChain(selectedChainId);
-      if (!chain) return;
       const viemChain = VIEM_CHAINS[selectedChainId];
+      if (!viemChain) return;
       const client = createPublicClient({
         chain: viemChain,
-        transport: http(chain.rpcUrl),
+        transport: http(getReownRpcUrl(selectedChainId)),
       });
 
       const originalTx = await client.getTransaction({ hash: txHash as `0x${string}` });
@@ -1154,7 +1240,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
           invoice_id: invoiceId,
           from_amount_units: this.state.requiredAmount().toString(),
           from_chain_id: selectedChainId,
-          from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()!),
+          from_asset_id: this.toBackendAssetId(this.state.selectedTokenAddress()! as `0x${string}`),
           transaction_hash: txHash,
         });
         this.pendingTxService.remove(invoiceId);

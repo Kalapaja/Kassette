@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { VersionedTransaction } from '@solana/web3.js';
 import { firstValueFrom } from 'rxjs';
 import type { Config } from '@wagmi/core';
 import {
@@ -12,6 +13,8 @@ import {
 } from '@wagmi/core';
 import { encodeFunctionData, erc20Abi } from 'viem';
 
+import { SOLANA_CHAIN_ID } from '@/app/config/solana';
+import { AppKitService } from '@/app/services/appkit.service';
 import type {
   ApiResultStructured,
   ApprovalTransaction,
@@ -24,9 +27,23 @@ import type {
   ZeroExRawTransactionData,
 } from '@/app/types/swap.types';
 
+interface SolanaProviderLike {
+  signAndSendTransaction: (tx: VersionedTransaction) => Promise<string | { signature: string }>;
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SwapService {
   private readonly http = inject(HttpClient);
+  private readonly appKit = inject(AppKitService);
   private _config: Config | null = null;
 
   setConfig(config: Config): void {
@@ -114,6 +131,51 @@ export class SwapService {
       maxFeePerGas: BigInt(swapTx.max_fee_per_gas),
       maxPriorityFeePerGas: BigInt(swapTx.max_priority_fee_per_gas),
     });
+  }
+
+  /**
+   * Execute an Across-provided Solana transaction. The daemon returns the
+   * pre-built, pre-signed-by-Across (but not by payer) `VersionedTransaction`
+   * base64-encoded in `swapTx.data`. We just deserialize, hand it to the
+   * AppKit Solana provider to sign+send, and return the base58 signature.
+   *
+   * The daemon invoice poll is authoritative for payment state (R3.5), so
+   * we don't await Solana finality here.
+   */
+  async executeAcrossSolana(swapTx: SwapTransaction): Promise<string> {
+    if (swapTx.chain_id !== SOLANA_CHAIN_ID) {
+      throw new Error(`executeAcrossSolana called with non-Solana chain_id=${swapTx.chain_id}`);
+    }
+
+    const appKit = this.appKit.getAppKit();
+    if (!appKit) {
+      throw new Error('SwapService: AppKit not initialized.');
+    }
+
+    const provider = appKit.getProvider<SolanaProviderLike>('solana');
+    if (!provider || typeof provider.signAndSendTransaction !== 'function') {
+      throw new Error('SwapService: Solana provider unavailable.');
+    }
+
+    let tx: VersionedTransaction;
+    try {
+      tx = VersionedTransaction.deserialize(base64ToBytes(swapTx.data));
+    } catch (err) {
+      console.warn('[Solana] failed to deserialize VersionedTransaction:', err);
+      throw new Error('Invalid Solana transaction payload');
+    }
+
+    let signature: string;
+    try {
+      const raw = await provider.signAndSendTransaction(tx);
+      signature = typeof raw === 'string' ? raw : raw.signature;
+    } catch (err) {
+      console.warn('[Solana] signAndSend failed:', err);
+      throw err;
+    }
+
+    console.info('[Solana] signAndSend', { signature });
+    return signature;
   }
 
   async signBungeeTypedData(typedData: BungeeSignTypedData): Promise<`0x${string}`> {

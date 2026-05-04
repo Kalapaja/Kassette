@@ -2,21 +2,50 @@ import { computed, Injectable, OnDestroy, signal } from '@angular/core';
 import { watchAccount, watchChainId, type GetAccountReturnType } from '@wagmi/core';
 import type { Config } from '@wagmi/core';
 
+export interface SolanaAccountSnapshot {
+  address?: string;
+  status?: 'disconnected' | 'connecting' | 'reconnecting' | 'connected';
+  isConnected?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class WalletStateService implements OnDestroy {
-  /** The connected wallet address (undefined when disconnected). */
+  /** The connected EVM wallet address (undefined when disconnected). */
   readonly address = signal<string | undefined>(undefined);
 
-  /** The currently-selected chain ID (undefined when disconnected). */
+  /** The currently-selected EVM chain ID (undefined when disconnected). */
   readonly chainId = signal<number | undefined>(undefined);
 
-  /** Raw connection status string from wagmi. */
+  /** Raw EVM connection status string from wagmi. */
   readonly status = signal<'disconnected' | 'connecting' | 'reconnecting' | 'connected'>(
     'disconnected',
   );
 
   /** Convenience computed — true only when wagmi reports "connected". */
   readonly isConnected = computed(() => this.status() === 'connected');
+
+  /** Connected Solana base58 public key (undefined when disconnected). */
+  readonly solanaAddress = signal<string | undefined>(undefined);
+
+  /** Solana connection status from AppKit's account subscription. */
+  readonly solanaStatus = signal<'disconnected' | 'connecting' | 'reconnecting' | 'connected'>(
+    'disconnected',
+  );
+
+  /** True when the AppKit Solana namespace reports "connected". */
+  readonly solanaIsConnected = computed(() => this.solanaStatus() === 'connected');
+
+  /**
+   * Which wallet namespace AppKit is currently treating as active. Multichain
+   * wallets (MetaMask Snap, etc.) can have *both* connections live; this
+   * signal disambiguates which one the user picked. Set by `AppKitService`
+   * via `subscribeCaipNetworkChange`.
+   */
+  readonly activeNamespace = signal<'eip155' | 'solana' | null>(null);
+
+  setActiveNamespace(ns: 'eip155' | 'solana' | null): void {
+    this.activeNamespace.set(ns);
+  }
 
   private unwatchAccount: (() => void) | null = null;
   private unwatchChainId: (() => void) | null = null;
@@ -43,6 +72,20 @@ export class WalletStateService implements OnDestroy {
         this.chainId.set(id);
       },
     });
+  }
+
+  /**
+   * Sync Solana signals from an AppKit account snapshot. Accepts a loose
+   * shape so callers don't need to import AppKit types.
+   */
+  setSolanaAccount(snapshot: SolanaAccountSnapshot | null | undefined): void {
+    if (!snapshot || snapshot.isConnected === false) {
+      this.solanaAddress.set(undefined);
+      this.solanaStatus.set('disconnected');
+      return;
+    }
+    this.solanaAddress.set(snapshot.address);
+    this.solanaStatus.set(snapshot.status ?? (snapshot.isConnected ? 'connected' : 'disconnected'));
   }
 
   ngOnDestroy(): void {

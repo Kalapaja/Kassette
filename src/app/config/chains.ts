@@ -3,7 +3,6 @@ export interface ChainConfig {
   name: string;
   logoUrl: string;
   explorerUrl: string;
-  rpcUrl: string;
   nativeCurrency: {
     name: string;
     symbol: string;
@@ -21,4 +20,6 @@ export const DEFILLAMA_CHAIN_NAMES: Record<number, string> = {
   8453: 'base',
   59144: 'linea',
   130: 'unichain',
+  // Across' synthetic Solana chain id; DefiLlama uses `solana:<mint>` keys.
+  34268394551451: 'solana',
 };
