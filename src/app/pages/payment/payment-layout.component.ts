@@ -314,6 +314,8 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         const displayAddress =
           activeNs === 'solana' && solanaAlive ? solanaAddress! : (evmAddress ?? solanaAddress!);
         this.state.walletAddress.set(this.formatAddress(displayAddress));
+        const activeNsForIcon = activeNs === 'solana' && solanaAlive ? 'solana' : 'eip155';
+        this.state.walletIcon.set(appKit?.getWalletInfo?.(activeNsForIcon)?.icon);
 
         const step = untracked(() => this.state.currentStep());
         if (step === 'idle') {
@@ -321,6 +323,7 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
         }
       } else {
         this.state.walletAddress.set('');
+        this.state.walletIcon.set(undefined);
 
         const step = untracked(() => this.state.currentStep());
         if (

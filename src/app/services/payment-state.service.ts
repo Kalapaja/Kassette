@@ -71,6 +71,8 @@ export class PaymentStateService {
   readonly prices = signal<Map<string, number>>(new Map());
   readonly balances = signal<Map<string, bigint>>(new Map());
   readonly walletAddress = signal<string>('');
+  /** Icon URL/data-URI of the currently active connected wallet. */
+  readonly walletIcon = signal<string | undefined>(undefined);
   /** EVM wallet account (set by wagmi watcher). */
   readonly evmAccount = signal<{ address: string; chainId: number } | null>(null);
   /** Solana wallet account (set by AppKit Solana namespace subscription). */
