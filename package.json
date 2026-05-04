@@ -62,6 +62,7 @@
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.6.0",
+    "happy-dom": "^20.9.0",
     "lefthook": "^2.1.5",
     "msw": "^2.12.10",
     "postcss": "^8.5.6",
