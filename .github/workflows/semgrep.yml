@@ -23,7 +23,7 @@ jobs:
       image: semgrep/semgrep
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Run Semgrep (OSS rules)
         run: semgrep ci --sarif --output=semgrep.sarif || true
