@@ -33,7 +33,7 @@ jobs:
           - { name: Build, command: build }
           - { name: E2E, command: end-to-end }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-dagger
         with:
           ssh-private-key: ${{ secrets.DAGGER_CI_SSH_KEY }}
