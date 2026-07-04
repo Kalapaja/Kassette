@@ -568,6 +568,10 @@
           </div>
         }
 
+        @if (!state.connectedAccount()) {
+          <kp-webview-escape />
+        }
+
         <div class="cta mt-2.5 pt-2.5">
           <kp-button weight="primary" (buttonClick)="onButtonClick()">
             <svg

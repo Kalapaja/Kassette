@@ -27,6 +27,7 @@ import { ButtonComponent } from '@/app/components/button/button.component';
 import { OrderItemComponent } from '@/app/components/order-item/order-item.component';
 import { BalanceItemComponent } from '@/app/components/balance-item/balance-item.component';
 import { BottomSheetComponent } from '@/app/components/bottom-sheet/bottom-sheet.component';
+import { WebviewEscapeComponent } from '@/app/components/webview-escape/webview-escape.component';
 import { PaymentStateService } from '@/app/services/payment-state.service';
 import { LayoutService } from '@/app/services/layout.service';
 import { TranslationService } from '@/app/services/translation.service';
@@ -79,6 +80,7 @@ const GAS_BUMP_MULTIPLIER = 1.15;
     OrderItemComponent,
     BalanceItemComponent,
     BottomSheetComponent,
+    WebviewEscapeComponent,
   ],
   host: {
     '[attr.data-step]': 'state.currentStep()',

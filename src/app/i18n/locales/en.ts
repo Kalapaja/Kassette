@@ -18,6 +18,16 @@ export const en = {
   'button.connectAndPay': 'Connect Wallet & Pay',
   'button.disconnect': 'Disconnect',
 
+  // -- In-app webview escape --
+  'webview.title': 'Open in your browser to pay',
+  'webview.body':
+    "Connecting a wallet doesn't work inside an in-app browser. Open this page in your browser to finish paying.",
+  'webview.openButton': 'Open in browser',
+  'webview.telegramHint': 'In Telegram, tap the ⋮ menu (or Share) and choose "Open in browser".',
+  'webview.genericHint': 'Use this app\'s menu and choose "Open in browser".',
+  'webview.copyLink': 'Copy payment link',
+  'webview.copied': 'Link copied',
+
   // -- Footer --
   'footer.poweredBy': 'Powered by',
 
