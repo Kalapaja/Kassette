@@ -111,6 +111,13 @@ describe('externalBrowserUrl', () => {
     expect(escape).toContain(`S.browser_fallback_url=${encodeURIComponent(url)};end`);
   });
 
+  it('mirrors an http origin in the intent scheme (local/dev, self-hosted)', () => {
+    const httpUrl = 'http://localhost:3001/checkout?invoice_id=abc123';
+    const escape = externalBrowserUrl(httpUrl, 'android');
+    expect(escape).toContain('scheme=http;');
+    expect(escape).not.toContain('scheme=https;');
+  });
+
   it('keeps a URL fragment out of the intent path and in the fallback', () => {
     const withFragment = url + '#section';
     const escape = externalBrowserUrl(withFragment, 'android');

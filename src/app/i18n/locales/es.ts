@@ -18,11 +18,11 @@ export const es: Record<keyof typeof en, string> = {
 
   'webview.title': 'Abre en tu navegador para pagar',
   'webview.body':
-    'Conectar una billetera no funciona dentro de un navegador integrado. Abre esta pagina en tu navegador para completar el pago.',
+    'Conectar una billetera no funciona dentro de un navegador integrado. Abre esta página en tu navegador para completar el pago.',
   'webview.openButton': 'Abrir en el navegador',
   'webview.telegramHint':
-    'En Telegram, toca el menu ⋮ (o Compartir) y elige "Abrir en el navegador".',
-  'webview.genericHint': 'Usa el menu de esta app y elige "Abrir en el navegador".',
+    'En Telegram, toca el menú ⋮ (o Compartir) y elige "Abrir en el navegador".',
+  'webview.genericHint': 'Usa el menú de esta app y elige "Abrir en el navegador".',
   'webview.copyLink': 'Copiar enlace de pago',
   'webview.copied': 'Enlace copiado',
 

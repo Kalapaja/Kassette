@@ -101,13 +101,16 @@ export function externalBrowserUrl(currentUrl: string, platform: EmbeddedPlatfor
   }
 
   if (platform === 'android') {
-    // `intent://…` hands off to the user's default browser. The part before
+    // `intent://…` hands off to the user's default browser. Mirror the page's
+    // own scheme — hard-coding https would open the wrong protocol when the
+    // page is served over http (local/dev, self-hosted). The part before
     // "#Intent" must not itself contain a "#", so any fragment rides along in
     // `browser_fallback_url`.
+    const scheme = /^http:\/\//i.test(currentUrl) ? 'http' : 'https';
     const withoutFragment = currentUrl.split('#')[0];
     const hostAndPath = withoutFragment.replace(/^https?:\/\//i, '');
     return (
-      `intent://${hostAndPath}#Intent;scheme=https;` +
+      `intent://${hostAndPath}#Intent;scheme=${scheme};` +
       `S.browser_fallback_url=${encodeURIComponent(currentUrl)};end`
     );
   }
