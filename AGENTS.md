@@ -78,7 +78,7 @@ pnpm release:tag                    # Create signed tag from package.json versio
 - **Entry point:** `src/main.ts` — bootstraps Angular app, starts MSW iff `environment.mocks`. `environment.ts` (dev) sets `mocks: true`; `environment.prod.ts`, `environment.e2e.ts`, and `environment.no-mocks.ts` set `mocks: false`. The `no-mocks` build config pairs with `pnpm dev:no-mocks` for manual testing against a real backend without production optimizations. E2E uses `production: true` so the bundle ships without MSW — Playwright handles mocking at the network layer instead.
 - **Root component:** `src/app/app.component.ts` — shell with `<router-outlet>`
 - **Main page:** `src/app/pages/payment/payment-layout.component.ts` — THE main component with all step rendering via `@switch`
-- **Components:** `src/app/components/` — 10 standalone Angular components, prefixed with `kp-` (e.g., `kp-button`, `kp-input`)
+- **Components:** `src/app/components/` — 11 standalone Angular components, prefixed with `kp-` (e.g., `kp-button`, `kp-input`, `kp-webview-escape`)
 - **Services:** `src/app/services/` — 14 injectable services (AppKit, WalletState, PaymentState, Invoice, Balance, Payment, Price, Token, Quote, Uniswap, Across, PendingTx, Translation, Layout)
 - **Config:** `src/app/config/` — chains, tokens, uniswap, across (plain TypeScript modules)
 - **Types:** `src/app/types/` — invoice, payment, payment-step types
@@ -143,7 +143,7 @@ src/                                # Angular source
 │   ├── app.component.ts            # Root shell with <router-outlet>
 │   ├── app.config.ts               # Provider configuration (HttpClient, Router)
 │   ├── app.routes.ts               # Route definitions with invoice guard
-│   ├── components/                 # 10 standalone components (kp-* prefix)
+│   ├── components/                 # 11 standalone components (kp-* prefix)
 │   ├── pages/payment/
 │   │   ├── payment-layout.component.ts   # THE main component (12-step @switch)
 │   │   ├── payment-layout.component.html # Template

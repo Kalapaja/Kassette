@@ -16,6 +16,16 @@ export const es: Record<keyof typeof en, string> = {
   'button.connectAndPay': 'Conectar billetera y pagar',
   'button.disconnect': 'Desconectar',
 
+  'webview.title': 'Abre en tu navegador para pagar',
+  'webview.body':
+    'Conectar una billetera no funciona dentro de un navegador integrado. Abre esta página en tu navegador para completar el pago.',
+  'webview.openButton': 'Abrir en el navegador',
+  'webview.telegramHint':
+    'En Telegram, toca el menú ⋮ (o Compartir) y elige "Abrir en el navegador".',
+  'webview.genericHint': 'Usa el menú de esta app y elige "Abrir en el navegador".',
+  'webview.copyLink': 'Copiar enlace de pago',
+  'webview.copied': 'Enlace copiado',
+
   'footer.poweredBy': 'Desarrollado por',
 
   'sheet.payWith': 'Pagar con',
