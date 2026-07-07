@@ -114,7 +114,6 @@ async function createTestHarness(): Promise<Harness> {
   const chainService = {
     getChain: vi.fn().mockReturnValue({
       chainId: 137,
-      rpcUrl: 'https://rpc.test',
       logoUrl: 'https://logo.test/chain.png',
       explorerUrl: 'https://explorer.test',
     }),
@@ -156,7 +155,13 @@ async function createTestHarness(): Promise<Harness> {
       { provide: ChainService, useValue: chainService },
       {
         provide: AppKitService,
-        useValue: { wagmiConfig: {}, init: vi.fn(), openModal: vi.fn(), disconnect: vi.fn() },
+        useValue: {
+          wagmiConfig: {},
+          init: vi.fn(),
+          openModal: vi.fn(),
+          disconnect: vi.fn(),
+          getAppKit: () => null,
+        },
       },
       {
         provide: WalletStateService,
@@ -164,6 +169,9 @@ async function createTestHarness(): Promise<Harness> {
           isConnected: signal(false),
           address: signal(null),
           chainId: signal(null),
+          solanaIsConnected: signal(false),
+          solanaAddress: signal(undefined),
+          activeNamespace: signal(null),
           init: vi.fn(),
         },
       },
@@ -470,7 +478,7 @@ describe('PaymentLayoutComponent — recovery', () => {
       state.selectedChainId.set(137);
       state.selectedTokenAddress.set(NATIVE_TOKEN_ADDRESS);
       state.requiredAmount.set(123n);
-      state.connectedAccount.set({ address: '0xfrom', chainId: 137 });
+      state.evmAccount.set({ address: '0xfrom', chainId: 137 });
 
       const mockedClient = {
         getTransaction: vi.fn().mockResolvedValue({
@@ -510,7 +518,7 @@ describe('PaymentLayoutComponent — recovery', () => {
       state.selectedTokenAddress.set('0xtoken' as `0x${string}`);
       state.requiredAmount.set(3000000n);
       state.invoice.set(makeInvoice());
-      state.connectedAccount.set({ address: '0xuser', chainId: 137 });
+      state.evmAccount.set({ address: '0xuser', chainId: 137 });
     }
 
     function setupConfirmedTx(receiptStatus: 'success' | 'reverted') {

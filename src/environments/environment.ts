@@ -10,5 +10,4 @@ export const environment = {
     'https://api.dicebear.com/7.x/shapes/svg?seed=kalatori',
   ),
   apiBaseUrl: '/public',
-  ankrApiToken: runtimeConfig('ankrApiToken'),
 };

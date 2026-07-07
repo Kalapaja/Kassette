@@ -121,6 +121,7 @@ function createTestHarness(): Harness {
           init: vi.fn(),
           openModal: vi.fn(),
           disconnect: vi.fn(),
+          getAppKit: () => null,
         },
       },
       {
@@ -129,6 +130,9 @@ function createTestHarness(): Harness {
           isConnected: signal(false),
           address: signal(null),
           chainId: signal(null),
+          solanaIsConnected: signal(false),
+          solanaAddress: signal(undefined),
+          activeNamespace: signal(null),
           init: vi.fn(),
         },
       },
@@ -197,7 +201,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       state.selectedTokenDecimals.set(6);
       state.requiredAmount.set(1_000_000n);
       state.requiredAmountHuman.set('1.0');
-      state.connectedAccount.set({ address: '0xuser', chainId });
+      state.evmAccount.set({ address: '0xuser', chainId });
       state.quote.set(makeZeroExQuoteResult(swap));
       return swap;
     }
@@ -290,7 +294,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       state.selectedTokenDecimals.set(isNative ? 18 : 6);
       state.requiredAmount.set(isNative ? 500000000000000n : 1_000_000n);
       state.requiredAmountHuman.set(isNative ? '0.0005' : '1.0');
-      state.connectedAccount.set({ address: '0xuser', chainId: 8453 });
+      state.evmAccount.set({ address: '0xuser', chainId: 8453 });
     }
 
     it('executes approval transactions for ERC-20 tokens', async () => {
@@ -337,7 +341,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       state.selectedTokenDecimals.set(isNative ? 18 : 6);
       state.requiredAmount.set(isNative ? 500000000000000n : 1_000_000n);
       state.requiredAmountHuman.set(isNative ? '0.0005' : '1.0');
-      state.connectedAccount.set({ address: '0xuser', chainId: 8453 });
+      state.evmAccount.set({ address: '0xuser', chainId: 8453 });
     }
 
     it('executes Permit2 approval for ERC-20 tokens', async () => {
@@ -379,7 +383,7 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       state.selectedTokenDecimals.set(6);
       state.requiredAmount.set(1_000_000n);
       state.requiredAmountHuman.set('1.0');
-      state.connectedAccount.set({ address: '0xuser', chainId: 137 });
+      state.evmAccount.set({ address: '0xuser', chainId: 137 });
 
       await component.executeDirect();
 

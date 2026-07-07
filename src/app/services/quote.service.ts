@@ -1,36 +1,49 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, NgZone, OnDestroy, signal } from '@angular/core';
 import { formatUnits } from 'viem';
 import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { SwapService } from '@/app/services/swap.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS, USDC_DECIMALS } from '@/app/config/payment';
+import { isSolanaChainId } from '@/app/config/solana';
 import { isAcrossSwap, isZeroExSwap } from '@/app/types/swap.types';
 import type { PaymentPath, QuoteResult } from '@/app/types/payment-step.types';
 
 export type { PaymentPath, QuoteResult };
 
+/** Solana Across quotes carry a ~57s blockhash — refresh well inside that. */
+const SOLANA_QUOTE_REFRESH_MS = 45_000;
+
 export interface QuoteParams {
-  sourceToken: `0x${string}`;
+  /** EVM hex address (`0x…`) or Solana base58 mint. */
+  sourceToken: string;
   sourceChainId: number;
   sourceDecimals: number;
   sourceUsdPrice: number; // USD price of the source token
   recipientAmount: bigint; // Invoice USDC amount in smallest units (6 decimals)
-  depositorAddress: `0x${string}`;
-  recipientAddress: `0x${string}`; // invoice.payment_address
+  /** EVM hex address (`0x…`) or Solana base58 owner. */
+  depositorAddress: string;
+  recipientAddress: `0x${string}`; // invoice.payment_address — always EVM
   invoiceId: string;
 }
 
 @Injectable({ providedIn: 'root' })
-export class QuoteService {
+export class QuoteService implements OnDestroy {
   private readonly _swapService = inject(SwapService);
+  private readonly _ngZone = inject(NgZone);
 
-  static isDirectTransfer(chainId: number, tokenAddress: `0x${string}`): boolean {
+  private readonly _currentQuote = signal<QuoteResult | null>(null);
+  readonly currentQuote = this._currentQuote.asReadonly();
+
+  private _refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private _refreshParams: QuoteParams | null = null;
+
+  static isDirectTransfer(chainId: number, tokenAddress: string): boolean {
     return (
       chainId === POLYGON_CHAIN_ID &&
       tokenAddress.toLowerCase() === POLYGON_USDC_ADDRESS.toLowerCase()
     );
   }
 
-  detectPath(chainId: number, tokenAddress: `0x${string}`): PaymentPath {
+  detectPath(chainId: number, tokenAddress: string): PaymentPath {
     if (QuoteService.isDirectTransfer(chainId, tokenAddress)) return 'direct';
     return 'swap';
   }
@@ -38,12 +51,57 @@ export class QuoteService {
   async calculateQuote(params: QuoteParams): Promise<QuoteResult> {
     const path = this.detectPath(params.sourceChainId, params.sourceToken);
 
-    switch (path) {
-      case 'direct':
-        return this._directQuote(params);
-      case 'swap':
-        return await this._swapQuote(params);
+    // Stop any pre-existing refresh upfront so a thrown _swapQuote() doesn't
+    // leave a previous Solana interval running with stale params.
+    this._stopRefresh();
+
+    const quote = path === 'direct' ? this._directQuote(params) : await this._swapQuote(params);
+
+    this._currentQuote.set(quote);
+
+    // Solana Across quotes embed a short-lived blockhash — refresh silently.
+    if (path === 'swap' && isSolanaChainId(params.sourceChainId)) {
+      this._startSolanaRefresh(params);
     }
+
+    return quote;
+  }
+
+  /** Stop the Solana refresh timer. Call on step change or teardown. */
+  stopRefresh(): void {
+    this._stopRefresh();
+  }
+
+  ngOnDestroy(): void {
+    this._stopRefresh();
+  }
+
+  private _startSolanaRefresh(params: QuoteParams): void {
+    this._refreshParams = params;
+    this._ngZone.runOutsideAngular(() => {
+      this._refreshTimer = setInterval(() => {
+        void this._refreshOnce();
+      }, SOLANA_QUOTE_REFRESH_MS);
+    });
+  }
+
+  private async _refreshOnce(): Promise<void> {
+    const params = this._refreshParams;
+    if (!params) return;
+    try {
+      const fresh = await this._swapQuote(params);
+      this._ngZone.run(() => this._currentQuote.set(fresh));
+    } catch (err) {
+      console.warn('[Solana] Quote refresh failed, keeping previous quote', err);
+    }
+  }
+
+  private _stopRefresh(): void {
+    if (this._refreshTimer !== null) {
+      clearInterval(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+    this._refreshParams = null;
   }
 
   private _directQuote(params: QuoteParams): QuoteResult {

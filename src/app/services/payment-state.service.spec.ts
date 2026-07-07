@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { PaymentStateService } from './payment-state.service';
+import { WalletStateService } from './wallet-state.service';
+import { SOLANA_CHAIN_ID } from '@/app/config/solana';
 import type { PaymentStep } from '@/app/types/payment-step.types';
 import { VALID_TRANSITIONS } from '@/app/types/payment-step.types';
 import { makeMockTokenOption } from '@/app/testing/test-factories';
@@ -727,7 +729,7 @@ describe('PaymentStateService', () => {
       service.prices.set(new Map([['ETH', 3000]]));
       service.balances.set(new Map([['1:0xabc', 1000000n]]));
       service.walletAddress.set('0xuser');
-      service.connectedAccount.set({ address: '0xuser', chainId: 1 });
+      service.evmAccount.set({ address: '0xuser', chainId: 1 });
       service.searchQuery.set('usdc');
       service.searching.set(true);
       service.isLoadingTokens.set(true);
@@ -775,6 +777,61 @@ describe('PaymentStateService', () => {
       expect(service.canPay()).toBe(false);
       expect(service.isError()).toBe(false);
       expect(service.isTransacting()).toBe(false);
+    });
+  });
+
+  // ─── Wallet account resolution (active-namespace model) ───
+
+  describe('connectedAccount + activeNamespace', () => {
+    let walletState: WalletStateService;
+
+    beforeEach(() => {
+      walletState = TestBed.inject(WalletStateService);
+      walletState.setActiveNamespace(null);
+    });
+
+    it('returns the EVM account when only evmAccount is set', () => {
+      service.evmAccount.set({ address: '0xuser', chainId: 137 });
+      service.solanaAccount.set(null);
+      expect(service.connectedAccount()).toEqual({ address: '0xuser', chainId: 137 });
+      expect(service.activeNamespace()).toBe('eip155');
+      expect(service.hasAnyConnection()).toBe(true);
+    });
+
+    it('returns the Solana account with synthetic chainId when only solanaAccount is set', () => {
+      service.evmAccount.set(null);
+      service.solanaAccount.set({ address: 'CmJAT53ZTTAo6YRCUrZFhxSjFRjrS8gFGHDr24YDY3C7' });
+      expect(service.connectedAccount()).toEqual({
+        address: 'CmJAT53ZTTAo6YRCUrZFhxSjFRjrS8gFGHDr24YDY3C7',
+        chainId: SOLANA_CHAIN_ID,
+      });
+      expect(service.activeNamespace()).toBe('solana');
+      expect(service.hasAnyConnection()).toBe(true);
+    });
+
+    it('returns null and no active namespace when neither is set', () => {
+      expect(service.connectedAccount()).toBeNull();
+      expect(service.activeNamespace()).toBeNull();
+      expect(service.hasAnyConnection()).toBe(false);
+    });
+
+    it('resolves to Solana when both accounts are set and walletState picks Solana', () => {
+      service.evmAccount.set({ address: '0xuser', chainId: 1 });
+      service.solanaAccount.set({ address: 'CmJAT53ZTTAo6YRCUrZFhxSjFRjrS8gFGHDr24YDY3C7' });
+      walletState.setActiveNamespace('solana');
+      expect(service.activeNamespace()).toBe('solana');
+      expect(service.connectedAccount()).toEqual({
+        address: 'CmJAT53ZTTAo6YRCUrZFhxSjFRjrS8gFGHDr24YDY3C7',
+        chainId: SOLANA_CHAIN_ID,
+      });
+    });
+
+    it('resolves to EVM when both accounts are set and walletState picks eip155', () => {
+      service.evmAccount.set({ address: '0xuser', chainId: 1 });
+      service.solanaAccount.set({ address: 'CmJAT53ZTTAo6YRCUrZFhxSjFRjrS8gFGHDr24YDY3C7' });
+      walletState.setActiveNamespace('eip155');
+      expect(service.activeNamespace()).toBe('eip155');
+      expect(service.connectedAccount()).toEqual({ address: '0xuser', chainId: 1 });
     });
   });
 

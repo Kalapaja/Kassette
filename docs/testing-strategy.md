@@ -29,7 +29,7 @@ Kassette's test suite is organized in tiers by feedback speed and scope.
 | `payment-state.service.spec.ts`      | State machine transitions (valid + invalid), `VALID_TRANSITIONS` map, context signal updates, computed signals, reset                 |
 | `payment-layout.execution.spec.ts`   | Swap execution chain forwarding: ZeroEx, Across, Bungee approval/tx paths; `executeDirect` chainId handling                           |
 | `payment-layout.recovery.spec.ts`    | `handlePendingTxRecovery` context restoration, fast-path receipt handling, monitoring loop, native asset normalization, speed-up flow |
-| `balance.service.spec.ts`            | Ankr multichain endpoint mapping, per-chain fallback, native vs ERC-20 handling                                                       |
+| `balance.service.spec.ts`            | Reown RPC delegation, multi-chain merging, cache lifecycle                                                                            |
 | `payment.service.spec.ts`            | `submitTransfer`, `submitApprove`, `checkAllowance`, `waitForReceipt` chainId forwarding                                              |
 | `quote.service.spec.ts`              | `convertToSourceAmount` precision/edge cases, `isDirectTransfer`, `detectPath`, `calculateQuote` direct + swap (Across/ZeroEx) flow   |
 | `swap.service.spec.ts`               | wagmi action chainId forwarding for Across/Bungee approvals; `_waitForBatchResult` polling (success, retry, failure, timeout)         |

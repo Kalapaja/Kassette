@@ -182,13 +182,14 @@ tests/e2e/                          # Playwright E2E specs
 
 ## Documentation Map
 
-| Doc                            | Covers                                                            | When to consult                                 |
-| ------------------------------ | ----------------------------------------------------------------- | ----------------------------------------------- |
-| `docs/testing-strategy.md`     | Test tiers, coverage thresholds, test harness, adding tests       | Adding tests, understanding test infrastructure |
-| `docs/release-strategy.md`     | Tag-first release model, signed tags, ZIP artifact, version bumps | Releasing, version management                   |
-| `docs/dagger-ci-guide.md`      | Dagger commands, caching strategy, CI architecture, debugging     | CI changes, pipeline debugging                  |
-| `docs/doc-update-triggers.md`  | Mandatory doc update checklist                                    | After any code change                           |
-| `docs/testing-payment-flow.md` | MSW-mocked manual testing scenarios                               | Manual QA, dev server testing                   |
+| Doc                            | Covers                                                                         | When to consult                                       |
+| ------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `docs/testing-strategy.md`     | Test tiers, coverage thresholds, test harness, adding tests                    | Adding tests, understanding test infrastructure       |
+| `docs/release-strategy.md`     | Tag-first release model, signed tags, ZIP artifact, version bumps              | Releasing, version management                         |
+| `docs/dagger-ci-guide.md`      | Dagger commands, caching strategy, CI architecture, debugging                  | CI changes, pipeline debugging                        |
+| `docs/doc-update-triggers.md`  | Mandatory doc update checklist                                                 | After any code change                                 |
+| `docs/testing-payment-flow.md` | MSW-mocked manual testing scenarios                                            | Manual QA, dev server testing                         |
+| `docs/solana-integration.md`   | Solana payment source — synthetic chain id, Reown RPC, quote refresh, recovery | Touching Solana code or onboarding to the Solana flow |
 
 ## MCP Tooling Summary
 

@@ -1,0 +1,142 @@
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+
+const getBalanceMock = vi.fn();
+const getParsedTokenAccountsByOwnerMock = vi.fn();
+
+vi.mock('@solana/web3.js', () => {
+  class PublicKey {
+    private readonly value: string;
+    constructor(value: string) {
+      this.value = value;
+    }
+    toBase58(): string {
+      return this.value;
+    }
+    equals(other: PublicKey): boolean {
+      return this.value === other.value;
+    }
+  }
+
+  class Connection {
+    getBalance = getBalanceMock;
+    getParsedTokenAccountsByOwner = getParsedTokenAccountsByOwnerMock;
+  }
+
+  return { Connection, PublicKey };
+});
+
+vi.mock('@solana/spl-token', () => ({
+  TOKEN_PROGRAM_ID: { toBase58: () => 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+}));
+
+import { BalanceService } from './balance.service';
+import { SOL_NATIVE_ADDRESS, SOLANA_CHAIN_ID, WSOL_MINT } from '@/app/config/solana';
+import { getTokenKey, type TokenConfig } from '@/app/config/tokens';
+
+const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const OWNER = 'DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru';
+
+function token(
+  overrides: Partial<TokenConfig> & Pick<TokenConfig, 'address' | 'symbol'>,
+): TokenConfig {
+  return {
+    chainId: SOLANA_CHAIN_ID,
+    decimals: 6,
+    logoUrl: '',
+    ...overrides,
+  };
+}
+
+describe('BalanceService — Solana', () => {
+  let service: BalanceService;
+
+  beforeEach(() => {
+    getBalanceMock.mockReset();
+    getParsedTokenAccountsByOwnerMock.mockReset();
+
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(BalanceService);
+
+    // Stub EVM RPC so balance fetches don't try to hit the network.
+    vi.spyOn(
+      service as unknown as { _fetchAllViaRpc: () => Promise<Map<string, bigint>> },
+      '_fetchAllViaRpc',
+    ).mockResolvedValue(new Map());
+  });
+
+  function splParsedAccount(mint: string, amount: string) {
+    return {
+      account: { data: { parsed: { info: { mint, tokenAmount: { amount } } } } },
+      pubkey: { toBase58: () => `ata-${mint}` },
+    };
+  }
+
+  it('returns WSOL lamports and SPL amounts keyed by mint-preserving getTokenKey', async () => {
+    getBalanceMock.mockResolvedValue(5_000_000);
+    getParsedTokenAccountsByOwnerMock.mockResolvedValue({
+      value: [splParsedAccount(SOLANA_USDC, '1234567')],
+    });
+
+    const tokens = [
+      token({ address: WSOL_MINT, symbol: 'WSOL', decimals: 9 }),
+      token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 }),
+    ];
+
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
+
+    const wsolKey = getTokenKey(SOLANA_CHAIN_ID, WSOL_MINT);
+    const usdcKey = getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC);
+
+    expect(map.get(wsolKey)).toBe(5_000_000n);
+    expect(map.get(usdcKey)).toBe(1_234_567n);
+    expect(service.getSolanaLamports()).toBe(5_000_000n);
+  });
+
+  it('returns lamports for the native SOL catalog entry too (System Program id)', async () => {
+    getBalanceMock.mockResolvedValue(7_500_000);
+    getParsedTokenAccountsByOwnerMock.mockResolvedValue({ value: [] });
+
+    const tokens = [token({ address: SOL_NATIVE_ADDRESS, symbol: 'SOL', decimals: 9 })];
+
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
+    expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOL_NATIVE_ADDRESS))).toBe(7_500_000n);
+  });
+
+  it('sums multiple SPL accounts sharing the same mint', async () => {
+    getBalanceMock.mockResolvedValue(3_000_000);
+    getParsedTokenAccountsByOwnerMock.mockResolvedValue({
+      value: [splParsedAccount(SOLANA_USDC, '1000'), splParsedAccount(SOLANA_USDC, '500')],
+    });
+
+    const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
+
+    expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC))).toBe(1500n);
+  });
+
+  it('returns 0n amounts on Solana RPC failure without throwing', async () => {
+    getBalanceMock.mockRejectedValue(new Error('rpc down'));
+    getParsedTokenAccountsByOwnerMock.mockRejectedValue(new Error('rpc down'));
+
+    const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
+    const map = await service.getBalances({ solanaAddress: OWNER }, tokens);
+
+    expect(map.get(getTokenKey(SOLANA_CHAIN_ID, SOLANA_USDC))).toBe(0n);
+    expect(service.getSolanaLamports()).toBe(0n);
+  });
+
+  it('skips Solana RPC calls entirely when no solanaAddress is supplied', async () => {
+    const tokens = [token({ address: SOLANA_USDC, symbol: 'USDC', decimals: 6 })];
+
+    await service.getBalances({}, tokens);
+
+    expect(getBalanceMock).not.toHaveBeenCalled();
+    expect(getParsedTokenAccountsByOwnerMock).not.toHaveBeenCalled();
+  });
+
+  it('skips Solana RPC calls when the token list is empty', async () => {
+    await service.getBalances({ solanaAddress: OWNER }, []);
+    expect(getBalanceMock).not.toHaveBeenCalled();
+  });
+});

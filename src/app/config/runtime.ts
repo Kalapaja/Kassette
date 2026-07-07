@@ -3,7 +3,6 @@ interface AppConfig {
   merchantName?: string;
   merchantLogoUrl?: string;
   projectId?: string;
-  ankrApiToken?: string;
 }
 
 declare global {
@@ -28,7 +27,6 @@ const ENV_KEY_MAP: Record<keyof AppConfig, keyof ImportMetaEnv> = {
   projectId: 'VITE_REOWN_PROJECT_ID',
   merchantName: 'VITE_MERCHANT_NAME',
   merchantLogoUrl: 'VITE_MERCHANT_LOGO_URL',
-  ankrApiToken: 'VITE_ANKR_API_TOKEN',
 };
 
 function fromEnv(key: keyof AppConfig): string {

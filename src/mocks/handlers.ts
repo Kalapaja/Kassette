@@ -1,5 +1,8 @@
 import { http, HttpResponse } from 'msw';
 
+import { SOLANA_CHAIN_ID as SOLANA_CHAIN_ID_MOCK } from '@/app/config/solana';
+import { makeMockSolanaSwapResponse } from '@/mocks/solana-swap-response';
+
 const MOCK_INVOICE = {
   invoice: {
     id: '491b4e8e-26f4-45fb-8d86-c7c27dd291b0',
@@ -219,6 +222,21 @@ export const handlers = [
       from_amount_units?: string;
       expected_to_amount_units?: string;
     };
+
+    // Solana source — return a Solana-shaped Across response with a base64
+    // VersionedTransaction placeholder (see src/mocks/solana-swap-response.ts).
+    if (body.from_chain_id === SOLANA_CHAIN_ID_MOCK) {
+      const invoiceUnits = BigInt(
+        body.expected_to_amount_units ?? body.from_amount_units ?? '1000000',
+      );
+      return HttpResponse.json({
+        result: makeMockSolanaSwapResponse(
+          MOCK_INVOICE.invoice.id,
+          invoiceUnits,
+          MOCK_INVOICE.invoice.payment_address,
+        ),
+      });
+    }
 
     // Simulate realistic from_amount_units based on source token.
     // The real API returns the amount in source-token units.

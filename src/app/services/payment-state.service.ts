@@ -1,5 +1,8 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import type { Invoice } from '@/app/types/invoice.types';
+import { SOLANA_CHAIN_ID } from '@/app/config/solana';
+import { getTokenKey } from '@/app/config/tokens';
+import { WalletStateService } from '@/app/services/wallet-state.service';
 import {
   type PaymentStep,
   type StepContext,
@@ -35,6 +38,8 @@ const DEFAULT_CONTEXT: StepContext = {
 
 @Injectable({ providedIn: 'root' })
 export class PaymentStateService {
+  private readonly walletState = inject(WalletStateService);
+
   // ─── Core step signal ───
 
   readonly currentStep = signal<PaymentStep>('loading');
@@ -43,9 +48,7 @@ export class PaymentStateService {
 
   readonly invoice = signal<Invoice | null>(DEFAULT_CONTEXT.invoice);
   readonly selectedChainId = signal<number | null>(DEFAULT_CONTEXT.selectedChainId);
-  readonly selectedTokenAddress = signal<`0x${string}` | null>(
-    DEFAULT_CONTEXT.selectedTokenAddress,
-  );
+  readonly selectedTokenAddress = signal<string | null>(DEFAULT_CONTEXT.selectedTokenAddress);
   readonly selectedTokenSymbol = signal<string>(DEFAULT_CONTEXT.selectedTokenSymbol);
   readonly selectedTokenLogoUrl = signal<string>(DEFAULT_CONTEXT.selectedTokenLogoUrl);
   readonly selectedChainLogoUrl = signal<string>(DEFAULT_CONTEXT.selectedChainLogoUrl);
@@ -68,7 +71,44 @@ export class PaymentStateService {
   readonly prices = signal<Map<string, number>>(new Map());
   readonly balances = signal<Map<string, bigint>>(new Map());
   readonly walletAddress = signal<string>('');
-  readonly connectedAccount = signal<{ address: string; chainId: number } | null>(null);
+  /** Icon URL/data-URI of the currently active connected wallet. */
+  readonly walletIcon = signal<string | undefined>(undefined);
+  /** EVM wallet account (set by wagmi watcher). */
+  readonly evmAccount = signal<{ address: string; chainId: number } | null>(null);
+  /** Solana wallet account (set by AppKit Solana namespace subscription). */
+  readonly solanaAccount = signal<{ address: string } | null>(null);
+  /**
+   * Which wallet namespace AppKit is currently treating as active. Multichain
+   * wallets (e.g. MetaMask Snap) can have *both* `evmAccount` and
+   * `solanaAccount` populated at the same time; this signal — driven by
+   * AppKit's `subscribeCaipNetworkChange` — disambiguates which one the user
+   * is actually on.
+   */
+  readonly activeNamespace = computed<'eip155' | 'solana' | null>(() => {
+    const ns = this.walletState.activeNamespace();
+    if (ns) return ns;
+    // Fallback for the period before AppKit emits the first network event:
+    // pick whichever side has an account, preferring EVM.
+    if (this.evmAccount()) return 'eip155';
+    if (this.solanaAccount()) return 'solana';
+    return null;
+  });
+  /** Currently active account, resolved against `activeNamespace`. */
+  readonly connectedAccount = computed<{ address: string; chainId: number } | null>(() => {
+    const ns = this.activeNamespace();
+    if (ns === 'solana') {
+      const sol = this.solanaAccount();
+      return sol ? { address: sol.address, chainId: SOLANA_CHAIN_ID } : null;
+    }
+    if (ns === 'eip155') {
+      return this.evmAccount();
+    }
+    return null;
+  });
+  /** True when a wallet (EVM or Solana) is connected. */
+  readonly hasAnyConnection = computed(
+    () => this.evmAccount() !== null || this.solanaAccount() !== null,
+  );
   readonly searchQuery = signal<string>('');
   readonly searching = signal<boolean>(false);
   readonly isLoadingTokens = signal<boolean>(false);
@@ -94,9 +134,10 @@ export class PaymentStateService {
     const chainId = this.selectedChainId();
     const address = this.selectedTokenAddress();
     if (chainId === null || address === null) return undefined;
-    return this.tokens().find(
-      (t) => t.chainId === chainId && t.tokenAddress.toLowerCase() === address.toLowerCase(),
-    );
+    // Use namespace-aware key matching: Solana base58 mints are
+    // case-sensitive, EVM hex addresses are case-insensitive.
+    const target = getTokenKey(chainId, address);
+    return this.tokens().find((t) => getTokenKey(t.chainId, t.tokenAddress) === target);
   });
 
   /** True when an error is displayed. */
@@ -252,7 +293,8 @@ export class PaymentStateService {
     this.prices.set(new Map());
     this.balances.set(new Map());
     this.walletAddress.set('');
-    this.connectedAccount.set(null);
+    this.evmAccount.set(null);
+    this.solanaAccount.set(null);
     this.searchQuery.set('');
     this.searching.set(false);
     this.isLoadingTokens.set(false);
