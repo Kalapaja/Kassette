@@ -6,14 +6,16 @@ export type SwapStatus = 'Created' | 'Submitted' | 'Pending' | 'Completed' | 'Fa
 
 // --- Across types ---
 
+// Across documents value/gas/fee caps as omittable: absent `value` means zero,
+// absent gas parameters mean "estimate it yourself" (we defer to the wallet).
 export interface SwapTransaction {
   chain_id: number;
   contract_address: string;
   data: string;
-  value: string; // u128 serialized as string
-  gas: string; // u128 serialized as string
-  max_fee_per_gas: string; // u128 serialized as string
-  max_priority_fee_per_gas: string; // u128 serialized as string
+  value?: string | null; // u128 serialized as string; absent → 0
+  gas?: string | null; // u128 serialized as string; absent → wallet estimates
+  max_fee_per_gas?: string | null; // u128 serialized as string; absent → wallet estimates
+  max_priority_fee_per_gas?: string | null; // u128 serialized as string; absent → wallet estimates
 }
 
 export interface ApprovalTransaction {
@@ -107,10 +109,12 @@ export interface BungeeSwapDetails {
 
 // --- ZeroEx types ---
 
+// 0x types `transaction.gas` as nullable (null when it cannot estimate at quote
+// time); `gas_price` and `value` are required and non-nullable.
 export interface ZeroExRawTransactionData {
   to: string;
   data: string;
-  gas: string;
+  gas?: string | null; // absent/null → wallet estimates
   gas_price: string;
   value: string;
 }
