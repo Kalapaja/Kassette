@@ -3,14 +3,19 @@
  *
  * Caching strategy (mirrors kaiku's rustBase pattern):
  *   Layer caching:  manifest files (package.json, pnpm-lock.yaml) are copied first,
- *                   so pnpm install is only re-run when dependencies change.
- *   Volume caching: pnpm content-addressable store and node_modules persist across
- *                   Dagger Engine sessions, eliminating re-downloads on cache hits.
- *                   Angular's .angular/cache also uses a volume for incremental builds.
+ *                   so pnpm install is only re-run when dependencies change. The
+ *                   install output lands in the layer, so all workflows sharing a
+ *                   lockfile reuse one install.
+ *   Volume caching: the pnpm content-addressable store persists across Dagger Engine
+ *                   sessions, eliminating re-downloads on cache hits. Angular's
+ *                   .angular/cache also uses a volume for incremental builds.
  *
- * The node_modules cache volume (mounted after source copy, mirroring kaiku's
- * cargo-target pattern) means even when the lockfile changes, pnpm only installs
- * the delta — it doesn't start from scratch.
+ * node_modules is deliberately NOT a cache volume. Dagger cache volumes are SHARED
+ * by default, and every workflow in a pipeline — plus every other pipeline on the
+ * engine — runs `pnpm install` concurrently. pnpm rewrites its symlink farm in
+ * place, so a shared /app/node_modules lets one branch's install tear packages out
+ * from under another branch's tsc/eslint run ("Cannot find module 'viem/chains'").
+ * The pnpm store is content-addressable and safe to share; node_modules is not.
  */
 import {
   dag,
@@ -34,17 +39,18 @@ export class Kassette {
   /**
    * Layer-cached Node.js base container with pnpm dependencies pre-installed.
    *
-   * Cache hierarchy (three volumes, ordered by invalidation frequency):
+   * Cache hierarchy (two volumes, ordered by invalidation frequency):
    *   1. pnpm-store-v3     — content-addressable package store (rarely changes)
-   *   2. node-modules       — resolved dependency tree (changes when lockfile changes)
-   *   3. angular-build-cache — incremental Angular compilation cache
+   *   2. angular-build-cache — incremental Angular compilation cache
+   *
+   * The resolved dependency tree is carried by the pnpm install layer itself, not
+   * a volume — see the file header for why.
    */
   nodeBase(
     @argument({ defaultPath: ".", ignore: [".git", "node_modules", "dist", ".angular", ".dagger", "coverage", "playwright-report", "test-results"] })
     src: Directory,
   ): Container {
     const pnpmStore = dag.cacheVolume("pnpm-store-v3")
-    const nodeModules = dag.cacheVolume("node-modules")
     const angularCache = dag.cacheVolume("angular-build-cache")
 
     return (
@@ -77,9 +83,8 @@ export class Kassette {
           "/root/.local/share/pnpm/store/v3",
           pnpmStore,
         )
-        // node_modules volume: persists the resolved tree so incremental
-        // lockfile changes only install the delta (mirrors kaiku's cargo-target).
-        .withMountedCache("/app/node_modules", nodeModules)
+        // No node_modules volume: the install must land in this layer, both so it
+        // is shared by lockfile hash and so concurrent runs cannot tear it.
         .withExec([
           "pnpm",
           "install",
@@ -88,7 +93,8 @@ export class Kassette {
         ])
 
         // ── Layer 3: full source ───────────────────────────────────
-        // node_modules is a mounted volume, so withDirectory won't touch it.
+        // The src ignore list excludes node_modules, so withDirectory won't
+        // clobber the tree installed above.
         .withDirectory("/app", src)
         // Angular incremental build cache.
         .withMountedCache("/app/.angular/cache", angularCache)

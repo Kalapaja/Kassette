@@ -20,7 +20,7 @@ Since the engine is persistent, both layer caches and CacheVolumes survive acros
 
 ## Caching Strategy
 
-The `nodeBase()` function in `.dagger/src/index.ts` uses a three-layer caching hierarchy:
+The `nodeBase()` function in `.dagger/src/index.ts` uses a three-layer caching hierarchy. Note which state is shared and which is not — see [Why node_modules is not a volume](#why-node_modules-is-not-a-volume).
 
 ### Layer 1: Dependency manifests (rarely invalidated)
 
@@ -31,23 +31,38 @@ node:24-bookworm-slim
   + pnpm install --frozen-lockfile --prefer-offline
 ```
 
-The `pnpm install` layer is cached by BuildKit based on the hash of the manifest files. When dependencies don't change, BuildKit skips the install entirely.
+The `pnpm install` layer is cached by BuildKit based on the hash of the manifest files. When dependencies don't change, BuildKit skips the install entirely — and because the resulting `node_modules` lives in the layer, every workflow sharing a lockfile reuses one install.
 
 ### Layer 2: CacheVolumes (persist across runs)
 
-| Volume                | Mount point                        | Purpose                                                            |
-| --------------------- | ---------------------------------- | ------------------------------------------------------------------ |
-| `pnpm-store-v3`       | `/root/.local/share/pnpm/store/v3` | Content-addressable package store (shared across all runs)         |
-| `node-modules`        | `/app/node_modules`                | Resolved dependency tree (only delta-installed on lockfile change) |
-| `angular-build-cache` | `/app/.angular/cache`              | Angular incremental compilation cache                              |
+| Volume                | Mount point                        | Purpose                                                    |
+| --------------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `pnpm-store-v3`       | `/root/.local/share/pnpm/store/v3` | Content-addressable package store (shared across all runs) |
+| `angular-build-cache` | `/app/.angular/cache`              | Angular incremental compilation cache                      |
 
 ### Layer 3: Full source (invalidated on every code change)
 
-After install, the full source is copied. Because `node_modules` is a mounted volume, `withDirectory()` doesn't touch it.
+After install, the full source is copied. The `src` ignore list excludes `node_modules`, so `withDirectory()` doesn't clobber the installed tree.
+
+### Why node_modules is not a volume
+
+It used to be, mounted at `/app/node_modules`, and that caused sporadic CI failures across unrelated branches:
+
+```
+src/app/config/viem-chains.ts(2,82): error TS2307: Cannot find module 'viem/chains'
+src/app/testing/test-factories.ts(1,20): error TS2307: Cannot find module 'vitest'
+TypeError: Cannot read properties of undefined (reading 'recommended')   # eslint plugin
+```
+
+Dagger cache volumes are `SHARED` by default. Every workflow in a pipeline is a separate `dagger call`, they run in parallel, and so do other pipelines on the same engine. pnpm rewrites its symlink farm in place, so one branch's `pnpm install --frozen-lockfile` could pull packages out from under another branch's `tsc` or `eslint` — most visibly when a Dependabot PR bumping `viem` ran alongside a feature branch.
+
+The pnpm store is content-addressable and designed for concurrent multi-project access, so it stays a volume. `node_modules` is mutable shared state and does not. Removing the mount also costs nothing: it is what lets the install land in the BuildKit layer, and cold installs still hardlink out of the warm store.
+
+`angular-build-cache` is shared the same way. It has not caused failures — Angular's cache is content-keyed — but it is the same hazard class, so suspect it first if `build`, `test`, or `e2e` start failing in ways that don't reproduce serially.
 
 ### Why both layers and volumes?
 
-Layer caching (BuildKit) is the primary mechanism — it works even on cold engines because the layer hash matches. CacheVolumes are supplementary — they excel on persistent engines (like our remote CI engine) for incremental installs. Belt and suspenders.
+Layer caching (BuildKit) is the primary mechanism — it works even on cold engines because the layer hash matches, and it is what makes `pnpm install` a no-op for most runs. CacheVolumes are supplementary: they hold the download store and the Angular cache, so a layer miss is still cheap. Anything a check reads directly belongs in a layer, not a shared volume.
 
 ## Dagger Functions
 
