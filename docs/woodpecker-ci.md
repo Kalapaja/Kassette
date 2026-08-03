@@ -87,6 +87,10 @@ the Actions setup had no `schedule:` on any workflow that moved.
 `ci/woodpecker/<event>/<workflow>`, where `<workflow>` is the file basename.
 Renaming a file strands any branch-protection rule that requires it.
 
+Note the event segment is Woodpecker's own short name, not the webhook event:
+a pull request reports under `pr`, giving `ci/woodpecker/pr/lint`. See
+[Branch protection](#3-branch-protection) for the exact strings.
+
 ### What stayed on GitHub Actions
 
 Three workflows did **not** move. All three are GitHub _platform_ integrations
@@ -243,15 +247,22 @@ Three mechanics make the event column above exact, and all three are sharp:
 Once Woodpecker is green, the required contexts on `main` become:
 
 ```
-ci/woodpecker/pull_request/lint
-ci/woodpecker/pull_request/format
-ci/woodpecker/pull_request/typecheck
-ci/woodpecker/pull_request/test
-ci/woodpecker/pull_request/audit
-ci/woodpecker/pull_request/build
-ci/woodpecker/pull_request/e2e
-ci/woodpecker/pull_request/gitleaks
+ci/woodpecker/pr/lint
+ci/woodpecker/pr/format
+ci/woodpecker/pr/typecheck
+ci/woodpecker/pr/test
+ci/woodpecker/pr/audit
+ci/woodpecker/pr/build
+ci/woodpecker/pr/e2e
+ci/woodpecker/pr/gitleaks
 ```
+
+**It is `pr`, not `pull_request`.** Copied verbatim from the contexts server
+`v3.16.0` actually posted on the first real pipeline (Kassette PR #51,
+2026-08-04) — not from the event name. Kapitan's and kokpitti's docs both spell
+this `ci/woodpecker/pull_request/…`, which does not match what the server emits;
+do not copy it from them. Requiring a context that never reports blocks every PR
+forever, so paste these rather than reconstructing them.
 
 `audit-advisory` is deliberately omitted: it is green by construction (it
 swallows pnpm's exit code), so requiring it adds a queue slot and no signal.
@@ -592,17 +603,20 @@ no official GitHub CLI image. A CDN outage fails the release; re-run it.
 
 What has actually been proven, as opposed to what was reasoned about.
 
-| Path                                                                | State                                                                                                                                                       |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `woodpecker-cli lint` over all ten workflows                        | ✅ all valid                                                                                                                                                |
-| Whole-directory compile (`exec`) on pull_request, push/main and tag | ✅ nine checks compile on all three events; `release` appears only on tag, with `ghcr_token` resolving                                                      |
-| envsubst parameter-expansion escaping                               | ✅ proven under `exec` — the escaped form yields `1.2.3` from `v1.2.3`                                                                                      |
-| Ranged gitleaks scanning                                            | ✅ verified against this repo: recent ranges are clean, and a range covering the March commit still reports the token (not masked)                          |
-| `apk add --no-cache github-cli jq zip` on `alpine:3.22`             | ✅ resolves from the default repositories — gh 2.72.0, jq 1.8.1. No `--repository` flag needed                                                              |
-| Release gate reads (tag object, signature, tagger, highest stable)  | ✅ dry-run against the real GitHub API for `v0.0.25`: annotated, `verified=true`, and the highest-stable resolution returns `v0.0.25` out of 24 stable tags |
-| The nine Dagger checks on a real agent                              | ⏳ unproven — `kalapaja/dagger-client` exists only on the agent host, so no Dagger step has run outside GitHub Actions                                      |
-| The red path (a deliberate failure going red)                       | ⏳ do this on the port branch before merging                                                                                                                |
-| `release.yml` write path on a `v*` tag                              | ❌ unvalidated until the next release: release creation, asset upload, `latest` promotion and the immutability guard all execute for the first time         |
+| Path                                                                | State                                                                                                                                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `woodpecker-cli lint` over all ten workflows                        | ✅ all valid                                                                                                                                                                    |
+| Whole-directory compile (`exec`) on pull_request, push/main and tag | ✅ nine checks compile on all three events; `release` appears only on tag, with `ghcr_token` resolving                                                                          |
+| envsubst parameter-expansion escaping                               | ✅ proven under `exec` — the escaped form yields `1.2.3` from `v1.2.3`                                                                                                          |
+| Ranged gitleaks scanning                                            | ✅ verified against this repo: recent ranges are clean, and a range covering the March commit still reports the token (not masked)                                              |
+| `apk add --no-cache github-cli jq` on `alpine:3.22`                 | ✅ resolves from the default repositories — gh 2.72.0, jq 1.8.1. No `--repository` flag needed. (No step installs `zip`: the archive comes out of `release-zip`, not the shell) |
+| `gh release create --latest=true` flag parsing                      | ✅ both `--latest=true` and `--latest=false` parse — it is a Cobra bool flag with a no-opt default, so the `=` form is required but either value is legal                       |
+| Release gate reads (tag object, signature, tagger, highest stable)  | ✅ dry-run against the real GitHub API for `v0.0.25`: annotated, `verified=true`, and the highest-stable resolution returns `v0.0.25` out of 24 stable tags                     |
+| The nine checks on the real agent                                   | ✅ **pipeline 1, PR #51, 2026-08-04 — all nine green on the first run.** The eight Dagger dispatches and the gitleaks clone override all worked unmodified                      |
+| Ranged gitleaks against a real `pull_request` clone                 | ✅ the `FETCH_HEAD..HEAD` path resolved on the agent — the one branch `woodpecker-cli exec` cannot reach, since it skips the clone step                                         |
+| Status-context naming                                               | ✅ observed as `ci/woodpecker/pr/<workflow>`, not `.../pull_request/...` — see [Branch protection](#3-branch-protection)                                                        |
+| The red path (a deliberate failure going red)                       | ⏳ do this on the port branch before merging                                                                                                                                    |
+| `release.yml` write path on a `v*` tag                              | ❌ unvalidated until the next release: release creation, asset upload, `latest` promotion and the immutability guard all execute for the first time                             |
 
 ### The gate is stricter than this repo's recent practice — deliberately
 
@@ -632,13 +646,18 @@ Remaining actions, none of which live in the repo:
 2. **Tell the team the release gate narrowed.** `.github/authorized-releasers`
    holds one entry; the two people who cut the last three releases are no longer
    authorized to, and lightweight tags no longer release at all.
-3. **Activate the repository** in Woodpecker, with hooks push + tag +
-   pull_request and fork approval on.
+3. ~~**Activate the repository** in Woodpecker~~ — done 2026-08-04. Note the
+   webhook GitHub created carries `push`, `pull_request`, `pull_request_review`
+   and `deployment`; a tag push arrives as a `push`, so there is no separate tag
+   hook to enable. Confirm the repo **Timeout** is ≥ 120 min and that fork
+   approval is on. Activation only fires the webhook from that moment on —
+   events that predate it are simply lost, which is why pipeline 1 had to be
+   raised by reopening PR #51 rather than by the original push.
 4. **Scope `ghcr_token` to `tag`** for this repo, and confirm the holding
    account has write access to `Kalapaja/Kassette` — without it the first
    release fails at `gh release create`, after CI is green.
 5. **Swap the branch-protection contexts** on `main`: add the eight
-   `ci/woodpecker/pull_request/*` contexts, remove the old Actions ones.
+   `ci/woodpecker/pr/*` contexts, remove the old Actions ones.
 6. **Confirm the red path** on the port branch: break something, watch it go
    red, revert. A green pipeline that cannot go red is not a pipeline.
 7. **Revoke the retired Actions credentials**: `DAGGER_CI_SSH_KEY` and its
