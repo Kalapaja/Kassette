@@ -2,7 +2,8 @@
  * Extracts a user-friendly error message from any thrown value.
  *
  * Priority:
- * 1. HttpErrorResponse with a clean structured `{ error: { message } }` body
+ * 1. HttpErrorResponse whose body yields a clean message — `{ error: { message } }`,
+ *    `{ message }`, or a bare string, with JSON string bodies parsed first
  * 2. Clean Error.message
  * 3. Fallback i18n string
  *
