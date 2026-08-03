@@ -2,9 +2,12 @@
  * Extracts a user-friendly error message from any thrown value.
  *
  * Priority:
- * 1. HttpErrorResponse with structured `{ error: { message } }` body
- * 2. Clean Error.message (short, no hex dumps, no stack traces)
+ * 1. HttpErrorResponse with a clean structured `{ error: { message } }` body
+ * 2. Clean Error.message
  * 3. Fallback i18n string
+ *
+ * "Clean" throughout means short, single-line and free of hex dumps — see
+ * `isCleanMessage`.
  */
 export function extractUserMessage(err: unknown, fallback: string): string {
   console.error('[Payment Error]', err);
@@ -32,6 +35,13 @@ export function extractUserMessage(err: unknown, fallback: string): string {
  * Try to extract a user-friendly message from an HTTP error body.
  * Handles: parsed JSON object, or unparsed JSON string.
  * Body shapes: `{ error: { message } }` or `{ message }`.
+ *
+ * Every candidate is `isCleanMessage`-checked before being returned. Server
+ * messages are not always written for end users — the daemon forwards swap
+ * provider text verbatim, and providers emit revert dumps and multi-sentence
+ * diagnostics alongside the useful short ones ("Amount is below the bridge
+ * minimum"). Anything that fails the check falls back to the translated
+ * string, which also keeps the message inside the error pill's fixed height.
  */
 function extractFromBody(body: unknown): string | null {
   // If body is a string, try to parse it as JSON
@@ -50,13 +60,13 @@ function extractFromBody(body: unknown): string | null {
   // Shape: { error: { message: "..." } }
   if (typeof obj['error'] === 'object' && obj['error'] !== null) {
     const inner = obj['error'] as Record<string, unknown>;
-    if (typeof inner['message'] === 'string' && inner['message']) {
+    if (typeof inner['message'] === 'string' && isCleanMessage(inner['message'])) {
       return inner['message'];
     }
   }
 
   // Shape: { message: "..." }
-  if (typeof obj['message'] === 'string' && obj['message']) {
+  if (typeof obj['message'] === 'string' && isCleanMessage(obj['message'])) {
     return obj['message'];
   }
 
