@@ -107,6 +107,7 @@ pnpm release:tag                    # Create signed tag from package.json versio
 - **Host attributes:** Components reflect signal inputs as host attributes for CSS variant selectors (e.g., `host: { '[attr.weight]': 'weight()' }`)
 - **HTTP:** Angular `HttpClient` with `withFetch()` for all HTTP requests
 - **Blockchain:** wagmi/core actions + viem for contract interactions, Reown AppKit for wallet modal
+- **Swap gas parameters:** Across and 0x both document `gas` / fee caps as omittable ("estimate it yourself"). Convert with `!= null` (never truthiness — `"0"` is a legitimate value) and pass `undefined` when absent; viem drops undefined fields from the RPC request so the wallet estimates them. An absent Across `value` means zero, not estimate-me.
 - **Tests:** Vitest with `describe`/`it`/`expect` (no Angular TestBed for pure logic services)
 - **TypeScript:** Strict mode, ES2022 target. Config in `tsconfig.json`.
 

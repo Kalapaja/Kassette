@@ -105,14 +105,20 @@ export class SwapService {
       throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
     }
 
+    // `!= null` rather than truthiness so a legitimate "0" is not dropped.
+    // Gas parameters left undefined are omitted from the RPC request, so the
+    // wallet estimates them; an absent `value` is documented as zero.
     return await sendTransaction(this._config, {
       chainId: swapTx.chain_id,
       to: swapTx.contract_address as `0x${string}`,
       data: swapTx.data as `0x${string}`,
-      value: BigInt(swapTx.value),
-      gas: BigInt(swapTx.gas),
-      maxFeePerGas: BigInt(swapTx.max_fee_per_gas),
-      maxPriorityFeePerGas: BigInt(swapTx.max_priority_fee_per_gas),
+      value: swapTx.value != null ? BigInt(swapTx.value) : 0n,
+      gas: swapTx.gas != null ? BigInt(swapTx.gas) : undefined,
+      maxFeePerGas: swapTx.max_fee_per_gas != null ? BigInt(swapTx.max_fee_per_gas) : undefined,
+      maxPriorityFeePerGas:
+        swapTx.max_priority_fee_per_gas != null
+          ? BigInt(swapTx.max_priority_fee_per_gas)
+          : undefined,
     });
   }
 
@@ -152,7 +158,8 @@ export class SwapService {
       to: rawTx.to as `0x${string}`,
       data: rawTx.data as `0x${string}`,
       value: BigInt(rawTx.value),
-      gas: BigInt(rawTx.gas),
+      // 0x returns null gas when it cannot estimate — let the wallet do it.
+      gas: rawTx.gas != null ? BigInt(rawTx.gas) : undefined,
       gasPrice: BigInt(rawTx.gas_price),
     });
   }
