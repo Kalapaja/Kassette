@@ -1,0 +1,22 @@
+# Audit — blocking scan of production dependencies for *critical* advisories.
+# See .woodpecker/lint.yml for the Dagger step contract.
+#
+# The non-blocking high/moderate sweep is a separate workflow (audit-advisory)
+# rather than a second step here, deliberately: as a step it would share this
+# workflow's single GitHub status check, so its advisory-only output would turn
+# an informational finding into an indistinguishable red x next to a real
+# critical CVE.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: audit
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call audit

@@ -1,22 +1,22 @@
 # Dagger: CI & Local Development Guide
 
-This guide documents our approach to running Dagger pipelines — both in GitHub Actions CI and local development.
+This guide documents our approach to running Dagger pipelines — both in CI and local development. CI runs on Woodpecker; see [woodpecker-ci.md](woodpecker-ci.md) for the pipeline definitions, secrets and setup.
 
 ## Architecture Overview
 
 ```
-GitHub Actions Runner (ephemeral ubuntu-latest)
-  └── Dagger CLI ──SSH──> Remote Dagger Engine (persistent)
-                           ├── Layer Cache  <- persists across runs
-                           └── CacheVolumes <- persists across runs
+woodpecker-agent (same host as the engine)
+  └── step container (kalapaja/dagger-client:0.20.3)
+        └── Dagger CLI ──unix socket──> Dagger Engine (persistent)
+                                         ├── Layer Cache  <- persists across runs
+                                         └── CacheVolumes <- persists across runs
 ```
 
-The Dagger engine runs on a dedicated remote node, connected from the GitHub Actions runner via SSH. Two environment variables make this work:
+The agent, the Woodpecker server and the Dagger engine all live on the same host. The agent bind-mounts `/run/dagger/engine.sock` into every step container and the server injects `_EXPERIMENTAL_DAGGER_RUNNER_HOST=unix:///run/dagger/engine.sock` globally, so a step needs nothing but the image and the command.
 
-- **`DOCKER_HOST=ssh://dagger-ci@host`** — routes Docker commands to the remote Docker daemon
-- **`_EXPERIMENTAL_DAGGER_RUNNER_HOST=docker-container://dagger-engine-vX.Y.Z`** — tells Dagger to use the existing engine container by name
+**Never set `DOCKER_HOST` or `_EXPERIMENTAL_DAGGER_RUNNER_HOST` in a workflow.** Those belonged to the retired setup, where an ephemeral GitHub Actions runner reached the engine over SSH via `DAGGER_CI_HOST` / `DAGGER_CI_SSH_KEY`. That path is gone along with `.github/actions/setup-dagger`.
 
-Since the remote engine is persistent, both layer caches and CacheVolumes survive across CI runs.
+Since the engine is persistent, both layer caches and CacheVolumes survive across CI runs.
 
 ## Caching Strategy
 
@@ -72,62 +72,51 @@ Dagger converts TypeScript camelCase to kebab-case CLI commands. Avoid abbreviat
 
 ## CI Architecture
 
-### Job structure (`.github/workflows/ci.yml`)
+### Workflow structure (`.woodpecker/`)
 
-Eight independent checks run as parallel GitHub Actions jobs via matrix strategy:
+Each check is its own Woodpecker workflow — one file, one step, one `dagger call` — and reports its own GitHub status check. That replaces the eight-entry Actions matrix; the eight commands are unchanged.
 
-```yaml
-matrix:
-  include:
-    - { name: Lint, command: lint }
-    - { name: Format, command: format-check }
-    - { name: Typecheck, command: typecheck }
-    - { name: Test, command: test }
-    - { name: Audit, command: audit }
-    - { name: 'Audit (advisory)', command: audit-advisory }
-    - { name: Build, command: build }
-    - { name: E2E, command: end-to-end }
-```
+| File                 | Command                      |
+| -------------------- | ---------------------------- |
+| `lint.yml`           | `dagger call lint`           |
+| `format.yml`         | `dagger call format-check`   |
+| `typecheck.yml`      | `dagger call typecheck`      |
+| `test.yml`           | `dagger call test`           |
+| `audit.yml`          | `dagger call audit`          |
+| `audit-advisory.yml` | `dagger call audit-advisory` |
+| `build.yml`          | `dagger call build`          |
+| `e2e.yml`            | `dagger call end-to-end`     |
 
-Each job: checkout -> setup-dagger -> `dagger call ${{ matrix.command }}`.
+Per-workflow visibility in the PR checks list — the failing check name tells you exactly what broke. Because these are separate workflows rather than matrix jobs, the file basename _is_ the status context, so renaming a file strands any branch-protection rule requiring it.
 
-Per-job visibility in the PR checks list — the failing check name tells you exactly what broke.
+Every command is wrapped in `timeout`: Woodpecker has no per-step timeout, only a repo-wide backstop. See [woodpecker-ci.md](woodpecker-ci.md#timeout-budget).
 
-**Audit policy**: `Audit` blocks on **critical** advisories — pin transitive deps via `pnpm.overrides` in `package.json` when no upstream fix is available. `Audit (advisory)` reports high/moderate findings without blocking, since transitive CVE churn would otherwise red-flag unrelated PRs. Read the advisory job log to see findings.
-
-### Composite action (`.github/actions/setup-dagger/`)
-
-Extracts the repeated setup: SSH agent, known hosts, Dagger CLI install. Reads the Dagger version from `.tool-versions` and sets `_EXPERIMENTAL_DAGGER_RUNNER_HOST` accordingly.
+**Audit policy**: `audit` blocks on **critical** advisories — pin transitive deps via `pnpm.overrides` in `package.json` when no upstream fix is available. `audit-advisory` reports high/moderate findings without blocking, since transitive CVE churn would otherwise red-flag unrelated PRs. Read the advisory workflow log to see findings.
 
 ### Concurrency control
 
-PR runs cancel in-progress jobs when new commits are pushed. Main branch runs do not cancel each other.
+The "Cancel previous pipelines" repo setting supersedes in-flight pull-request pipelines when new commits are pushed. Tag pipelines are distinct refs and never cancel each other.
 
 ### Other workflows
 
-| Workflow           | Trigger                    | What it does                                |
-| ------------------ | -------------------------- | ------------------------------------------- |
-| `release.yml`      | GitHub Release created     | Builds ZIP via Dagger, uploads to release   |
-| `version-bump.yml` | `v*` tag push              | Opens PR bumping package.json to next minor |
-| `codeql.yml`       | PR + push to main + weekly | CodeQL security analysis                    |
-| `semgrep.yml`      | PR + push to main + weekly | Semgrep SAST                                |
-| `gitleaks.yml`     | PR + push to main          | Secret scanning                             |
+| Workflow                             | Where      | Trigger                    | What it does                                         |
+| ------------------------------------ | ---------- | -------------------------- | ---------------------------------------------------- |
+| `.woodpecker/gitleaks.yml`           | Woodpecker | PR + push to main + tag    | Secret scan over the event's commit range            |
+| `.woodpecker/release.yml`            | Woodpecker | `v*` tag                   | Verifies the signed tag, builds the ZIP, releases it |
+| `.github/workflows/version-bump.yml` | Actions    | `v*` tag push              | Opens PR bumping package.json to next minor          |
+| `.github/workflows/codeql.yml`       | Actions    | PR + push to main + weekly | CodeQL security analysis                             |
+| `.github/workflows/semgrep.yml`      | Actions    | PR + push to main + weekly | Semgrep SAST                                         |
 
-## Remote Dagger Engine Setup
+The three Actions workflows are GitHub platform integrations (PR creation, SARIF upload into the Security tab), not builds — Woodpecker has no equivalent for any of them. See [woodpecker-ci.md](woodpecker-ci.md#what-stayed-on-github-actions).
 
-### Required GitHub Configuration
+## Dagger Engine Setup
 
-| Name                   | Type           | Format                     |
-| ---------------------- | -------------- | -------------------------- |
-| `DAGGER_CI_HOST`       | Variable (org) | `ssh://dagger-ci@host`     |
-| `DAGGER_CI_KNOWN_HOST` | Variable (org) | `host ssh-ed25519 AAAA...` |
-| `DAGGER_CI_SSH_KEY`    | Secret (org)   | PEM private key            |
+The engine is provisioned by Ansible on the Woodpecker host, alongside the server and agent. Nothing about it is configured from this repo:
 
-### Remote Engine Requirements
-
-- Docker daemon accessible to the `dagger-ci` user (user in `docker` group)
-- Dagger engine running as privileged container named `dagger-engine-v0.20.3`
+- Dagger engine running as a privileged container named `dagger-engine-v0.20.3`
 - Persistent volume at `/var/lib/dagger` for cache storage
+- Socket at `/run/dagger/engine.sock`, bind-mounted into every step container by the agent
+- `kalapaja/dagger-client:0.20.3` built in the host's local image store — it exists in no registry, which is why every Dagger step sets `pull: false`
 
 ## E2E in Dagger
 

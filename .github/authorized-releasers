@@ -1,0 +1,12 @@
+# Authorized release signers (handle + tagger email).
+#
+# .woodpecker/release.yml matches on the email column against the signed tag's
+# tagger, and refuses to release if there is no match. The signer must also have
+# a GPG or SSH signing key registered on GitHub, so that GitHub's API reports
+# the tag signature as verified.
+#
+# Deliberately one entry, matching kokpitti and kaiku. Releases have historically
+# been cut by three different people here (see docs/woodpecker-ci.md); narrowing
+# to one is the point of the gate, not an oversight. Add a line to authorize
+# someone — that is a reviewable change, which is the property being bought.
+kirushik kirill@pimenov.cc

@@ -1,0 +1,18 @@
+# Typecheck — tsc --noEmit over tsconfig.app.json and tsconfig.spec.json.
+# Vitest transpiles specs without type-checking them, so the spec project is
+# not redundant with test.yml.
+# See .woodpecker/lint.yml for the Dagger step contract.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: typecheck
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call typecheck

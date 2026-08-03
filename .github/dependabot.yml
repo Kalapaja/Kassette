@@ -23,7 +23,12 @@ updates:
     schedule:
       interval: weekly
 
-  # GitHub Actions
+  # GitHub Actions — only three workflows are left on Actions after the
+  # Woodpecker port (codeql, semgrep, version-bump); this keeps their action
+  # pins fresh. It does NOT see .woodpecker/ — Dependabot has no Woodpecker
+  # ecosystem, so the images pinned there (kalapaja/dagger-client,
+  # ghcr.io/gitleaks/gitleaks, alpine, woodpeckerci/plugin-git) are bumped by
+  # hand alongside .tool-versions. See docs/woodpecker-ci.md.
   - package-ecosystem: github-actions
     directory: /
     schedule:
