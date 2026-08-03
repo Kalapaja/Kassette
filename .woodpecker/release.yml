@@ -1,0 +1,253 @@
+# Release — tag-driven. Push a signed, annotated tag (`pnpm release:tag` then
+# `git push origin vX.Y.Z`) and this gates on a verified signature from an
+# authorized releaser, builds the SRI-patched zip, attaches it to a *draft*
+# release, then publishes the release.
+#
+# The draft-then-publish order is mandatory: GitHub immutable releases freeze a
+# release's assets the moment it is published, so every asset must land while
+# the release is still a draft. Publishing is the last step for the same
+# reason — a failure in the zip build leaves a deletable draft, not a permanent
+# release with no artifact attached.
+#
+# A version is one-shot; an immutable tag can never be reused.
+#
+# --- What changed in the port ---------------------------------------------
+#
+# THE TRIGGER MOVED FROM THE RELEASE TO THE TAG. The Actions workflow ran on
+# `release: created`, which meant the human had to push the tag *and then*
+# create the release by hand before any CI ran. Woodpecker receives no GitHub
+# release webhook at all, so that shape cannot be ported — and does not need
+# to be. The tag is now the only trigger and this workflow creates the release
+# itself. Step 4 of docs/release-strategy.md ("gh release create") is gone.
+#
+# THE GREEN-CI GATE IS NOW STRUCTURAL. `depends_on` runs this only after all
+# nine checks pass *on this tag*. The Actions ancestor had no gate whatsoever —
+# a release could be cut from a commit whose CI was red. The cost is one extra
+# check pass per release, most of which lands on Dagger cache hits.
+#
+# THE TAG/PACKAGE.JSON VERSION MATCH IS NOW ENFORCED IN CI. It was previously
+# only in the local pre-push hook (.githooks/pre-push-tag-check.sh), which any
+# `--no-verify` push bypasses, even though docs/release-strategy.md claimed
+# both. `verify-tag` checks it below.
+#
+# THERE IS NO workflow_dispatch. Woodpecker's `event: manual` cannot carry an
+# arbitrary tag input the way workflow inputs could, and a manual run would
+# execute against a branch rather than the tag. The replacement for "re-release
+# vX.Y.Z after a failed run" is **Restart** on that tag's pipeline in the
+# Woodpecker UI, which replays this workflow against the same tag ref. The
+# draft-handling in `draft-release` below is what makes a restart safe.
+#
+# `is_latest` COMES FROM THE GITHUB API, not from `git tag -l`. Reading it
+# locally would make correctness depend on a clone override, and the failure
+# mode there is silent: a partial clone yields an empty tag list, an empty tag
+# list makes "is this the highest version" trivially true, and a patch on an
+# old line would take `latest` off a newer release. The API has no such failure
+# mode, so this workflow needs no clone override at all.
+#
+# Bare `$VAR` throughout — Woodpecker's envsubst pass rewrites braced names
+# before the YAML is parsed, and an unknown one becomes "". The braced form is
+# never written literally in this directory, comments included; see
+# docs/woodpecker-ci.md.
+
+when:
+  - event: tag
+    ref: refs/tags/v*
+
+# All nine, and each of their `when:` blocks must remain a superset of the one
+# above. A dependency filtered out by its own `when:` does not skip — it
+# deletes this workflow from the pipeline silently, and the release simply
+# never happens.
+depends_on:
+  - lint
+  - format
+  - typecheck
+  - test
+  - audit
+  - audit-advisory
+  - build
+  - e2e
+  - gitleaks
+
+steps:
+  # -- 1. Gate ---------------------------------------------------------
+  # Refuse to release unless the tag is annotated, signed, verified by GitHub,
+  # signed by an email on the .github/authorized-releasers allowlist, and
+  # matching the version declared in package.json.
+  #
+  # `gh` and `jq` come from Alpine's community repo rather than a bespoke
+  # image: kalapaja/dagger-client carries neither (nor curl), and there is no
+  # official gitleaks-style container for the GitHub CLI. The cost is a
+  # ~10 MB apk fetch per step and a build-time dependency on Alpine's CDN.
+  - name: verify-tag
+    image: alpine:3.22
+    environment:
+      # Inherited name. Kassette pushes no container images — this token is
+      # used purely to read the GitHub API and to create/publish the release.
+      # It stays `ghcr_token` because that is the existing org-scoped secret;
+      # see docs/woodpecker-ci.md.
+      GH_TOKEN:
+        from_secret: ghcr_token
+    commands:
+      - timeout 120 apk add --no-cache github-cli jq
+      - |
+        set -eu
+        TAG="$CI_COMMIT_TAG"
+
+        REF_JSON="$(timeout 60 gh api "repos/$CI_REPO/git/ref/tags/$TAG")" || {
+          echo "Tag $TAG not found in the repository" >&2; exit 1; }
+
+        if [ "$(printf '%s' "$REF_JSON" | jq -r '.object.type')" != "tag" ]; then
+          echo "$TAG is a lightweight tag — release tags must be annotated and signed (git tag -s $TAG)" >&2
+          exit 1
+        fi
+
+        TAG_SHA="$(printf '%s' "$REF_JSON" | jq -r '.object.sha')"
+        TAG_JSON="$(timeout 60 gh api "repos/$CI_REPO/git/tags/$TAG_SHA")"
+        VERIFIED="$(printf '%s' "$TAG_JSON" | jq -r '.verification.verified')"
+        REASON="$(printf '%s' "$TAG_JSON" | jq -r '.verification.reason')"
+        EMAIL="$(printf '%s' "$TAG_JSON" | jq -r '.tagger.email')"
+        COMMIT="$(printf '%s' "$TAG_JSON" | jq -r '.object.sha')"
+
+        if [ "$VERIFIED" != "true" ]; then
+          echo "Tag $TAG signature is not verified ($REASON). Sign it with: git tag -s $TAG" >&2
+          exit 1
+        fi
+
+        # Email allowlist — see .github/authorized-releasers. The pipeline is
+        # inside `if !`, where set -e is suspended, so a missing file fails
+        # closed (no matches) rather than aborting mid-check.
+        if ! grep -v '^[[:space:]]*#' .github/authorized-releasers \
+             | awk '{print $2}' | grep -qxF "$EMAIL"; then
+          echo "Tag $TAG is signed by an unauthorized email: $EMAIL — add it to .github/authorized-releasers to authorize" >&2
+          exit 1
+        fi
+
+        echo "Tag $TAG verified — signed by authorized releaser $EMAIL, points at $COMMIT"
+      - |
+        set -eu
+        TAG="$CI_COMMIT_TAG"
+        # The doubled dollars are not a typo. Woodpecker runs this file through
+        # envsubst before parsing it, and envsubst implements shell parameter
+        # expansion — so a singly-escaped strip-prefix form is evaluated at
+        # *compile* time, against a TAG that does not exist yet, and compiles
+        # down to the empty string. Dropping one dollar here silently yields
+        # VERSION="", which is why the guard below exists rather than trusting
+        # the expansion.
+        VERSION="$${TAG#v}"
+        if [ -z "$VERSION" ] || [ "$VERSION" = "$TAG" ]; then
+          echo "Version resolution failed: TAG=$TAG VERSION=$VERSION" >&2
+          echo "The double-dollar escape above was probably lost — envsubst ate it." >&2
+          exit 1
+        fi
+
+        # The invariant docs/release-strategy.md declares: the tag and the
+        # version in package.json name the same release. The local pre-push
+        # hook checks this too, but `git push --no-verify` walks straight past
+        # it, and by then the tag is immutable.
+        PKG_VERSION="$(jq -r '.version' package.json)"
+        if [ "$PKG_VERSION" != "$VERSION" ]; then
+          echo "Tag $TAG does not match package.json version $PKG_VERSION" >&2
+          echo "The tag is immutable — bump package.json on main and tag the new commit." >&2
+          exit 1
+        fi
+
+        # Tag as `latest` only for a stable release that is the highest version
+        # shipped so far — never let a patch on an older line regress it.
+        # Prereleases skip the lookup entirely and are never latest.
+        IS_LATEST=false
+        if printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          # Assign, then filter. `set -e` sees only the *last* exit status in a
+          # pipeline and busybox ash predates pipefail, so folding these into
+          # one `$(gh api ... | grep ...)` would let a failing gh api be masked
+          # by a succeeding grep — yielding an empty list, which is exactly the
+          # input that makes "highest version" answer yes.
+          ALL_TAGS="$(timeout 60 gh api "repos/$CI_REPO/tags" --paginate --jq '.[].name')"
+          STABLE="$(printf '%s\n' "$ALL_TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+          if [ -z "$STABLE" ]; then
+            echo "Refusing to release: the tag listing returned no stable v* tags, yet $TAG is one." >&2
+            echo "Treating this as a failed API read rather than promoting $TAG to latest." >&2
+            exit 1
+          fi
+          HIGHEST="$(printf '%s\n' "$STABLE" | sort -V | tail -1)"
+          if [ "$HIGHEST" = "$TAG" ]; then IS_LATEST=true; fi
+          echo "Highest stable tag: $HIGHEST"
+        fi
+
+        # Hand the resolved values to the later steps. Woodpecker has no step
+        # outputs; steps share the workspace instead. dist/ is the right home
+        # for this file rather than the repo root because every @argument in
+        # .dagger/src/index.ts ignores "dist" — a file at the root would land
+        # in the source directory Dagger uploads, change the build layer's
+        # cache key on every release, and make the zip built here differ from
+        # the one `dagger call build` proved in CI.
+        mkdir -p dist
+        {
+          echo "RELEASE_TAG=$TAG"
+          echo "VERSION=$VERSION"
+          echo "IS_LATEST=$IS_LATEST"
+        } > dist/release.env
+        echo "Release $TAG — version $VERSION, latest=$IS_LATEST"
+
+  # -- 2. Build the SRI-patched zip ------------------------------------
+  # `release-zip` runs the same `build` function build.yml gated, then computes
+  # sha256 SRI over the entry chunk and patches index.html with it.
+  - name: release-zip
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - |
+        set -eu
+        . ./dist/release.env
+        timeout 900 dagger call release-zip --version="$VERSION" \
+          export --path="./dist/payment-page-v$VERSION.zip"
+        ls -lh "./dist/payment-page-v$VERSION.zip"
+
+  # -- 3. Draft release with the artifact attached ---------------------
+  - name: draft-release
+    image: alpine:3.22
+    environment:
+      GH_TOKEN:
+        from_secret: ghcr_token
+    commands:
+      - timeout 120 apk add --no-cache github-cli
+      - |
+        set -eu
+        . ./dist/release.env
+
+        # Immutable releases: a *published* release is permanent and cannot be
+        # replaced, so hitting one means the version has to be bumped. A
+        # leftover *draft* from a failed run is safe to discard — which is what
+        # makes "Restart the pipeline" a working retry path.
+        STATE="$(timeout 60 gh release view "$RELEASE_TAG" --repo "$CI_REPO" --json isDraft --jq '.isDraft' 2>/dev/null || echo absent)"
+        if [ "$STATE" = "false" ]; then
+          echo "$RELEASE_TAG is already published and immutable — bump to a new version" >&2
+          exit 1
+        fi
+        if [ "$STATE" = "true" ]; then
+          echo "Discarding leftover draft release for $RELEASE_TAG"
+          timeout 60 gh release delete "$RELEASE_TAG" --repo "$CI_REPO" --yes
+        fi
+
+        timeout 300 gh release create "$RELEASE_TAG" \
+          "./dist/payment-page-v$VERSION.zip" \
+          --repo "$CI_REPO" \
+          --draft --verify-tag --generate-notes \
+          --latest="$IS_LATEST" \
+          --title "$RELEASE_TAG"
+
+  # -- 4. Publish (freezes the release) --------------------------------
+  - name: publish-release
+    image: alpine:3.22
+    environment:
+      GH_TOKEN:
+        from_secret: ghcr_token
+    commands:
+      - timeout 120 apk add --no-cache github-cli
+      - |
+        set -eu
+        . ./dist/release.env
+        timeout 120 gh release edit "$RELEASE_TAG" \
+          --repo "$CI_REPO" \
+          --draft=false \
+          --latest="$IS_LATEST"
+        echo "Published $RELEASE_TAG (latest=$IS_LATEST)"

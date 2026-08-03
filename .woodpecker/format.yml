@@ -1,0 +1,16 @@
+# Format — Prettier check. See .woodpecker/lint.yml for the Dagger step contract
+# and for why this `when:` block must not be narrowed.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: format-check
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call format-check

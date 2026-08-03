@@ -1,0 +1,21 @@
+# Audit (advisory) — surfaces high/moderate advisories *without* blocking.
+# See .woodpecker/lint.yml for the Dagger step contract.
+#
+# `dagger call audit-advisory` swallows pnpm's exit code and echoes it instead,
+# so this check is green by construction — its value is entirely in the log.
+# It stays a separate workflow so that log has its own place to live; see
+# .woodpecker/audit.yml for why it is not a second step there.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: audit-advisory
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call audit-advisory

@@ -1,0 +1,116 @@
+# Gitleaks — secret scan over the commits this event introduces.
+#
+# The one check that is NOT a Dagger dispatch. gitleaks/gitleaks-action has no
+# Woodpecker equivalent (there is no `uses:`), so this runs the upstream binary
+# from the official image, pinned to the same 8.24.3 that .tool-versions gives
+# developers locally.
+#
+# NO LICENSE KEY. GITLEAKS_LICENSE was a requirement of the *Action* for
+# organization accounts, not of the tool: the gitleaks binary is MIT and scans
+# unlicensed. The old GITLEAKS_LICENSE repository secret is now dead and can be
+# deleted — see docs/woodpecker-ci.md.
+#
+# RANGED, NOT FULL-HISTORY — a deliberate choice, and the one place this port
+# diverges from kokpitti's. A full-history scan of this repo reports four
+# findings, and one of them is a real Ankr API token that was committed to
+# src/environments/ in March 2026 and later removed. On a *public* repo an
+# allowlist entry for that literal would be a standing "we know, and we left it"
+# marker, and suppressing it is not the same as revoking it. Scanning only new
+# commits keeps this check about new leaks and keeps the historical exposure a
+# credential-rotation question rather than a CI-config one. See
+# docs/woodpecker-ci.md for what full history reports today.
+#
+# THE CLONE OVERRIDE IS STILL LOAD-BEARING, for a different reason than in
+# kokpitti. The scan is ranged, but the *clone* is full: both range endpoints
+# below need history that Woodpecker's default partial clone
+# (effectively `--depth=1 --filter=tree:0`) does not provide — `HEAD~1` does not
+# resolve at depth 1 at all, and the pull-request range needs the target branch
+# fetchable. A full clone here costs ~2.5 MB. `woodpecker-cli exec` skips the
+# clone step entirely, so a regression here can only be caught on a branch.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+clone:
+  git:
+    # Must remain a trusted clone *plugin*: `settings:` only. Adding
+    # `commands:`, `entrypoint:` or `environment:` makes Woodpecker stop
+    # treating the step as a plugin, and the netrc injection silently drops
+    # with it. Kassette is public, so today that costs nothing — but the
+    # constraint is one line away from mattering and is free to honour.
+    #
+    # Pinned deliberately. Nothing updates images in this directory —
+    # Dependabot has no Woodpecker ecosystem, and its github-actions updater
+    # only sees .github/workflows/ — so an untagged reference would silently
+    # track `latest` and let clone semantics change without ever appearing in
+    # a diff.
+    #
+    # Pinning does NOT break the trusted-clone allowlist: Woodpecker matches
+    # `WOODPECKER_PLUGINS_TRUSTED_CLONE` with MatchImage, whose own comment
+    # reads "Note the image tag is not used in the matching logic" — it compares
+    # through reference.TrimNamed, which strips tag *and* digest
+    # (pipeline/frontend/yaml/utils/image.go, v3.16.0). A digest pin would match
+    # equally well; the tag is chosen because it survives review by eye.
+    # Bump it by hand alongside the dagger-client and gitleaks pins.
+    image: woodpeckerci/plugin-git:2.9.2
+    settings:
+      partial: false
+      depth: 0
+      tags: true
+
+steps:
+  - name: gitleaks
+    image: ghcr.io/gitleaks/gitleaks:v8.24.3
+    commands:
+      # The clone step runs as a different container; without this git refuses
+      # to read the repo it just wrote ("detected dubious ownership"), and
+      # gitleaks shells out to git for the whole scan.
+      - git config --global --add safe.directory "$CI_WORKSPACE"
+      - |
+        set -eu
+
+        # Resolve the range this event introduces.
+        #
+        # pull_request: fetch the target branch and diff against what was
+        #   actually fetched rather than a remote-tracking ref. plugin-git
+        #   fetches the pull ref, and whether it also leaves an `origin/main`
+        #   behind is an implementation detail of the plugin; FETCH_HEAD is
+        #   not. This resolves correctly whether the checkout is the pull
+        #   request's head ref or its merge ref.
+        #
+        # push / tag: HEAD~1..HEAD. On a squashed merge that is the one new
+        #   commit; on a merge commit HEAD~1 is the first parent — the previous
+        #   main tip — so the range expands to cover every commit the merge
+        #   brought in. Woodpecker exposes no before-sha (CI_PREV_COMMIT_SHA is
+        #   the previous *pipeline's* commit, which may be an unrelated branch),
+        #   so a direct push of several commits straight to main would scan only
+        #   its tip. main takes changes through pull requests, where the full
+        #   range is scanned; see docs/woodpecker-ci.md.
+        if [ "$CI_PIPELINE_EVENT" = "pull_request" ]; then
+          git fetch --quiet origin "$CI_COMMIT_TARGET_BRANCH"
+          RANGE="FETCH_HEAD..HEAD"
+        else
+          RANGE="HEAD~1..HEAD"
+        fi
+
+        # Guard the failure mode this check is most likely to hit, because that
+        # failure is *green*: gitleaks over an empty or unresolvable range scans
+        # nothing and reports "no leaks found". Assign, then test — under set -e
+        # a failing rev-list in an assignment aborts the step, whereas the same
+        # substitution inlined into `[ ... ]` would silently yield "".
+        COMMIT_COUNT="$(git rev-list --count "$RANGE")"
+        if [ "$COMMIT_COUNT" -lt 1 ]; then
+          echo "Refusing to report a clean scan: range $RANGE resolved to $COMMIT_COUNT commits." >&2
+          echo "The clone override in this workflow is not taking effect." >&2
+          exit 1
+        fi
+        echo "Scanning $COMMIT_COUNT commit(s) in $RANGE."
+
+        # --redact so a genuine finding does not print the secret into a build
+        # log that the whole internet can read — this repo is public. Config is
+        # picked up from ./.gitleaks.toml.
+        timeout 300 gitleaks git . --log-opts="$RANGE" --redact --no-banner --verbose
