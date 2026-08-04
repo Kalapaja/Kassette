@@ -105,18 +105,23 @@ export class SwapService {
       throw new Error('SwapService: wagmi Config not set. Call setConfig() first.');
     }
 
-    // `!= null` rather than truthiness so a legitimate "0" is not dropped.
-    // Gas parameters left undefined are omitted from the RPC request, so the
-    // wallet estimates them; an absent `value` is documented as zero.
+    // Across uses "0" as an unusable gas-limit / max-fee sentinel. Normalize
+    // either to undefined so the wallet estimates; without a max fee cap, drop
+    // the priority fee too. A zero priority fee with a non-zero cap is valid.
+    // `value` is separate: both an absent value and a literal "0" mean 0n.
+    const gas = swapTx.gas != null ? BigInt(swapTx.gas) : undefined;
+    const maxFeePerGas =
+      swapTx.max_fee_per_gas != null ? BigInt(swapTx.max_fee_per_gas) : undefined;
+
     return await sendTransaction(this._config, {
       chainId: swapTx.chain_id,
       to: swapTx.contract_address as `0x${string}`,
       data: swapTx.data as `0x${string}`,
       value: swapTx.value != null ? BigInt(swapTx.value) : 0n,
-      gas: swapTx.gas != null ? BigInt(swapTx.gas) : undefined,
-      maxFeePerGas: swapTx.max_fee_per_gas != null ? BigInt(swapTx.max_fee_per_gas) : undefined,
+      gas: gas !== 0n ? gas : undefined,
+      maxFeePerGas: maxFeePerGas !== 0n ? maxFeePerGas : undefined,
       maxPriorityFeePerGas:
-        swapTx.max_priority_fee_per_gas != null
+        maxFeePerGas != null && maxFeePerGas !== 0n && swapTx.max_priority_fee_per_gas != null
           ? BigInt(swapTx.max_priority_fee_per_gas)
           : undefined,
     });
