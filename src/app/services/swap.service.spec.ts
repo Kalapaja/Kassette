@@ -171,12 +171,12 @@ describe('SwapService', () => {
       mockSendTransaction.mockResolvedValue('0xhash');
     });
 
-    it('converts present Across gas parameters to bigint', async () => {
-      await service.executeAcrossTx(makeSwapTx());
+    it('preserves non-zero Across gas parameters as bigint', async () => {
+      await service.executeAcrossTx(makeSwapTx(42161, { gas: '21000' }));
 
       expect(lastTxParams()).toMatchObject({
         value: 1000000n,
-        gas: 200000n,
+        gas: 21000n,
         maxFeePerGas: 50000000000n,
         maxPriorityFeePerGas: 1500000000n,
       });
@@ -214,24 +214,48 @@ describe('SwapService', () => {
       expect(params['value']).toBe(0n);
     });
 
-    it('keeps a literal "0" Across gas parameter instead of dropping it', async () => {
+    it('drops a literal "0" Across gas parameter so the wallet estimates', async () => {
+      await service.executeAcrossTx(makeSwapTx(42161, { gas: '0', value: '0' }));
+
+      const params = lastTxParams();
+      expect(params['gas']).toBeUndefined();
+      // A literal zero value is genuine and must not be normalized away.
+      expect(params['value']).toBe(0n);
+    });
+
+    it('drops the priority fee when the Across max fee cap is "0"', async () => {
       await service.executeAcrossTx(
-        makeSwapTx(42161, { gas: '0', max_priority_fee_per_gas: '0', value: '0' }),
+        makeSwapTx(42161, {
+          max_fee_per_gas: '0',
+          max_priority_fee_per_gas: '1500000000',
+        }),
+      );
+
+      const params = lastTxParams();
+      expect(params['maxFeePerGas']).toBeUndefined();
+      expect(params['maxPriorityFeePerGas']).toBeUndefined();
+    });
+
+    it('preserves a zero Across priority fee with a non-zero max fee cap', async () => {
+      await service.executeAcrossTx(
+        makeSwapTx(42161, {
+          max_fee_per_gas: '30000000000',
+          max_priority_fee_per_gas: '0',
+        }),
       );
 
       expect(lastTxParams()).toMatchObject({
-        gas: 0n,
+        maxFeePerGas: 30000000000n,
         maxPriorityFeePerGas: 0n,
-        value: 0n,
       });
     });
 
-    it('converts a present 0x gas limit to bigint', async () => {
-      await service.executeZeroExTx(makeZeroExTx(), 137);
+    it('converts a present 0x gas limit to bigint without Across normalization', async () => {
+      await service.executeZeroExTx(makeZeroExTx({ gas: '21000' }), 137);
 
       expect(lastTxParams()).toMatchObject({
         chainId: 137,
-        gas: 200000n,
+        gas: 21000n,
         gasPrice: 1000000000n,
         value: 0n,
       });

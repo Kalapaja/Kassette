@@ -6,16 +6,17 @@ export type SwapStatus = 'Created' | 'Submitted' | 'Pending' | 'Completed' | 'Fa
 
 // --- Across types ---
 
-// Across documents value/gas/fee caps as omittable: absent `value` means zero,
-// absent gas parameters mean "estimate it yourself" (we defer to the wallet).
+// Across uses `gas: "0"` when simulation fails and may omit the fee caps and
+// value. Zero/absent gas and max fee caps mean wallet estimation; zero value is
+// genuine, as is a zero priority fee alongside a non-zero max fee cap.
 export interface SwapTransaction {
   chain_id: number;
   contract_address: string;
   data: string;
   value?: string | null; // u128 serialized as string; absent → 0
-  gas?: string | null; // u128 serialized as string; absent → wallet estimates
-  max_fee_per_gas?: string | null; // u128 serialized as string; absent → wallet estimates
-  max_priority_fee_per_gas?: string | null; // u128 serialized as string; absent → wallet estimates
+  gas?: string | null; // u128 string; absent/zero → wallet estimates
+  max_fee_per_gas?: string | null; // u128 string; absent/zero → estimate fee pair
+  max_priority_fee_per_gas?: string | null; // u128 string; zero is valid with a non-zero cap
 }
 
 export interface ApprovalTransaction {
