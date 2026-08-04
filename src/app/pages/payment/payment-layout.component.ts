@@ -65,6 +65,7 @@ import { isNativeAddress, ZERO_ADDRESS } from '@/app/config/address.utils';
 import { VIEM_CHAINS } from '@/app/config/viem-chains';
 import { formatFiat, fiatPartsToString, parseFiatString, type FiatParts } from '@/app/i18n/format';
 import type { Locale } from '@/app/i18n/index';
+import { apiErrorCode } from '@/app/utils/api-error-code';
 import { extractUserMessage } from '@/app/utils/extract-user-message';
 import { environment } from '@/environments/environment';
 
@@ -703,6 +704,17 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
     } catch (err: unknown) {
       if (this.isUserRejection(err)) {
         this.state.transition('ready-to-pay');
+        return;
+      }
+      // The daemon answers 409 SWAP_ALREADY_SUBMITTED when this swap was already
+      // claimed for submission — a double submit, or a retry after a response we
+      // never saw. The swap is in flight, not failed, so watch it. Showing an
+      // error here would be wrong twice over: the payment is fine, and the
+      // Retry it offers returns to 'ready-to-pay' to re-sign and re-submit,
+      // which can only 409 again since the swap is permanently past 'Created'.
+      if (apiErrorCode(err) === 'SWAP_ALREADY_SUBMITTED') {
+        this.state.transition('polling');
+        this.startPolling(this.getInvoiceId());
         return;
       }
       this.state.transition('error', {
