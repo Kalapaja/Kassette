@@ -30,7 +30,10 @@ describe('InvoiceService', () => {
   });
 
   afterEach(() => {
+    // Stop the poller before verifying, so a still-running interval cannot
+    // queue a request between the two calls.
     service.stopPolling();
+    httpMock.verify();
     vi.useRealTimers();
   });
 
@@ -69,7 +72,7 @@ describe('InvoiceService', () => {
     httpMock.verify();
   });
 
-  it('does not synthesize Paid when a native Error is thrown instead of an HTTP 404', async () => {
+  it('does not synthesize Paid for a non-404 HTTP failure', async () => {
     const callback = vi.fn();
     const seeded = service.fetchInvoice('inv-1');
     httpMock
