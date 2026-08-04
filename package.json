@@ -20,14 +20,12 @@
     "prepare": "command -v git >/dev/null 2>&1 && lefthook install || true"
   },
   "dependencies": {
-    "@angular/animations": "^21.2.19",
     "@angular/cdk": "^21.2.14",
     "@angular/common": "^21.2.19",
     "@angular/compiler": "^21.2.19",
     "@angular/core": "^21.2.19",
     "@angular/forms": "^21.2.19",
     "@angular/platform-browser": "^21.2.19",
-    "@angular/platform-browser-dynamic": "^21.2.19",
     "@angular/router": "^21.2.19",
     "@coinbase/wallet-sdk": "^4.3.7",
     "@metamask/sdk": "^0.34.0",
@@ -58,6 +56,7 @@
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.6.0",
+    "jsdom": "^29.1.1",
     "lefthook": "^2.1.10",
     "msw": "^2.15.0",
     "postcss": "^8.5.25",
