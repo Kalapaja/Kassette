@@ -11,10 +11,14 @@
 #
 # 1800s rather than the checks' 900s, and higher than kokpitti's e2e budget.
 # This call does three things in one: `ng build -c e2e`, `playwright install
-# --with-deps chromium`, and the suite itself. The browser binaries land in the
-# `playwright-browsers` cache volume, but `--with-deps` also runs apt-get inside
-# a layer that sits *above* the source copy — so it re-executes on every commit
-# and is never a cache hit. Treat 1800s as a hang backstop, not a target.
+# --with-deps chromium`, and the suite itself. Only the first and the last re-run
+# per commit. The browser install used to sit in a layer *above* the source copy,
+# where the binaries came from a cache volume but the `--with-deps` apt-get
+# re-executed on every commit and never hit; it now layers on the deps-only base,
+# keyed on the lockfile, so it is skipped entirely unless Playwright is bumped.
+#
+# Treat 1800s as a hang backstop, not a target — but note the worst case is real:
+# a lockfile change pays the full cold install on top of everything else.
 
 when:
   - event: pull_request
