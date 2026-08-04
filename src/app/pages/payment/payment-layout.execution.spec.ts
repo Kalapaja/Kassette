@@ -392,4 +392,103 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       expect(paymentService.waitForReceipt).toHaveBeenCalledWith(expect.any(String), 137);
     });
   });
+
+  // ─── executePayment error handling ───
+
+  describe('executePayment error handling', () => {
+    /**
+     * Mimics Angular HttpErrorResponse without importing @angular/common/http.
+     * It does NOT extend Error — it is a plain object with a .name property.
+     */
+    function httpError(body: unknown, status: number) {
+      return {
+        name: 'HttpErrorResponse' as const,
+        message: `Http failure response: ${status}`,
+        error: body,
+        status,
+        ok: false,
+        statusText: 'Conflict',
+        url: 'http://localhost/public/swap/signature',
+      };
+    }
+
+    function setupDirectState(state: PaymentStateService) {
+      state.invoice.set({
+        id: 'inv-001',
+        status: 'Pending',
+        payment_address: '0xrecipient',
+        valid_till: '2026-12-31T23:59:59.000Z',
+        cart: { items: [] },
+      } as never);
+      state.paymentPath.set('direct');
+      state.selectedChainId.set(137);
+      state.selectedTokenAddress.set(POLYGON_USDC_ADDRESS);
+      state.selectedTokenSymbol.set('USDC');
+      state.selectedTokenDecimals.set(6);
+      state.requiredAmount.set(1_000_000n);
+      state.requiredAmountHuman.set('1.0');
+      state.connectedAccount.set({ address: '0xuser', chainId: 137 });
+
+      // Walk the state machine to where the payer actually presses Pay.
+      // Starting from 'loading' would let transitions through that the real
+      // flow never permits: VALID_TRANSITIONS allows 'error' only from
+      // 'executing'/'approving'/'ready-to-pay'/'quoting'/'polling'.
+      state.transition('idle');
+      state.transition('token-select');
+      state.transition('ready-to-pay');
+    }
+
+    /**
+     * The daemon answers 409 SWAP_ALREADY_SUBMITTED when a swap was already
+     * claimed for submission. The payment is in flight, not failed — and the
+     * error screen's Retry returns to 'ready-to-pay' to re-submit, which can
+     * only 409 again, so treating this as an error is a dead end.
+     */
+    it('polls instead of erroring when the swap was already submitted', async () => {
+      const { component, state, paymentService } = createTestHarness();
+      setupDirectState(state);
+
+      paymentService.submitTransfer.mockRejectedValueOnce(
+        httpError(
+          {
+            error: {
+              category: 'INVALID_REQUEST',
+              code: 'SWAP_ALREADY_SUBMITTED',
+              message: 'The swap has already been submitted.',
+              details: null,
+            },
+          },
+          409,
+        ),
+      );
+
+      await component.executePayment();
+
+      expect(state.currentStep()).toBe('polling');
+    });
+
+    it('still shows an error for any other server failure', async () => {
+      const { component, state, paymentService } = createTestHarness();
+      setupDirectState(state);
+
+      paymentService.submitTransfer.mockRejectedValueOnce(
+        httpError(
+          {
+            error: {
+              category: 'SWAP_ERROR',
+              code: 'SWAP_PROVIDER_REJECTED',
+              message: 'Amount is below the bridge minimum.',
+              details: null,
+            },
+          },
+          422,
+        ),
+      );
+
+      await component.executePayment();
+
+      expect(state.currentStep()).toBe('error');
+      expect(state.errorRetryStep()).toBe('ready-to-pay');
+    });
+  });
 });
