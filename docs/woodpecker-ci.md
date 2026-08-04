@@ -154,11 +154,33 @@ parallel runners, nine checks now queue roughly two at a time, so wall-clock is
 **sum-of-checks ÷ 2**, not the longest one. Most of that sum lands on Dagger
 cache hits; `e2e` and `build` are the real cost.
 
+Because the metric is a _sum_, the only two levers that matter are making an
+individual check cheaper and raising the concurrency cap. Moving Playwright's
+browser install below the source copy took `e2e` from ~51 s to ~30 s
+(see [dagger-ci-guide.md](dagger-ci-guide.md#the-browser-install-layers-on-depsbase)).
+The cap itself is agent configuration, set by Ansible outside this repo — it is
+the largest remaining lever on wall-clock, and it is not something a change here
+can reach.
+
 `dagger call end-to-end` takes no suite argument, so PRs and tags run the
 identical suite. If pipeline latency becomes the constraint, the split belongs
 in `.dagger/src/index.ts` first — do not add a `CI_PIPELINE_EVENT` shell branch
 that narrows what a PR actually runs without a corresponding nightly cron to
 cover the gap.
+
+### Outside this repo
+
+Two knobs that materially affect CI live on the agent host, provisioned by
+Ansible. Neither can be changed from here, and both are worth revisiting:
+
+| Knob                                  | Where                                   | Why it matters                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WOODPECKER_MAX_WORKFLOWS`            | woodpecker-agent env                    | Currently `2`. Wall-clock is sum-of-checks ÷ this number, so it is the largest single lever left.                                                                                                                                                                                                                                           |
+| Dagger GC budget for **cache mounts** | `engine.json` on the Dagger engine host | Dagger's default policy gives `type==exec.cachemount` only **512 MB / 48 h**, while ordinary layers get 60 days and 75% of disk. The `pnpm-store` volume is 752 MB, so under the default it gets swept during quiet periods and dependency-bump PRs pay a full re-download. Overriding `policies` **replaces** all three built-in defaults. |
+
+Note the second one cuts against the first: the pipeline now leans harder on
+layer caching than on volumes precisely because layers get the generous GC
+policy and cache mounts do not.
 
 ## Setup
 
@@ -423,11 +445,19 @@ draft but before the draft is published.
 
 `e2e.yml`'s 1800s is higher than the checks' 900s and higher than kokpitti's
 e2e budget. `dagger call end-to-end` does three things in one call: `ng build -c
-e2e`, `playwright install --with-deps chromium`, and the suite itself. The
-browser binaries land in the `playwright-browsers` cache volume, but
-`--with-deps` also runs `apt-get` in a layer that sits _above_ the source copy,
-so it re-executes on every commit and is never a cache hit. Treat 1800s as a
-hang backstop, not a target.
+e2e`, `playwright install --with-deps chromium`, and the suite itself.
+
+Only the first and the last re-run per commit. The browser install used to sit
+in a layer _above_ the source copy: the binaries came from a
+`playwright-browsers` cache volume, but `--with-deps` also runs `apt-get`, and a
+layer above the source copy is invalidated by every commit — so it re-executed
+every time and never hit. It now layers on the deps-only base, keyed on the
+lockfile, and the volume is gone (the layer holds the binaries). See
+[dagger-ci-guide.md](dagger-ci-guide.md#why-almost-nothing-is-a-cachevolume).
+
+Treat 1800s as a hang backstop rather than a target — but the worst case it
+guards is real, because a lockfile change still pays the full cold browser
+install on top of the build and the suite.
 
 ## Validating changes locally
 

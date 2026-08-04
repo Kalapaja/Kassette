@@ -20,33 +20,88 @@ Since the engine is persistent, both layer caches and CacheVolumes survive acros
 
 ## Caching Strategy
 
-The `nodeBase()` function in `.dagger/src/index.ts` uses a three-layer caching hierarchy. Note which state is shared and which is not — see [Why node_modules is not a volume](#why-node_modules-is-not-a-volume).
+`.dagger/src/index.ts` exposes two bases, and **which one a check builds on is the whole game**:
+
+| Base         | Contents                       | Invalidated by                   |
+| ------------ | ------------------------------ | -------------------------------- |
+| `depsBase()` | Node + pnpm + `pnpm install`   | `pnpm-lock.yaml`, `package.json` |
+| `nodeBase()` | `depsBase()` + the full source | every commit                     |
+
+Work that reads the source belongs on `nodeBase()`. Work that depends only on the dependency set belongs on `depsBase()`, where it survives every source-only commit — see [Layering rules](#layering-rules). Note also which state is shared and which is not: see [Why almost nothing is a CacheVolume](#why-almost-nothing-is-a-cachevolume).
 
 ### Layer 1: Dependency manifests (rarely invalidated)
 
 ```
 node:24-bookworm-slim
   + corepack enable + corepack prepare pnpm@10.32.1
+  + CI=true
   + copy package.json, pnpm-lock.yaml, pnpm-workspace.yaml
   + pnpm install --frozen-lockfile --prefer-offline
 ```
 
 The `pnpm install` layer is cached by BuildKit based on the hash of the manifest files. When dependencies don't change, BuildKit skips the install entirely — and because the resulting `node_modules` lives in the layer, every workflow sharing a lockfile reuses one install.
 
-### Layer 2: CacheVolumes (persist across runs)
+`CI=true` is set here rather than per-check, and it is load-bearing rather than cosmetic. The Angular CLI picks its cache environment by reading `$CI` (`cli.cache.environment` defaults to `local`), so without it every build writes a `.angular/cache` that no later run can read — there is no volume behind it any more. `playwright.config.ts` reads `$CI` too, for its 1-worker / 2-retry / `forbidOnly` profile.
 
-| Volume                | Mount point                        | Purpose                                                    |
-| --------------------- | ---------------------------------- | ---------------------------------------------------------- |
-| `pnpm-store-v3`       | `/root/.local/share/pnpm/store/v3` | Content-addressable package store (shared across all runs) |
-| `angular-build-cache` | `/app/.angular/cache`              | Angular incremental compilation cache                      |
+### Layer 2: CacheVolume (persists across runs)
+
+Exactly one, and it is the only shared state in the pipeline:
+
+| Volume       | Mount point   | Purpose                                                    |
+| ------------ | ------------- | ---------------------------------------------------------- |
+| `pnpm-store` | `/pnpm-store` | Content-addressable package store (shared across all runs) |
+
+The mount point is ours, set via `npm_config_store_dir`, and that is deliberate.
+
+**This volume previously cached nothing at all.** It was mounted at
+`/root/.local/share/pnpm/store/v3`, but pnpm 10 writes to `.../store/v10` — so
+the volume sat over a directory pnpm never touched, every `pnpm install` in
+every workflow re-downloaded the whole dependency set from the registry, and
+`--prefer-offline` had nothing to prefer. Verified against the exact base image:
+
+```
+$ docker run --rm node:24-bookworm-slim sh -c \
+    'corepack enable; corepack prepare pnpm@10.32.1 --activate; pnpm store path'
+/root/.local/share/pnpm/store/v10
+```
+
+pnpm appends the store version to `npm_config_store_dir` itself, so mounting the
+**parent** means the next major bump lands a new subdirectory inside the same
+volume instead of silently reverting to no cache. After the fix the volume holds
+752 MB / 65,052 files at `/pnpm-store/v10`.
+
+> Confirming this requires care: `dagger query` resolves `cacheVolume` in the
+> core namespace, but Dagger namespaces cache volumes **per module**. Probing
+> from outside the module inspects a different, empty volume and looks exactly
+> like the bug. Probe from a temporary `@func()` inside the module.
+
+**Operational caveat — this volume is now bigger than the engine's default budget
+for cache mounts.** Dagger's default GC policy gives `type==exec.cachemount` a
+512 MB / 48-hour budget, while ordinary layers get the 60-day, 75%-of-disk
+policy. At 752 MB the store will be swept during quiet periods. Raising it is
+engine configuration (`engine.json` on the Woodpecker host, provisioned by
+Ansible), not something this repo can reach — see
+[woodpecker-ci.md](woodpecker-ci.md#outside-this-repo).
 
 ### Layer 3: Full source (invalidated on every code change)
 
-After install, the full source is copied. The `src` ignore list excludes `node_modules`, so `withDirectory()` doesn't clobber the installed tree.
+After install, the full source is copied. The `src` ignore list excludes `node_modules`, so `withDirectory()` doesn't clobber the installed tree. This is the boundary between `depsBase()` and `nodeBase()`.
 
-### Why node_modules is not a volume
+### Layering rules
 
-It used to be, mounted at `/app/node_modules`, and that caused sporadic CI failures across unrelated branches:
+Anything placed **above** the source copy re-runs on every commit and never hits the cache, however expensive it is. That is the correct home only for work whose answer legitimately changes with the source — or with time.
+
+| Work                                                 | Base         | Why                                                                                                                                         |
+| ---------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lint`, `format-check`, `typecheck`, `test`, `build` | `nodeBase()` | They read the source.                                                                                                                       |
+| `playwright install --with-deps chromium`            | `depsBase()` | Keyed on the lockfile, so it re-runs when Playwright is bumped and not otherwise.                                                           |
+| `audit`, `audit-advisory`                            | `nodeBase()` | **Deliberately, despite reading only the manifests** — see [Why audit stays above the source copy](#why-audit-stays-above-the-source-copy). |
+
+### Why almost nothing is a CacheVolume
+
+Dagger cache volumes are `SHARED` by default. Every workflow in a pipeline is a separate `dagger call`, they run in parallel, and so do other pipelines on the same engine. A volume is therefore mutable state that concurrent, unrelated branches write to at the same time. Three candidates were tried and removed:
+
+**`node_modules`**, mounted at `/app/node_modules`, caused sporadic CI failures across unrelated branches:
 
 ```
 src/app/config/viem-chains.ts(2,82): error TS2307: Cannot find module 'viem/chains'
@@ -54,15 +109,32 @@ src/app/testing/test-factories.ts(1,20): error TS2307: Cannot find module 'vites
 TypeError: Cannot read properties of undefined (reading 'recommended')   # eslint plugin
 ```
 
-Dagger cache volumes are `SHARED` by default. Every workflow in a pipeline is a separate `dagger call`, they run in parallel, and so do other pipelines on the same engine. pnpm rewrites its symlink farm in place, so one branch's `pnpm install --frozen-lockfile` could pull packages out from under another branch's `tsc` or `eslint` — most visibly when a Dependabot PR bumping `viem` ran alongside a feature branch.
+pnpm rewrites its symlink farm in place, so one branch's `pnpm install --frozen-lockfile` could pull packages out from under another branch's `tsc` or `eslint` — most visibly when a Dependabot PR bumping `viem` ran alongside a feature branch. Removing the mount also costs nothing: it is what lets the install land in the BuildKit layer, and cold installs still hardlink out of the warm store.
 
-The pnpm store is content-addressable and designed for concurrent multi-project access, so it stays a volume. `node_modules` is mutable shared state and does not. Removing the mount also costs nothing: it is what lets the install land in the BuildKit layer, and cold installs still hardlink out of the warm store.
+**`angular-build-cache`**, mounted at `/app/.angular/cache`, never caused a failure — Angular's cache is content-keyed — but it was the same hazard class, so it was measured rather than argued about. Three `dagger call build` runs each way, mutating a source file between runs so the build genuinely re-executes:
 
-`angular-build-cache` is shared the same way. It has not caused failures — Angular's cache is content-keyed — but it is the same hazard class, so suspect it first if `build`, `test`, or `e2e` start failing in ways that don't reproduce serially.
+| Arm            | Runs                 | Mean   |
+| -------------- | -------------------- | ------ |
+| Volume mounted | 15.9 / 17.2 / 16.7 s | 16.6 s |
+| Volume removed | 20.3 / 19.1 / 18.9 s | 19.4 s |
+
+2.8 s per build, against a pipeline whose long pole is a ~50 s e2e run and whose real constraint is `WOODPECKER_MAX_WORKFLOWS=2`. Not worth a class of failure that reproduces only under concurrency. Dropping it is also why `CI=true` is set — otherwise Angular keeps paying to write a cache nothing reads.
+
+**`playwright-browsers`**, mounted at `/root/.cache/ms-playwright`, is now redundant: the browser install moved onto `depsBase()`, so the whole exec is layer-cached and the binaries live in the layer. See [E2E in Dagger](#e2e-in-dagger).
+
+The pnpm store stays a volume. It is content-addressable and explicitly designed for concurrent multi-project access, which is exactly this workload.
+
+### Why audit stays above the source copy
+
+`audit` and `audit-advisory` read only `package.json` and `pnpm-lock.yaml`, so moving them to `depsBase()` looks like free money — two of the nine checks would become a permanent cache hit on every source-only commit.
+
+That is precisely the bug. `pnpm audit` queries a **remote advisory database**, so its verdict is a function of _time_, not just of its inputs. Cached against the lockfile, a newly disclosed critical CVE would stop failing CI until dependencies happened to change — which, for a repo whose dependency bumps arrive by Dependabot PR, could be weeks. Their position above the source copy means every commit re-asks the question. Leave them there.
+
+(The residual gap is a pipeline **restart** on an unchanged commit, which does hit the cache and re-reports the previous verdict.)
 
 ### Why both layers and volumes?
 
-Layer caching (BuildKit) is the primary mechanism — it works even on cold engines because the layer hash matches, and it is what makes `pnpm install` a no-op for most runs. CacheVolumes are supplementary: they hold the download store and the Angular cache, so a layer miss is still cheap. Anything a check reads directly belongs in a layer, not a shared volume.
+Layer caching (BuildKit) is the primary mechanism — it works even on cold engines because the layer hash matches, and it is what makes `pnpm install` a no-op for most runs. The single CacheVolume is supplementary: it holds the download store, so a layer miss is still cheap. Anything a check reads directly belongs in a layer, not a shared volume.
 
 ## Dagger Functions
 
@@ -145,6 +217,25 @@ The service is named `kassette-e2e` (not `app` — the `.app` TLD is HSTS-preloa
 
 Playwright mocks API responses at the network level via `page.route()`. The e2e build configuration sets `production: true` so MSW doesn't start in the bundle.
 
+### The browser install layers on `depsBase()`
+
+This is the single largest win available in the pipeline, because `e2e` is its long pole.
+
+`playwright install --with-deps chromium` used to run on `nodeBase()`. The binaries themselves came out of a `playwright-browsers` cache volume, so the download was cheap — but `--with-deps` also runs `apt-get`, and **a layer above the source copy is invalidated by every commit**. The exec therefore re-ran on every single push and the layer never once hit, which is what `e2e.yml`'s 1800s timeout was sized around.
+
+Moving it onto `depsBase()` keys it to the lockfile instead: it re-runs when Playwright is bumped, and not otherwise. The cache volume was deleted along with it — once the exec is layer-cached, the volume's only remaining job is the rare miss, and it does that job by keeping shared mutable state on the engine forever. The layer holds the binaries.
+
+Measured with interleaved arms and a unique source marker per run, so no run could be a whole-pipeline cache hit:
+
+| Arm    | Runs                 | Mean   |
+| ------ | -------------------- | ------ |
+| Before | 60.5 / 43.5 / 50.0 s | 51.3 s |
+| After  | 37.7 / 25.5 / 27.4 s | 30.2 s |
+
+Every "after" run beat every "before" run — roughly 21 s, or 40%, off the longest check in the pipeline. That figure is already net of dropping `angular-build-cache`, which pushes the other way.
+
+> Measuring this correctly requires care. Mutate a source file between runs or the whole call is a cache hit and you are timing nothing; reuse the same marker text across batches and a later run silently collides with an earlier one (that mistake produced a 6.0 s "result"). Do not edit anything in the repo mid-run either — `docs/` and `.woodpecker/` are part of the uploaded source context, and an edit landing during a run perturbs it.
+
 ## Local Development
 
 ### Running checks
@@ -188,6 +279,24 @@ All versions are centralized:
 - **Dagger version**: `dagger.json` `engineVersion` + `.tool-versions`
 
 Always keep `.tool-versions`, `dagger.json`, and the constants in sync.
+
+### Why we are still on Dagger 0.20.3
+
+The CLI nags about 0.21.x on every call. **Ignore it for now** — the decision is deliberate, and re-derived 2026-08-04:
+
+- **v1.0 is imminent** (milestone 2026-08-19, `v1.0.0-beta.8` already tagged) and it replaces `dagger.json` with `dagger.toml` plus a reshaped CLI. Going to 0.21.8 now means doing the reprovision-and-repin dance twice inside a month.
+- **Upgrading cold-starts the entire engine cache**, and this is documented nowhere. v0.21.0 replaced the BuildKit solver with a DagQL cache on a completely disjoint SQLite schema (0.20.3's `calls` table vs 0.21.x `persistdb`). The import finds nothing, fails silently, and every step rebuilds once.
+- **The upside for Kassette is small.** Our one cache volume's semantics don't change, the call-chain caching behaves identically, and we run no `dockerBuild` to benefit from 0.21.8's `COPY` re-keying.
+- **0.21.x adds an operational risk for a long-lived engine**: it wipes the DagQL store _and_ the worker root on unclean shutdown, so an OOM-kill costs the whole cache on next boot. 0.20.3 has no such path.
+
+**Override this and upgrade now if the engine has ever wedged** with `no active session for <id>` and needed a manual restart to unstick CI. That is [dagger#11854](https://github.com/dagger/dagger/issues/11854), it is a BuildKit-solver bug specific to persistent/remote engines, it never self-heals on 0.20.3, and removing the solver in 0.21 is the fix.
+
+Two things to know before any bump, neither of them in the release notes:
+
+- **`PRIVATE` became `LOCKED`** in 0.21.0 — the nonce was removed as a stop-gap and the enum description still claims per-pipeline isolation. The reasoning in `.dagger/src/index.ts`'s header is written against 0.20.3 semantics.
+- **`_EXPERIMENTAL_DAGGER_CACHE_CONFIG` was silently dropped.** If we ever want to seed CI cache from a registry so it survives engine reprovisioning, 0.21.x cannot do it.
+
+A bump touches more than the two version files: `.tool-versions`, `dagger.json`, **nine** `.woodpecker/*.yml` image pins, the `kalapaja/dagger-client` image built by Ansible, and the `0.20.3` references in this file and `woodpecker-ci.md`.
 
 ## Debugging CI Failures
 
