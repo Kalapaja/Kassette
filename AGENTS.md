@@ -10,7 +10,7 @@ Kassette is the payment page SPA for Kalatori. Merchants embed it (or serve it f
 - **Validate `.woodpecker/` edits**: `woodpecker-cli lint .woodpecker/` catches schema errors, but only `woodpecker-cli exec --backend-engine docker --pipeline-event pull_request .woodpecker/` runs the envsubst compile pass. A literal braced variable form anywhere in that directory — comments included — kills every workflow silently
 - **Layer-cached builds**: Dagger caches pnpm install separately from source. Only code changes trigger rebuilds, not dependency re-downloads
 - **Git hooks**: lefthook auto-installs via `pnpm install` (the `prepare` script). Pre-commit runs lint + format on staged files; pre-push runs typecheck + tests + tag version check
-- **Conventional commits**: enforced by commitlint in the commit-msg hook
+- **Conventional commits**: enforced by commitlint in the commit-msg hook. Its config is `commitlint.config.mjs` — **the extension is load-bearing**. `package.json` has no `"type": "module"`, so Node reads a bare `.js` as CommonJS and an `export default` config silently yields zero rules; commitlint 21 then exits 9 on every message, valid ones included, and no CI job would catch it because the hook is the only thing that runs commitlint. Any new ESM-syntax config at the repo root wants `.mjs` for the same reason (`eslint.config.js` gets away with `.js` only because ESLint re-parses it and warns)
 
 ### Documentation Policy
 
