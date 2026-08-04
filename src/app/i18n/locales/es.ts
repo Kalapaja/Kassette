@@ -57,6 +57,7 @@ export const es: Record<keyof typeof en, string> = {
   'error.transactionReverted': 'La transaccion fallo en la cadena',
   'error.getQuote': 'Error al obtener cotizacion',
   'error.invoiceExpired': 'La factura ha expirado',
+  'error.invoiceCanceled': 'Esta factura ha sido cancelada',
   'error.partialPayment': 'Pago parcial recibido. Por favor, contacte soporte.',
 
   'order.remainingTotal': 'Restante',

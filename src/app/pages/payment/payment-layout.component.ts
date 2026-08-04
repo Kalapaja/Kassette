@@ -45,6 +45,7 @@ import { PendingTxService, type PendingTxRecord } from '@/app/services/pending-t
 import type { Invoice } from '@/app/types/invoice.types';
 import {
   isActiveStatus,
+  isCanceledStatus,
   isExpiredStatus,
   isFinalStatus,
   getRemainingAmount,
@@ -1097,6 +1098,15 @@ export class PaymentLayoutComponent implements OnInit, OnDestroy {
       this.pendingTxService.remove(invoiceId);
       this.state.transition('error', {
         errorMessage: this.ts.t('error.invoiceExpired'),
+        errorRetryStep: null,
+      });
+    } else if (isCanceledStatus(invoice.status)) {
+      // Cancellation is terminal, so the poller stops after this callback.
+      // Without a transition here the payer is left on the processing screen
+      // with nothing else coming.
+      this.pendingTxService.remove(invoiceId);
+      this.state.transition('error', {
+        errorMessage: this.ts.t('error.invoiceCanceled'),
         errorRetryStep: null,
       });
     } else if (invoice.status === 'PartiallyPaid') {
