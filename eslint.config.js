@@ -27,6 +27,12 @@ export default tseslint.config(
     },
     processor: angularTemplate.processors['extract-inline-html'],
     rules: {
+      // Held at @angular-eslint v21 deliberately — v22 drops the `configs`
+      // export from the plugin packages (this line becomes a TypeError) and
+      // moves the recommended set to Angular 22 semantics, notably
+      // prefer-on-push-component-change-detection, which reads an omitted
+      // `changeDetection` as OnPush. That is only true from Angular 22 on.
+      // Upgrade both together. See .github/dependabot.yml.
       ...angular.configs.recommended.rules,
       '@angular-eslint/component-selector': [
         'error',

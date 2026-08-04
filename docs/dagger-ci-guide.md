@@ -280,6 +280,22 @@ All versions are centralized:
 
 Always keep `.tool-versions`, `dagger.json`, and the constants in sync.
 
+### Why `.dagger` is stuck on TypeScript 5
+
+`.dagger/package.json` is SDK scaffolding, not a dependency we chose, and its `typescript` pin belongs to the engine — not to npm latest. **Do not take a major bump on it.** Dependabot raised one anyway ([#46](https://github.com/Kalapaja/Kassette/pull/46), 5.9.3 → 7.0.2); it breaks every `dagger call`:
+
+```
+/src/.dagger/sdk/core.js:97906
+  [ts2.SyntaxKind.ClassDeclaration]: ts2.isClassDeclaration,
+TypeError: Cannot read properties of undefined (reading 'ClassDeclaration')
+```
+
+The SDK reads our `@object`/`@func` decorators through the TypeScript **compiler API**. TS 7 is the Go port, and it does not expose `SyntaxKind` / `isClassDeclaration` on the JS surface, so module introspection dies before any function body runs.
+
+This is invisible to the two commands you would reach for to check it. `dagger functions` and `dagger develop` both **pass** on TS 7 — they serve cached type definitions and never execute the module entrypoint. Only an actual `dagger call <function>` fails, and only with `--progress=plain`; the default TUI swallows the container stderr and reports a bare `exit code: 1`. Every check failing at an identical ~19s is the tell that the module runtime, not the check, is what broke.
+
+`.github/dependabot.yml` now ignores `typescript` majors in `/.dagger`. Revisit when the engine bump lands — TS 7 support is the SDK's to add.
+
 ### Why we are still on Dagger 0.20.3
 
 The CLI nags about 0.21.x on every call. **Ignore it for now** — the decision is deliberate, and re-derived 2026-08-04:
