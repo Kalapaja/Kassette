@@ -5,7 +5,7 @@ import type { QuoteParams } from './quote.service';
 import { SwapService } from './swap.service';
 import { POLYGON_CHAIN_ID, POLYGON_USDC_ADDRESS } from '@/app/config/payment';
 import { ZERO_ADDRESS } from '@/app/config/address.utils';
-import type { PublicSwap } from '@/app/types/swap.types';
+import type { AcrossSwapDetails, PublicSwap } from '@/app/types/swap.types';
 
 // Minimal mock Across swap for tests
 function makeMockAcrossSwap(fromAmountUnits: string, txValue?: string): PublicSwap {
@@ -256,6 +256,16 @@ describe('QuoteService', () => {
       expect(result.path).toBe('swap');
       expect(result.userPayAmount).toBe(500_000_000_000_000n);
       expect(result.userPayAmountHuman).toBe('0.000500');
+    });
+
+    it('treats an omitted transaction value as zero for native token Across swaps', async () => {
+      const swap = makeMockAcrossSwap('1000000');
+      delete (swap.swap_details as AcrossSwapDetails).raw_transaction.transaction.value;
+      mockCreateSwap.mockResolvedValue(swap);
+
+      const result = await service.calculateQuote(makeParams({ sourceDecimals: 18 }));
+
+      expect(result.userPayAmount).toBe(0n);
     });
 
     it('truncates 18-decimal native token with many significant digits', async () => {

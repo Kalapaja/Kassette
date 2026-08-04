@@ -1,0 +1,23 @@
+# Build — the production Angular build (`pnpm build`), including its post-build
+# relocation of the hashed js/css chunks into dist/browser/assets/.
+# See .woodpecker/lint.yml for the Dagger step contract.
+#
+# This is the plain bundle. The *shipped* artifact is the SRI-patched zip built
+# by `dagger call release-zip`, which reuses this same `build` function and is
+# exercised only by release.yml — so a break in the SRI patching itself does not
+# surface until a tag. That is deliberate: the patching operates on `build`'s
+# output, and this check is what proves that output exists and is well-formed.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: build
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call build

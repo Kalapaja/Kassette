@@ -1,0 +1,40 @@
+# Lint — ESLint over the whole repo, zero warnings tolerated.
+#
+# Dagger contract for every step in this directory (see docs/woodpecker-ci.md):
+#   * image is kalapaja/dagger-client:0.20.3, built on the agent host by Ansible
+#     and pushed to no registry — `pull: true` would fail to resolve it.
+#   * The agent bind-mounts /run/dagger/engine.sock into every step and the
+#     server injects _EXPERIMENTAL_DAGGER_RUNNER_HOST globally. Never set
+#     DOCKER_HOST or the runner host here, and never use docker-container://.
+#     That was the old *remote* engine reached over SSH from GitHub runners;
+#     it is gone along with DAGGER_CI_HOST / DAGGER_CI_SSH_KEY.
+#   * No secrets in the nine check workflows (lint, format, typecheck, test,
+#     audit, audit-advisory, build, e2e, gitleaks) — they must stay runnable for
+#     fork pull requests, and Kassette is a *public* repo, so anyone can open
+#     one. release.yml is the deliberate exception.
+#   * Every long-running command is wrapped in `timeout` — no exceptions.
+#     Woodpecker has no per-step or per-workflow timeout, only one repo-wide
+#     backstop, so without this a hung step holds one of the agent's two
+#     workflow slots until that fires. Checks use 900s, e2e 1800s; see
+#     docs/woodpecker-ci.md for the per-workflow budget arithmetic.
+#
+# The `when:` block below is repeated verbatim in every check workflow, and that
+# repetition is load-bearing: release.yml names all nine checks in `depends_on`,
+# and Woodpecker *silently deletes* a dependent workflow whose dependency was
+# filtered out by its own `when:`. Narrowing any one check's triggers would stop
+# releasing entirely, with no error. Keep each check's `when:` a superset of
+# release.yml's.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: lint
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call lint

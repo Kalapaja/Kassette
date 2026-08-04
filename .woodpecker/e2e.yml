@@ -1,0 +1,35 @@
+# E2E — Playwright against the `e2e` bundle, served from a Dagger service.
+# See .woodpecker/lint.yml for the Dagger step contract.
+#
+# The long pole of the pipeline. With the agent capped at
+# WOODPECKER_MAX_WORKFLOWS=2 the nine checks queue roughly two at a time, so
+# wall-clock is sum-of-checks/2 rather than the max — see the budget table in
+# docs/woodpecker-ci.md. `dagger call end-to-end` takes no --suite argument, so
+# PRs and tags run the identical suite. If this becomes the constraint, the
+# split belongs in the Dagger module first, not in a shell branch on
+# CI_PIPELINE_EVENT here.
+#
+# 1800s rather than the checks' 900s, and higher than kokpitti's e2e budget.
+# This call does three things in one: `ng build -c e2e`, `playwright install
+# --with-deps chromium`, and the suite itself. Only the first and the last re-run
+# per commit. The browser install used to sit in a layer *above* the source copy,
+# where the binaries came from a cache volume but the `--with-deps` apt-get
+# re-executed on every commit and never hit; it now layers on the deps-only base,
+# keyed on the lockfile, so it is skipped entirely unless Playwright is bumped.
+#
+# Treat 1800s as a hang backstop, not a target — but note the worst case is real:
+# a lockfile change pays the full cold install on top of everything else.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: end-to-end
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 1800 dagger call end-to-end

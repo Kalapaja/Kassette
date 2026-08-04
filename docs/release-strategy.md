@@ -8,7 +8,9 @@ We follow a **tag-first** model:
 
 1. Every push to `main` runs the full CI check suite.
 2. When ready to release, push a signed version tag on the tested commit.
-3. The tag triggers a GitHub Release (manual or automated), which builds a ZIP artifact via Dagger.
+3. The tag re-runs every check against the tagged tree, and only if all nine pass does `.woodpecker/release.yml` build the ZIP via Dagger and create the GitHub Release.
+
+Pushing the tag is the whole ritual — the release is created by CI, not by hand. Before the Woodpecker port the human created the release first and CI attached the ZIP afterwards; see [woodpecker-ci.md](woodpecker-ci.md#the-release-trigger-moved-from-the-release-to-the-tag).
 
 **Key invariant**: tags are immutable. Once `v0.1.0` is pushed, it can never be changed. Every guard in the system exists to prevent pushing a bad tag.
 
@@ -55,7 +57,7 @@ main: package.json version = "0.3.0"   <-- auto-bump PR again
 
 ## Release Signing
 
-All release tags must be **signed** by an authorized team member.
+All release tags must be **signed** by an authorized team member, and the signer's email must appear in [`.github/authorized-releasers`](../.github/authorized-releasers). `.woodpecker/release.yml` refuses to release otherwise — it reads the tag object from the GitHub API and checks that it is annotated, that GitHub reports the signature verified, and that the tagger email is on the allowlist.
 
 ### Setting up signing locally
 
@@ -73,6 +75,7 @@ The signing key must be registered on GitHub (Settings > SSH and GPG keys > Sign
 
 - `package.json` `version` matches the intended release.
 - Your SSH signing key is configured and registered on GitHub.
+- Your tagger email is listed in `.github/authorized-releasers`.
 
 ### Steps
 
@@ -85,21 +88,22 @@ pnpm release:tag
 
 # 3. Push the tag (pre-push hook verifies version match)
 git push origin v0.1.0
-
-# 4. Create a GitHub Release from the tag (triggers release.yml)
-gh release create v0.1.0 --title "v0.1.0" --generate-notes
-
-# 5. CI builds the ZIP and uploads it to the release
-#    -> payment-page-v0.1.0.zip attached to the release
-
-# 6. A PR is auto-created bumping package.json to 0.2.0
-#    Review and merge (or adjust to a different version first)
 ```
+
+That is the whole ritual. The tag push then drives everything else:
+
+1. All nine checks re-run against the tagged tree.
+2. `release.yml` verifies the tag is annotated, signed, verified by GitHub, signed by an authorized releaser, and matching `package.json`.
+3. It builds `payment-page-v0.1.0.zip` and attaches it to a **draft** release.
+4. It publishes the release — last, because GitHub immutable releases freeze assets on publish.
+5. `version-bump.yml` (still on GitHub Actions) opens a PR bumping `package.json` to `0.2.0`. Review and merge, or adjust to a different version first.
 
 ### If something goes wrong
 
 - **Pre-push hook blocks**: version mismatch. Fix `package.json`, commit, re-tag.
-- **Release build fails**: check Dagger logs. The ZIP build uses the same `build` function as CI.
+- **`verify-tag` fails**: the message names which gate — lightweight tag, unverified signature, unauthorized email, or a `package.json` mismatch. The tag is immutable, so a mismatch means bumping to a new version, not re-tagging.
+- **Release build fails**: check the Woodpecker logs. The ZIP build uses the same `build` function as CI.
+- **Retrying a failed release**: **Restart** the tag's pipeline in the Woodpecker UI. A leftover draft is discarded and recreated; an already-published release fails loudly, because it is immutable. There is no `workflow_dispatch` equivalent.
 - **Version-bump PR incorrect**: edit `package.json` in the PR to the desired version before merging.
 
 ## Automation & Guards
@@ -108,13 +112,17 @@ gh release create v0.1.0 --title "v0.1.0" --generate-notes
 
 A POSIX shell script at `.githooks/pre-push-tag-check.sh`, called from `lefthook.yml`. Checks every `v*` tag being pushed against the `package.json` version. Blocks on mismatch.
 
+It is skippable with `git push --no-verify`, which is why the same invariant is re-checked in CI.
+
 ### CI: release workflow
 
-`.github/workflows/release.yml` triggers on GitHub Release creation. Calls `dagger call release-zip` to build the SRI-patched ZIP and uploads it to the release.
+`.woodpecker/release.yml` triggers on a `v*` tag and `depends_on` all nine checks, so it cannot run against a red tree. Four steps: `verify-tag` (annotation, signature, releaser allowlist, `package.json` match, and whether this tag is the highest stable version), `release-zip` (`dagger call release-zip`, the SRI-patched ZIP), `draft-release` (`gh release create --draft`), `publish-release`.
 
 ### CI: auto version-bump PR
 
-`.github/workflows/version-bump.yml` fires on `v*` tag push. Checks out `main`, bumps `package.json` to the next minor version, runs `pnpm install --lockfile-only`, and opens a PR via `peter-evans/create-pull-request@v8`. Skips if `main` already has a version >= the computed bump.
+`.github/workflows/version-bump.yml` fires on `v*` tag push. **Still on GitHub Actions** — it is PR automation rather than a build, and `peter-evans/create-pull-request` has no Woodpecker equivalent. Checks out `main`, bumps `package.json` to the next minor version, runs `pnpm install --lockfile-only`, and opens a PR. Skips if `main` already has a version >= the computed bump.
+
+It runs independently of `release.yml`: the bump PR opens even if the release itself fails its gate.
 
 ## Known Limitations
 

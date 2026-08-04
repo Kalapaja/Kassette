@@ -155,33 +155,40 @@ Chromium launches with `--disable-features=HttpsFirstBalancedMode,HttpsUpgrades`
 ## CI Pipeline
 
 ```
-PR / Main:  Eight parallel jobs (matrix) — lint, format-check, typecheck,
-            test, audit, audit (advisory), build, end-to-end
+PR / Main / Tag:  Nine parallel Woodpecker workflows — lint, format, typecheck,
+                  test, audit, audit-advisory, build, e2e, gitleaks
 
-Release:    dagger call release-zip   [build + SRI hash + zip]
+Tag only:         .woodpecker/release.yml, gated on all nine
+                  [verify tag -> release-zip -> draft -> publish]
 ```
 
-Each job runs a single `dagger call <command>` against the shared remote engine. The local convenience aggregator `dagger call checks` runs lint+format+typecheck+test+audit+build in one process (~60s); it does **not** include `end-to-end`. See [docs/dagger-ci-guide.md](dagger-ci-guide.md) for details.
+Each workflow runs a single `dagger call <command>` against the Dagger engine on the Woodpecker host. The local convenience aggregator `dagger call checks` runs lint+format+typecheck+test+audit+build in one process (~60s); it does **not** include `end-to-end`. See [dagger-ci-guide.md](dagger-ci-guide.md) for the Dagger side and [woodpecker-ci.md](woodpecker-ci.md) for the pipeline definitions.
 
 ## Static Analysis & Security
 
-| Tool           | Run                              | What it catches                                                           |
-| -------------- | -------------------------------- | ------------------------------------------------------------------------- |
-| **ESLint**     | `dagger call lint`               | Code quality (@angular-eslint + typescript-eslint, zero warnings)         |
-| **Prettier**   | `dagger call format-check`       | Formatting consistency                                                    |
-| **TypeScript** | `dagger call typecheck`          | Type errors in app (`tsconfig.app.json`) and specs (`tsconfig.spec.json`) |
-| **pnpm audit** | `dagger call audit`              | **Critical** vulnerabilities in production deps — blocking                |
-| **pnpm audit** | `dagger call audit-advisory`     | High/moderate vulnerabilities — advisory (exit always 0)                  |
-| **CodeQL**     | `.github/workflows/codeql.yml`   | JavaScript/TypeScript security patterns                                   |
-| **Semgrep**    | `.github/workflows/semgrep.yml`  | SAST with default + security-audit rulesets                               |
-| **Gitleaks**   | `.github/workflows/gitleaks.yml` | Secret detection in commits                                               |
+| Tool           | Run                             | What it catches                                                           |
+| -------------- | ------------------------------- | ------------------------------------------------------------------------- |
+| **ESLint**     | `dagger call lint`              | Code quality (@angular-eslint + typescript-eslint, zero warnings)         |
+| **Prettier**   | `dagger call format-check`      | Formatting consistency                                                    |
+| **TypeScript** | `dagger call typecheck`         | Type errors in app (`tsconfig.app.json`) and specs (`tsconfig.spec.json`) |
+| **pnpm audit** | `dagger call audit`             | **Critical** vulnerabilities in production deps — blocking                |
+| **pnpm audit** | `dagger call audit-advisory`    | High/moderate vulnerabilities — advisory (exit always 0)                  |
+| **Gitleaks**   | `.woodpecker/gitleaks.yml`      | Secret detection over the commits each event introduces                   |
+| **CodeQL**     | `.github/workflows/codeql.yml`  | JavaScript/TypeScript security patterns — still on GitHub Actions         |
+| **Semgrep**    | `.github/workflows/semgrep.yml` | SAST with default + security-audit rulesets — still on GitHub Actions     |
+
+CodeQL and Semgrep stayed on Actions because both exist to push SARIF into GitHub's Security tab, and Woodpecker has no path to it. See [woodpecker-ci.md](woodpecker-ci.md#what-stayed-on-github-actions).
 
 ### Audit policy
 
-Two jobs run in parallel:
+Two workflows run in parallel:
 
 - **`audit`** is blocking on **critical** advisories. Critical CVEs are rare and serious enough to warrant breaking CI. When a transitive dep can't be patched directly, pin it via `pnpm.overrides` in `package.json`.
-- **`audit-advisory`** surfaces **high/moderate** advisories without blocking. Daily CVE churn in transitive deps would otherwise red-flag unrelated PRs. Read the job log to see findings.
+- **`audit-advisory`** surfaces **high/moderate** advisories without blocking. Daily CVE churn in transitive deps would otherwise red-flag unrelated PRs. Read the workflow log to see findings.
+
+### Secret-scan scope
+
+`gitleaks` scans only the commits an event introduces, not the full history — a deliberate divergence from the other Kalapaja repos, and the reason is recorded in [woodpecker-ci.md](woodpecker-ci.md#gitleaks-stays-ranged--and-this-is-where-kassette-diverges-from-kokpitti). The short version: a full-history scan surfaces a real API token committed to this public repo in March 2026 and later removed from `HEAD`, and allowlisting it would suppress rather than fix it.
 
 ## Adding Tests
 

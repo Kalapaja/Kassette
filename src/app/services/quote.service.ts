@@ -98,7 +98,9 @@ export class QuoteService {
     // value field (wei), not from_amount_units (which holds the invoice USDC amount).
     let userPayAmount: bigint;
     if (isNativeAddress(params.sourceToken) && isAcrossSwap(swap)) {
-      userPayAmount = BigInt(swap.swap_details.raw_transaction.transaction.value);
+      // Across omits `value` when it is zero
+      const value = swap.swap_details.raw_transaction.transaction.value;
+      userPayAmount = value != null ? BigInt(value) : 0n;
     } else if (isNativeAddress(params.sourceToken) && isZeroExSwap(swap)) {
       userPayAmount = BigInt(swap.swap_details.raw_transaction.raw_transaction.value);
     } else {

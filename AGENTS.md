@@ -6,7 +6,8 @@ Kassette is the payment page SPA for Kalatori. Merchants embed it (or serve it f
 
 ### Development Policy
 
-- **Dagger for all CI**: use `dagger call checks` for fast validation, `dagger call end-to-end` for E2E, or run individual checks. Pipeline defined in TypeScript at `.dagger/src/index.ts`
+- **Dagger for all CI**: use `dagger call checks` for fast validation, `dagger call end-to-end` for E2E, or run individual checks. Pipeline defined in TypeScript at `.dagger/src/index.ts`; CI runs on Woodpecker and each `.woodpecker/*.yml` is a thin dispatch to one `dagger call`. Build logic changes go in the Dagger module, not the workflows
+- **Validate `.woodpecker/` edits**: `woodpecker-cli lint .woodpecker/` catches schema errors, but only `woodpecker-cli exec --backend-engine docker --pipeline-event pull_request .woodpecker/` runs the envsubst compile pass. A literal braced variable form anywhere in that directory — comments included — kills every workflow silently
 - **Layer-cached builds**: Dagger caches pnpm install separately from source. Only code changes trigger rebuilds, not dependency re-downloads
 - **Git hooks**: lefthook auto-installs via `pnpm install` (the `prepare` script). Pre-commit runs lint + format on staged files; pre-push runs typecheck + tests + tag version check
 - **Conventional commits**: enforced by commitlint in the commit-msg hook
@@ -106,33 +107,35 @@ pnpm release:tag                    # Create signed tag from package.json versio
 - **Host attributes:** Components reflect signal inputs as host attributes for CSS variant selectors (e.g., `host: { '[attr.weight]': 'weight()' }`)
 - **HTTP:** Angular `HttpClient` with `withFetch()` for all HTTP requests
 - **Blockchain:** wagmi/core actions + viem for contract interactions, Reown AppKit for wallet modal
+- **Swap gas parameters:** Across and 0x both document `gas` / fee caps as omittable ("estimate it yourself"). Convert with `!= null` (never truthiness — `"0"` is a legitimate value) and pass `undefined` when absent; viem drops undefined fields from the RPC request so the wallet estimates them. An absent Across `value` means zero, not estimate-me.
 - **Tests:** Vitest with `describe`/`it`/`expect` (no Angular TestBed for pure logic services)
 - **TypeScript:** Strict mode, ES2022 target. Config in `tsconfig.json`.
 
 ## Tech Stack
 
-| Component          | Library / Tool                 | Notes                                                       |
-| ------------------ | ------------------------------ | ----------------------------------------------------------- |
-| Framework          | Angular 21                     | Standalone components, signal inputs, zoneless (no Zone.js) |
-| Build              | Angular CLI + esbuild          | `@angular/build:application` builder                        |
-| Package manager    | pnpm 10.32.1                   | Corepack-managed                                            |
-| Wallet connection  | Reown AppKit + wagmi/core      | WalletConnect, MetaMask SDK, Coinbase Wallet                |
-| Blockchain types   | viem                           | Chain definitions, ABI encoding, contract reads             |
-| DEX swaps          | Uniswap v3                     | Via quoter + router contracts                               |
-| Cross-chain bridge | Across Protocol                | For cross-chain token transfers                             |
-| State management   | Angular signals                | `PaymentStateService` — 12-step state machine               |
-| Styling            | Tailwind CSS 4                 | PostCSS plugin, OKLCH color space                           |
-| i18n               | Custom signal-based            | `src/app/i18n/` — en/es locales                             |
-| HTTP               | Angular HttpClient             | `withFetch()` provider                                      |
-| Unit tests         | Vitest 4 + @vitest/coverage-v8 | Coverage thresholds enforced                                |
-| Property tests     | fast-check                     | Number formatting invariants                                |
-| E2E tests          | Playwright                     | Chromium, network-level route mocking                       |
-| Linting            | ESLint (flat config)           | @angular-eslint + typescript-eslint + prettier              |
-| Formatting         | Prettier                       | Enforced in pre-commit hook                                 |
-| Commit linting     | commitlint                     | @commitlint/config-conventional                             |
-| Git hooks          | lefthook                       | Pre-commit, commit-msg, pre-push                            |
-| Dev mocking        | MSW (Mock Service Worker)      | Browser service worker for dev server                       |
-| CI pipeline        | Dagger (TypeScript SDK)        | Version pinned in `.tool-versions`                          |
+| Component          | Library / Tool                 | Notes                                                                |
+| ------------------ | ------------------------------ | -------------------------------------------------------------------- |
+| Framework          | Angular 21                     | Standalone components, signal inputs, zoneless (no Zone.js)          |
+| Build              | Angular CLI + esbuild          | `@angular/build:application` builder                                 |
+| Package manager    | pnpm 10.32.1                   | Corepack-managed                                                     |
+| Wallet connection  | Reown AppKit + wagmi/core      | WalletConnect, MetaMask SDK, Coinbase Wallet                         |
+| Blockchain types   | viem                           | Chain definitions, ABI encoding, contract reads                      |
+| DEX swaps          | Uniswap v3                     | Via quoter + router contracts                                        |
+| Cross-chain bridge | Across Protocol                | For cross-chain token transfers                                      |
+| State management   | Angular signals                | `PaymentStateService` — 12-step state machine                        |
+| Styling            | Tailwind CSS 4                 | PostCSS plugin, OKLCH color space                                    |
+| i18n               | Custom signal-based            | `src/app/i18n/` — en/es locales                                      |
+| HTTP               | Angular HttpClient             | `withFetch()` provider                                               |
+| Unit tests         | Vitest 4 + @vitest/coverage-v8 | Coverage thresholds enforced                                         |
+| Property tests     | fast-check                     | Number formatting invariants                                         |
+| E2E tests          | Playwright                     | Chromium, network-level route mocking                                |
+| Linting            | ESLint (flat config)           | @angular-eslint + typescript-eslint + prettier                       |
+| Formatting         | Prettier                       | Enforced in pre-commit hook                                          |
+| Commit linting     | commitlint                     | @commitlint/config-conventional                                      |
+| Git hooks          | lefthook                       | Pre-commit, commit-msg, pre-push                                     |
+| Dev mocking        | MSW (Mock Service Worker)      | Browser service worker for dev server                                |
+| CI pipeline        | Dagger (TypeScript SDK)        | Version pinned in `.tool-versions`                                   |
+| CI runner          | Woodpecker (self-hosted)       | `.woodpecker/`, one workflow per check — see `docs/woodpecker-ci.md` |
 
 ## Repository Layout
 
@@ -168,27 +171,36 @@ src/                                # Angular source
 tests/e2e/                          # Playwright E2E specs
 .dagger/src/index.ts                # Dagger CI pipeline (TypeScript)
 .githooks/pre-push-tag-check.sh     # Tag/version validation hook
-.github/
-├── actions/setup-dagger/           # Composite action for CI
+.woodpecker/                        # CI — one workflow per file, one status check each
+├── lint.yml                        # Carries the Dagger step contract; read this first
+├── format.yml
+├── typecheck.yml
+├── test.yml
+├── audit.yml
+├── audit-advisory.yml
+├── build.yml
+├── e2e.yml
+├── gitleaks.yml                    # Not a Dagger dispatch; ranged scan + clone override
+└── release.yml                     # v* tag: verify -> zip -> draft -> publish
+.github/                            # What stayed on GitHub Actions
+├── authorized-releasers            # Tagger-email allowlist read by release.yml
 ├── workflows/
-│   ├── ci.yml                      # 6-job parallel matrix via Dagger
-│   ├── release.yml                 # Build ZIP + upload to GitHub release
 │   ├── version-bump.yml            # Auto version-bump PR on tag push
-│   ├── codeql.yml                  # CodeQL security analysis
-│   ├── semgrep.yml                 # Semgrep SAST
-│   └── gitleaks.yml                # Secret scanning
+│   ├── codeql.yml                  # CodeQL security analysis (SARIF -> Security tab)
+│   └── semgrep.yml                 # Semgrep SAST (SARIF -> Security tab)
 └── dependabot.yml                  # Dependency update automation
 ```
 
 ## Documentation Map
 
-| Doc                            | Covers                                                            | When to consult                                 |
-| ------------------------------ | ----------------------------------------------------------------- | ----------------------------------------------- |
-| `docs/testing-strategy.md`     | Test tiers, coverage thresholds, test harness, adding tests       | Adding tests, understanding test infrastructure |
-| `docs/release-strategy.md`     | Tag-first release model, signed tags, ZIP artifact, version bumps | Releasing, version management                   |
-| `docs/dagger-ci-guide.md`      | Dagger commands, caching strategy, CI architecture, debugging     | CI changes, pipeline debugging                  |
-| `docs/doc-update-triggers.md`  | Mandatory doc update checklist                                    | After any code change                           |
-| `docs/testing-payment-flow.md` | MSW-mocked manual testing scenarios                               | Manual QA, dev server testing                   |
+| Doc                            | Covers                                                            | When to consult                                     |
+| ------------------------------ | ----------------------------------------------------------------- | --------------------------------------------------- |
+| `docs/testing-strategy.md`     | Test tiers, coverage thresholds, test harness, adding tests       | Adding tests, understanding test infrastructure     |
+| `docs/release-strategy.md`     | Tag-first release model, signed tags, ZIP artifact, version bumps | Releasing, version management                       |
+| `docs/dagger-ci-guide.md`      | Dagger commands, caching strategy, functions, debugging           | CI changes, pipeline debugging                      |
+| `docs/woodpecker-ci.md`        | Woodpecker workflows, step contract, secrets, envsubst traps      | Editing `.woodpecker/`, CI setup, branch protection |
+| `docs/doc-update-triggers.md`  | Mandatory doc update checklist                                    | After any code change                               |
+| `docs/testing-payment-flow.md` | MSW-mocked manual testing scenarios                               | Manual QA, dev server testing                       |
 
 ## MCP Tooling Summary
 

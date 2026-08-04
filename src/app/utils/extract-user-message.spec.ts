@@ -65,6 +65,65 @@ describe('extractUserMessage', () => {
     expect(extractUserMessage(err, fallback)).toBe('Rate limit exceeded');
   });
 
+  it('extracts a swap provider rejection forwarded by the daemon', () => {
+    // Daemon maps SwapsClientError::ProviderRejected to 422 with the
+    // provider's own message — the payment page shows it verbatim.
+    const err = createHttpErrorResponse({
+      error: {
+        error: {
+          category: 'SWAP_ERROR',
+          code: 'SWAP_PROVIDER_REJECTED',
+          message: 'Sent amount is too low relative to fees',
+        },
+      },
+      status: 422,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe('Sent amount is too low relative to fees');
+  });
+
+  it('returns fallback for structured body with a hex-bearing message', () => {
+    const err = createHttpErrorResponse({
+      error: {
+        error: {
+          category: 'SWAP_ERROR',
+          code: 'SWAP_PROVIDER_REJECTED',
+          message: 'execution reverted at 0xdeadbeef during gas estimation',
+        },
+      },
+      status: 422,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for structured body with a very long message', () => {
+    const err = createHttpErrorResponse({
+      error: { error: { code: 'SWAP_PROVIDER_REJECTED', message: 'x'.repeat(250) } },
+      status: 422,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for structured body with a multiline message', () => {
+    const err = createHttpErrorResponse({
+      error: { error: { code: 'SWAP_PROVIDER_REJECTED', message: 'line1\nline2' } },
+      status: 422,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe(fallback);
+  });
+
+  it('returns fallback for flat { message } body that is not clean', () => {
+    const err = createHttpErrorResponse({
+      error: { message: 'revert 0xabc123' },
+      status: 500,
+    });
+
+    expect(extractUserMessage(err, fallback)).toBe(fallback);
+  });
+
   it('extracts message from HttpErrorResponse with unparsed JSON string body', () => {
     const err = createHttpErrorResponse({
       error: JSON.stringify({

@@ -1,0 +1,17 @@
+# Test — Vitest with coverage. Thresholds live in the Vitest config, so a
+# coverage regression fails this check, not just a failing assertion.
+# See .woodpecker/lint.yml for the Dagger step contract.
+
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: test
+    image: kalapaja/dagger-client:0.20.3
+    pull: false
+    commands:
+      - timeout 900 dagger call test

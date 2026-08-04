@@ -3,7 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { SwapService } from './swap.service';
-import type { ApprovalTransaction, SwapTransaction } from '@/app/types/swap.types';
+import type {
+  ApprovalTransaction,
+  SwapTransaction,
+  ZeroExRawTransactionData,
+} from '@/app/types/swap.types';
 
 // ─── Mock wagmi/core ───
 const mockSendTransaction = vi.fn();
@@ -28,7 +32,7 @@ function makeApprovalTx(chainId = 137): ApprovalTransaction {
   };
 }
 
-function makeSwapTx(chainId = 42161): SwapTransaction {
+function makeSwapTx(chainId = 42161, overrides: Partial<SwapTransaction> = {}): SwapTransaction {
   return {
     chain_id: chainId,
     contract_address: '0xcontract',
@@ -37,7 +41,25 @@ function makeSwapTx(chainId = 42161): SwapTransaction {
     gas: '200000',
     max_fee_per_gas: '50000000000',
     max_priority_fee_per_gas: '1500000000',
+    ...overrides,
   };
+}
+
+function makeZeroExTx(overrides: Partial<ZeroExRawTransactionData> = {}): ZeroExRawTransactionData {
+  return {
+    to: '0xswapcontract',
+    data: '0xzeroexdata',
+    gas: '200000',
+    gas_price: '1000000000',
+    value: '0',
+    ...overrides,
+  };
+}
+
+/** Params passed to the most recent sendTransaction call. */
+function lastTxParams(): Record<string, unknown> {
+  const calls = mockSendTransaction.mock.calls;
+  return calls[calls.length - 1][1] as Record<string, unknown>;
 }
 
 describe('SwapService', () => {
@@ -141,6 +163,103 @@ describe('SwapService', () => {
       expect(mockCheckAllowance).toHaveBeenCalled();
       expect(mockSubmitApprove).not.toHaveBeenCalled();
       expect(mockWaitForReceipt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('gas parameters', () => {
+    beforeEach(() => {
+      mockSendTransaction.mockResolvedValue('0xhash');
+    });
+
+    it('converts present Across gas parameters to bigint', async () => {
+      await service.executeAcrossTx(makeSwapTx());
+
+      expect(lastTxParams()).toMatchObject({
+        value: 1000000n,
+        gas: 200000n,
+        maxFeePerGas: 50000000000n,
+        maxPriorityFeePerGas: 1500000000n,
+      });
+    });
+
+    it('omits absent Across gas parameters so the wallet estimates', async () => {
+      await service.executeAcrossTx({
+        chain_id: 42161,
+        contract_address: '0xcontract',
+        data: '0xswapdata',
+      });
+
+      const params = lastTxParams();
+      expect(params['gas']).toBeUndefined();
+      expect(params['maxFeePerGas']).toBeUndefined();
+      expect(params['maxPriorityFeePerGas']).toBeUndefined();
+      // Absent value is documented as zero, not as estimate-me
+      expect(params['value']).toBe(0n);
+    });
+
+    it('omits null Across gas parameters so the wallet estimates', async () => {
+      await service.executeAcrossTx(
+        makeSwapTx(42161, {
+          gas: null,
+          max_fee_per_gas: null,
+          max_priority_fee_per_gas: null,
+          value: null,
+        }),
+      );
+
+      const params = lastTxParams();
+      expect(params['gas']).toBeUndefined();
+      expect(params['maxFeePerGas']).toBeUndefined();
+      expect(params['maxPriorityFeePerGas']).toBeUndefined();
+      expect(params['value']).toBe(0n);
+    });
+
+    it('keeps a literal "0" Across gas parameter instead of dropping it', async () => {
+      await service.executeAcrossTx(
+        makeSwapTx(42161, { gas: '0', max_priority_fee_per_gas: '0', value: '0' }),
+      );
+
+      expect(lastTxParams()).toMatchObject({
+        gas: 0n,
+        maxPriorityFeePerGas: 0n,
+        value: 0n,
+      });
+    });
+
+    it('converts a present 0x gas limit to bigint', async () => {
+      await service.executeZeroExTx(makeZeroExTx(), 137);
+
+      expect(lastTxParams()).toMatchObject({
+        chainId: 137,
+        gas: 200000n,
+        gasPrice: 1000000000n,
+        value: 0n,
+      });
+    });
+
+    it('omits an absent 0x gas limit so the wallet estimates', async () => {
+      const { gas: _gas, ...rawTx } = makeZeroExTx();
+
+      await service.executeZeroExTx(rawTx, 137);
+
+      const params = lastTxParams();
+      expect(params['gas']).toBeUndefined();
+      expect(params['gasPrice']).toBe(1000000000n);
+      expect(params['value']).toBe(0n);
+    });
+
+    it('omits a null 0x gas limit so the wallet estimates', async () => {
+      await service.executeZeroExTx(makeZeroExTx({ gas: null }), 137);
+
+      const params = lastTxParams();
+      expect(params['gas']).toBeUndefined();
+      expect(params['gasPrice']).toBe(1000000000n);
+    });
+
+    it('keeps a literal "0" 0x gas limit instead of dropping it', async () => {
+      await service.executeZeroExTx(makeZeroExTx({ gas: '0' }), 137);
+
+      expect(lastTxParams()['gas']).toBe(0n);
     });
   });
 
