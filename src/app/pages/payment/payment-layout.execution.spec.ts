@@ -491,4 +491,60 @@ describe('PaymentLayoutComponent — execution chainId', () => {
       expect(state.errorRetryStep()).toBe('ready-to-pay');
     });
   });
+
+  // ─── Terminal invoice statuses reported by the poller ───
+  //
+  // `InvoiceService` invokes the callback and then stops polling for ANY
+  // non-active status. So every terminal status the daemon can report needs a
+  // branch here — otherwise the poller goes quiet and the payer is stranded on
+  // the processing screen with nothing else coming.
+  describe('onInvoiceUpdate terminal statuses', () => {
+    type WithHandler = { onInvoiceUpdate(invoice: Invoice, invoiceId: string): void };
+
+    function invoiceWith(status: string): Invoice {
+      return {
+        id: 'inv-001',
+        status,
+        payment_address: '0xrecipient',
+        valid_till: '2026-12-31T23:59:59.000Z',
+        cart: { items: [] },
+      } as never;
+    }
+
+    it.each(['AdminCanceled', 'CustomerCanceled'])(
+      'moves to a terminal error screen when the invoice is %s',
+      (status) => {
+        const { component, state, pendingTxService } = createTestHarness();
+        // This handler only ever runs while the poller is active.
+        state.transition('polling');
+
+        (component as unknown as WithHandler).onInvoiceUpdate(invoiceWith(status), 'inv-001');
+
+        expect(state.currentStep()).toBe('error');
+        expect(state.errorMessage()).toBe('error.invoiceCanceled');
+        // Terminal: there is nothing for the payer to retry.
+        expect(state.errorRetryStep()).toBeNull();
+        expect(pendingTxService.remove).toHaveBeenCalledWith('inv-001');
+      },
+    );
+
+    it('still treats a paid invoice as success rather than an error', () => {
+      const { component, state } = createTestHarness();
+      state.transition('polling');
+
+      (component as unknown as WithHandler).onInvoiceUpdate(invoiceWith('Paid'), 'inv-001');
+
+      expect(state.currentStep()).toBe('paid');
+    });
+
+    it('leaves an active invoice on its current screen', () => {
+      const { component, state } = createTestHarness();
+      state.transition('polling');
+      const before = state.currentStep();
+
+      (component as unknown as WithHandler).onInvoiceUpdate(invoiceWith('Waiting'), 'inv-001');
+
+      expect(state.currentStep()).toBe(before);
+    });
+  });
 });

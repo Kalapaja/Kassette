@@ -66,6 +66,7 @@ export const en = {
   'error.transactionReverted': 'Transaction failed on-chain',
   'error.getQuote': 'Failed to get quote',
   'error.invoiceExpired': 'Invoice has expired',
+  'error.invoiceCanceled': 'This invoice has been canceled',
   'error.partialPayment': 'Partial payment received. Please contact support.',
 
   // -- Partial payment --

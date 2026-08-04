@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
@@ -36,7 +36,10 @@ export class InvoiceService implements OnDestroy {
           this.stopPolling();
         }
       } catch (err: unknown) {
-        if (err instanceof Error && err.message.includes('404')) {
+        // `HttpErrorResponse` implements the Error interface but does not
+        // extend the native `Error` class, so an `instanceof Error` guard here
+        // never matches a real HTTP failure and this branch was dead.
+        if (err instanceof HttpErrorResponse && err.status === 404) {
           if (this._lastKnownInvoice && isActiveStatus(this._lastKnownInvoice.status)) {
             callback({ ...this._lastKnownInvoice, status: 'Paid' });
           }
