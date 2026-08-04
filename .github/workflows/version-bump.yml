@@ -13,7 +13,7 @@ jobs:
     name: Open version bump PR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: main
 
@@ -38,7 +38,7 @@ jobs:
 
       - name: Setup pnpm
         if: steps.check.outputs.skip != 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Bump package.json
         if: steps.check.outputs.skip != 'true'

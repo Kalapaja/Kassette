@@ -12,16 +12,30 @@ updates:
         patterns: ['@wagmi/*', 'viem', '@reown/*', '@walletconnect/*']
       testing:
         patterns: ['vitest', '@vitest/*', '@playwright/*']
-    # Angular major upgrades should be manual
+    # Angular major upgrades should be manual. @angular-eslint majors track the
+    # Angular generation too (v22 is "Angular 22 + TS 6" — its umbrella package
+    # peers on @angular/cli >= 22, and prefer-on-push-component-change-detection
+    # assumes v22 change-detection semantics), so they move with Angular, not
+    # ahead of it.
     ignore:
       - dependency-name: '@angular/*'
         update-types: ['version-update:semver-major']
+      - dependency-name: '@angular-eslint/*'
+        update-types: ['version-update:semver-major']
 
-  # Dagger module dependencies
+  # Dagger module dependencies. .dagger/package.json is SDK scaffolding — its
+  # typescript pin has to match what the Dagger engine's TypeScript SDK can
+  # drive, not npm latest. TS 7 (the Go port) drops the JS compiler API the SDK
+  # introspects decorators with, so every `dagger call` dies with
+  # "Cannot read properties of undefined (reading 'ClassDeclaration')".
+  # Majors here move with the engine bump in .tool-versions.
   - package-ecosystem: npm
     directory: /.dagger
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
 
   # GitHub Actions — only three workflows are left on Actions after the
   # Woodpecker port (codeql, semgrep, version-bump); this keeps their action
