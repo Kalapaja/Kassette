@@ -60,7 +60,7 @@
     "fast-check": "^4.6.0",
     "lefthook": "^2.1.5",
     "msw": "^2.15.0",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.25",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3",
